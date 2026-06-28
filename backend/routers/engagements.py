@@ -14,14 +14,18 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import anthropic
 import httpx
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from lib import audit_log, coverage, engagements
+from lib import audit_log, coverage, engagement_secrets, engagements
+from lib import targets as targets_lib
 from lib.auth import mint_report_nonce
+from lib.errors import MhpError
+from lib.validators import validate_url
 from .settings import keychain_get, keychain_get_named
 
 logger = logging.getLogger(__name__)
@@ -54,11 +58,37 @@ def _md_code_fence(content: str) -> tuple[str, str]:
 
 # ── Request models ──────────────────────────────────────────────────────────
 
+class EngagementAuthInput(BaseModel):
+    """Optional web-app authentication, captured at create time.
+
+    Carries secret material on the way IN only — it is encrypted into the
+    engagement secret store immediately and never echoed back. The response
+    surfaces a redacted reference (kind + last4 / username), never the secret.
+    """
+    kind: Literal["none", "cookie", "bearer", "credentials"] = "none"
+    cookie:    str = Field("", max_length=8192)   # kind=cookie: replayed Cookie header
+    token:     str = Field("", max_length=8192)   # kind=bearer: replayed bearer token
+    username:  str = Field("", max_length=500)    # kind=credentials
+    password:  str = Field("", max_length=2048)   # kind=credentials
+    login_url: str = Field("", max_length=2048)   # kind=credentials: login form URL
+
+
 class EngagementCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     scope: list[str] = Field(default_factory=list)
     exclusions: list[str] = Field(default_factory=list)
     notes: str = ""
+    # Typed engagement. `generic` keeps the quick-create paths working
+    # unchanged; the typed-create flow sends local-app / web-app explicitly.
+    type: Literal["generic", "local-app", "web-app", "host"] = "generic"
+    provenance: Literal["lab", "owned", "external"] = "external"
+    # local-app: directory to hook onto (validated server-side: must exist + be
+    # a readable directory). Becomes the engagement's source root.
+    source_root: str = Field("", max_length=4096)
+    # web-app: target URL(s); the first becomes the engagement's primary target.
+    targets: list[str] = Field(default_factory=list)
+    # web-app: optional auth, stored encrypted (never plaintext / never logged).
+    auth: EngagementAuthInput | None = None
 
 
 _FILENAME_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -82,6 +112,11 @@ class EngagementPatch(BaseModel):
     exclusions: list[str] | None = None
     notes: str | None = None
     status: Literal["active", "completed", "archived"] | None = None
+    # Codebase folder + primary target are settable after creation (e.g. the
+    # Graph view's "Set codebase folder"). update_engagement() already accepts
+    # these columns; they just need to survive the patch model.
+    source_root: str | None = None
+    primary_target: str | None = None
 
 
 class ResultPost(BaseModel):
@@ -116,13 +151,129 @@ def list_all(include_archived: bool = False) -> dict[str, Any]:
     return {"engagements": engagements.list_engagements(include_archived)}
 
 
+def _host_of_url(url: str) -> str:
+    try:
+        return (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+def _validate_source_root(raw: str) -> str:
+    """local-app: the path must exist and be a readable directory.
+
+    Returns the resolved absolute path; raises HTTPException(400) with a
+    clear message otherwise so no engagement is created on a bad path.
+    """
+    s = (raw or "").strip()
+    if not s:
+        raise HTTPException(400, "local-app engagement requires a directory path")
+    p = Path(s).expanduser()
+    try:
+        resolved = p.resolve()
+    except (OSError, RuntimeError):
+        raise HTTPException(400, f"invalid directory path: {s}")
+    if not resolved.exists():
+        raise HTTPException(400, f"directory does not exist: {resolved}")
+    if not resolved.is_dir():
+        raise HTTPException(400, f"not a directory: {resolved}")
+    if not os.access(resolved, os.R_OK):
+        raise HTTPException(400, f"directory is not readable: {resolved}")
+    return str(resolved)
+
+
+def _validate_web_targets(raw: list[str]) -> list[str]:
+    """web-app: require at least one valid http(s) URL. Returns the cleaned,
+    de-duplicated list (order preserved; first is the primary target)."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in raw or []:
+        t = (t or "").strip()
+        if not t:
+            continue
+        try:
+            url = validate_url(t, field="target")
+        except MhpError as exc:
+            raise HTTPException(400, str(exc))
+        if url not in seen:
+            seen.add(url)
+            out.append(url)
+    if not out:
+        raise HTTPException(400, "web-app engagement requires at least one valid URL")
+    return out
+
+
 @router.post("")
 def create(body: EngagementCreate) -> dict[str, Any]:
-    aid = audit_log.start(tool="engagement-create", target=body.name, argv=[body.name])
-    e = engagements.create_engagement(body.name, body.scope,
-                                      body.exclusions, body.notes)
-    audit_log.complete(aid, summary=f"created {e['id']}")
-    return e
+    scope = list(body.scope)
+    source_root = ""
+    primary_target = ""
+    target_specs: list[tuple[str, str]] = []  # (name, address) for the targets registry
+
+    # ── Branch validation (fail BEFORE creating anything) ──────────────────
+    if body.type == "local-app":
+        source_root = _validate_source_root(body.source_root)
+        primary_target = source_root
+    elif body.type == "web-app":
+        urls = _validate_web_targets(body.targets)
+        primary_target = urls[0]
+        for u in urls:
+            host = _host_of_url(u)
+            # Fold the target host into scope so engagement-mode scope
+            # enforcement covers the declared target (strengthens, never
+            # weakens, target_policy — we only ADD allowed targets).
+            if host and host not in scope:
+                scope.append(host)
+            target_specs.append((u, u))
+
+    # Provenance drives scope_tag for the registry rows.
+    scope_tag = {"lab": "lab", "owned": "owned", "external": "authorized"}.get(
+        body.provenance, "manual")
+    target_kind = "lab" if body.provenance == "lab" else "manual"
+
+    # ── Create (audit carries type/provenance — never the auth secret) ─────
+    aid = audit_log.start(
+        tool="engagement-create", target=body.name,
+        argv=[body.name, f"type={body.type}", f"provenance={body.provenance}"],
+    )
+    try:
+        e = engagements.create_engagement(
+            body.name, scope, body.exclusions, body.notes,
+            type=body.type, provenance=body.provenance,
+            source_root=source_root, primary_target=primary_target,
+        )
+    except ValueError as exc:
+        audit_log.error(aid, str(exc))
+        raise HTTPException(400, str(exc))
+
+    eid = e["id"]
+
+    # Register the primary target so tools in this engagement default to it.
+    primary_target_id: str | None = None
+    for tname, addr in target_specs:
+        t = targets_lib.create_target(
+            name=tname, address=addr, kind=target_kind,
+            engagement_id=eid, scope_tag=scope_tag,
+            source_meta={"origin": "engagement-create"},
+        )
+        if primary_target_id is None:
+            primary_target_id = t["id"]
+
+    # ── Encrypted auth (web-app only; redacted in the response) ────────────
+    auth_meta = None
+    if body.type == "web-app" and body.auth and body.auth.kind != "none":
+        try:
+            auth_meta = engagement_secrets.set_auth(eid, body.auth.model_dump())
+        except ValueError as exc:
+            # Auth is optional — don't fail the whole create, surface the issue.
+            logger.warning("engagement %s: auth not stored: %s", eid, exc)
+            auth_meta = None
+
+    audit_log.complete(aid, summary=f"created {eid} type={body.type}")
+    return {
+        **e,
+        "primary_target_id": primary_target_id,
+        "auth": auth_meta,   # redacted reference only; never the secret
+    }
 
 
 @router.get("/{eid}")
@@ -157,6 +308,47 @@ def delete_one(eid: str) -> dict[str, bool]:
         raise HTTPException(404, "engagement not found")
     audit_log.complete(aid, summary="deleted")
     return {"deleted": True}
+
+
+# ── Engagement auth (encrypted secrets — redacted reads only) ────────────────
+
+@router.get("/{eid}/auth")
+def get_auth_meta(eid: str) -> dict[str, Any]:
+    """Redacted auth reference for the UI. Never returns secret material —
+    only kind + a non-secret hint (last4 / username)."""
+    if engagements.get_engagement(eid) is None:
+        raise HTTPException(404, "engagement not found")
+    return {"auth": engagement_secrets.auth_meta(eid)}
+
+
+@router.put("/{eid}/auth")
+def put_auth(eid: str, body: EngagementAuthInput) -> dict[str, Any]:
+    """Set / replace / clear (kind=none) the engagement's auth. The secret is
+    encrypted at rest; the audit row records only the kind, never the value."""
+    if engagements.get_engagement(eid) is None:
+        raise HTTPException(404, "engagement not found")
+    aid = audit_log.start(
+        tool="engagement-auth-set", target=eid,
+        argv=[f"kind={body.kind}"], engagement_id=eid,
+    )
+    try:
+        meta = engagement_secrets.set_auth(eid, body.model_dump())
+    except ValueError as exc:
+        audit_log.error(aid, str(exc))
+        raise HTTPException(400, str(exc))
+    audit_log.complete(aid, summary=f"auth kind={body.kind}")
+    return {"auth": meta}
+
+
+@router.delete("/{eid}/auth")
+def delete_auth(eid: str) -> dict[str, bool]:
+    if engagements.get_engagement(eid) is None:
+        raise HTTPException(404, "engagement not found")
+    aid = audit_log.start(tool="engagement-auth-delete", target=eid,
+                          argv=[eid], engagement_id=eid)
+    removed = engagement_secrets.delete_auth(eid)
+    audit_log.complete(aid, summary="deleted" if removed else "none")
+    return {"deleted": removed}
 
 
 # ── Results ─────────────────────────────────────────────────────────────────
@@ -364,7 +556,7 @@ async def export_to_github(eid: str, body: GithubExportBody) -> dict[str, Any]:
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "HackingPal/0.1",
+        "User-Agent": "s-ide/0.1",
     }
 
     async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
@@ -937,7 +1129,7 @@ def _render_html(
         parts.append("</tbody></table>")
 
     parts.append("""<footer>
-Generated by HackingPal. Use your browser's <em>File → Print → Save as PDF</em>
+Generated by s-ide. Use your browser's <em>File → Print → Save as PDF</em>
 to export this report as a PDF.
 </footer></body></html>""")
     return "".join(parts)

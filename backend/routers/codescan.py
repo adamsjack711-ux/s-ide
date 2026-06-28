@@ -204,6 +204,55 @@ _ROUTE_EXPRESS = re.compile(
     r'\b(?:app|router)\.(get|post|put|delete|patch)\(\s*["\']([^"\']+)["\']'
 )
 
+# Frontend → backend API-call extraction. Captures the string argument of an
+# API/WS call; the path is then pulled out of it (handles `${BASE}/x` templates).
+_API_CALL = re.compile(
+    r'\b(?:authFetch|openWs|watchWsLiveness|api|fetch|axios\.[a-z]+)\(\s*[`"\']([^`"\']+)',
+)
+# Extensions we treat as "frontend" for module grouping / call attribution.
+_FRONTEND_EXTS = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"}
+# Path roots stripped when naming a frontend module from a file path.
+_MODULE_STRIP_ROOTS = {"frontend", "src", "app", "renderer", "client", "web"}
+
+
+def _extract_path(raw: str) -> str | None:
+    """Pull a leading API path out of a call argument string.
+
+    Handles plain "/labs/x", template "`${BASE}/labs/x`", and ignores
+    non-path args. Returns the path starting at the first '/'.
+    """
+    m = re.search(r"/[A-Za-z0-9_\-/{}.$]*", raw)
+    if not m:
+        return None
+    p = m.group(0)
+    # Drop trailing template/format noise.
+    p = p.split("${", 1)[0].split("{", 1)[0] if "/" in p else p
+    return p if p.startswith("/") and len(p) > 1 else None
+
+
+def _route_group(path: str) -> str:
+    """Collapse a path to a node group: first segment, or the ws tool name."""
+    segs = [s for s in path.strip("/").split("/") if s]
+    if not segs:
+        return "root"
+    if segs[0] == "ws" and len(segs) > 1:
+        return segs[1]
+    return segs[0]
+
+
+def _frontend_module(rel_path: str) -> str:
+    """Name the frontend module a file belongs to (a readable area)."""
+    parts = [p for p in rel_path.replace("\\", "/").split("/") if p]
+    # Strip leading known roots.
+    while parts and parts[0] in _MODULE_STRIP_ROOTS:
+        parts = parts[1:]
+    if not parts:
+        return "root"
+    if len(parts) == 1:
+        # A file sitting directly in the source root → use its stem.
+        return Path(parts[0]).stem
+    return parts[0]
+
 
 class _ScanRequest(BaseModel):
     path: str
@@ -216,20 +265,25 @@ def _is_text_file(p: Path) -> bool:
     return p.suffix.lower() in _TEXT_EXTS
 
 
-def _scan_file(abs_path: Path, rel_path: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Return (findings, routes) for one source file from a single read."""
+def _scan_file(
+    abs_path: Path, rel_path: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """Return (findings, routes, api_call_paths) for one file from a single read."""
     findings: list[dict[str, Any]] = []
     routes: list[dict[str, Any]] = []
+    calls: list[str] = []
     try:
         with abs_path.open("r", encoding="utf-8", errors="strict") as fh:
             lines = fh.readlines()
     except (OSError, UnicodeDecodeError, ValueError):
-        return findings, routes  # unreadable / binary — skip silently
+        return findings, routes, calls  # unreadable / binary — skip silently
 
     # Minified heuristic: any absurdly long line → skip the whole file.
     for ln in lines:
         if len(ln) > _MAX_LINE_LEN:
-            return findings, routes
+            return findings, routes, calls
+
+    is_frontend = abs_path.suffix.lower() in _FRONTEND_EXTS
 
     for i, line in enumerate(lines, start=1):
         for regex, severity, type_, title in _RULES:
@@ -253,7 +307,13 @@ def _scan_file(abs_path: Path, rel_path: str) -> tuple[list[dict[str, Any]], lis
             if mf:
                 routes.append({"method": "ANY", "path": mf.group(1),
                                "file": rel_path, "line": i})
-    return findings, routes
+        # Frontend API/WS call extraction.
+        if is_frontend:
+            for cm in _API_CALL.finditer(line):
+                p = _extract_path(cm.group(1))
+                if p:
+                    calls.append(p)
+    return findings, routes, calls
 
 
 def _parse_dependencies(root: Path) -> tuple[list[dict[str, str]], set[str]]:
@@ -340,11 +400,14 @@ def codescan(req: _ScanRequest) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
 
     # Asset-inventory accumulators (built from the same walk).
-    from collections import Counter
+    from collections import Counter, defaultdict
     lang_counts: Counter[str] = Counter()
     entry_files: list[str] = []
     config_files: list[str] = []
     routes: list[dict[str, Any]] = []
+    # Connection-graph accumulators: frontend module → Counter of route groups
+    # it calls; and every route group seen on a frontend call (target set).
+    module_calls: dict[str, Counter] = defaultdict(Counter)
 
     for dirpath, dirnames, filenames in os.walk(root):
         # Prune skip dirs in-place so os.walk doesn't descend into them.
@@ -381,9 +444,13 @@ def codescan(req: _ScanRequest) -> dict[str, Any]:
             if name in _CONFIG_NAMES or suf in _CONFIG_SUFFIXES:
                 config_files.append(rel)
 
-            f, r = _scan_file(abs_path, rel)
+            f, r, calls = _scan_file(abs_path, rel)
             findings.extend(f)
             routes.extend(r)
+            if calls:
+                mod = _frontend_module(rel)
+                for p in calls:
+                    module_calls[mod][_route_group(p)] += 1
 
         if scanned >= max_files:
             break
@@ -419,9 +486,73 @@ def codescan(req: _ScanRequest) -> dict[str, Any]:
               for t, n in finding_types.most_common()]),
     ]
 
+    # ── Assemble the frontend → backend connection graph ──
+    # Backend route groups (with whether the group is a WS/streaming tool and
+    # how many routes back it). The router-prefix is unknown from a bare
+    # @router.get("/x"), so we group by the first path segment — good enough to
+    # show "which area of the backend" a call lands in.
+    route_defs: dict[str, dict[str, Any]] = {}
+    for rt in routes:
+        g = _route_group(rt["path"])
+        d = route_defs.setdefault(g, {"count": 0, "ws": False})
+        d["count"] += 1
+        if rt["path"].startswith("/ws") or rt["method"] == "WEBSOCKET":
+            d["ws"] = True
+
+    g_nodes: list[dict[str, Any]] = []
+    g_edges: list[dict[str, Any]] = []
+    seen_backend: set[str] = set()
+
+    def _add_backend(group: str) -> None:
+        if group in seen_backend:
+            return
+        seen_backend.add(group)
+        d = route_defs.get(group)
+        ws = bool(d and d["ws"])
+        g_nodes.append({
+            "id": f"be:{group}",
+            "label": ("/ws/" if ws else "/") + group,
+            "layer": "backend",
+            "kind": "ws" if ws else "route",
+            "defined": d is not None,
+            "routes": (d or {}).get("count", 0),
+        })
+
+    for mod, targets in sorted(module_calls.items()):
+        g_nodes.append({
+            "id": f"fe:{mod}",
+            "label": mod,
+            "layer": "frontend",
+            "calls": int(sum(targets.values())),
+        })
+        for group, n in targets.items():
+            _add_backend(group)
+            d = route_defs.get(group)
+            g_edges.append({
+                "from": f"fe:{mod}",
+                "to": f"be:{group}",
+                "kind": "ws" if (d and d["ws"]) else "api",
+                "count": int(n),
+            })
+
+    # We deliberately DON'T add every backend route group as a node — the full
+    # surface is ~140 prefixes and makes the visual unreadable. The graph shows
+    # the *wired* path (frontend → the backend areas it actually calls). The
+    # unreferenced backend surface is reported as a count for context.
+    unwired = sum(1 for g in route_defs if g not in seen_backend)
+
+    graph = {
+        "nodes": g_nodes,
+        "edges": g_edges,
+        "frontend_count": sum(1 for n in g_nodes if n["layer"] == "frontend"),
+        "backend_count": sum(1 for n in g_nodes if n["layer"] == "backend"),
+        "unwired_backend_groups": unwired,
+    }
+
     return {
         "root": str(root),
         "scanned_files": scanned,
         "findings": findings,
         "assets": assets,
+        "graph": graph,
     }
