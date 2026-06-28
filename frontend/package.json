@@ -1,6 +1,6 @@
 {
   "name": "s-ide",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -75,7 +75,7 @@
     "mac": {
       "target": [
         {
-          "target": "dir",
+          "target": "dmg",
           "arch": [
             "arm64"
           ]

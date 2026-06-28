@@ -21,6 +21,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, EyebrowPill, GlassCard, StatusDot } from "performative-ui";
 import { authFetch } from "../api";
 import { emit } from "../shell/bus";
+import ViewModeToggle from "../shell/ViewModeToggle";
+import { useViewMode } from "../lib/viewMode";
 import {
   createEngagement,
   getActiveEngagementId,
@@ -180,6 +182,7 @@ export default function LabsView() {
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [statuses, setStatuses] = useState<Record<string, LabStatus>>({});
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [labsMode] = useViewMode("labs");
 
   const activeEngagementId = useActiveEngagementId();
 
@@ -248,11 +251,6 @@ export default function LabsView() {
       <header className="border-b border-divider px-6 pt-5 pb-4">
         <EyebrowPill>Training</EyebrowPill>
         <h1 className="mt-2 text-lg font-bold tracking-wide text-ink-primary">Labs</h1>
-        <p className="mt-1 max-w-3xl text-[13px] leading-snug text-ink-muted">
-          Vulnerable apps you can spin up locally and aim the tools at. Each runs
-          in a loopback-only container under colima (or any Docker-compatible
-          runtime) — never reachable off-host.
-        </p>
         <div className="mt-4">
           <RuntimeBanner runtime={runtime} onRecheck={loadRuntime} />
         </div>
@@ -270,7 +268,18 @@ export default function LabsView() {
           <div className="text-sm text-ink-dim">Loading labs…</div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        {labs.length > 0 && (
+          <div className="mb-3 flex items-center justify-end">
+            <ViewModeToggle storageKey="labs" />
+          </div>
+        )}
+        <div
+          className={
+            labsMode === "list"
+              ? "grid grid-cols-1 gap-2.5"
+              : "grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+          }
+        >
           {labs.map((lab) => (
             <LabCard
               key={lab.id}
@@ -301,9 +310,6 @@ function RuntimeBanner({
       <div className="flex items-center gap-2.5 rounded border border-accent/40 bg-accent/10 px-3 py-2 text-[12px]">
         <StatusDot color="var(--accent, #39d98a)" />
         <span className="font-semibold text-accent">Docker ready</span>
-        <span className="text-ink-muted">
-          Container runtime is up — labs are good to build and start.
-        </span>
       </div>
     );
   }

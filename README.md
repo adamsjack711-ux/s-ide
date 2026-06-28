@@ -4,6 +4,12 @@
 
 > Working name. Built on [HackingPal](https://github.com/hackingpal)'s backend (vendored, decoupled).
 
+### ⬇️ Download
+
+**[macOS (Apple Silicon) — s-ide-0.1.0-arm64.dmg](https://github.com/adamsjack711-ux/s-ide/releases/latest)**
+
+Unsigned build — on first launch, right-click the app → **Open** (or `xattr -dr com.apple.quarantine /Applications/s-ide.app`). The backend sidecar is bundled; no Python setup needed.
+
 ## The idea
 
 A security engagement, treated the way an IDE treats a codebase — a persistent project you live inside.
