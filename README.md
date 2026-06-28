@@ -61,7 +61,17 @@ cd backend && python3 -m uvicorn main:app --reload --port 8765
 cd frontend && npm install && npm run dev:all
 ```
 
-`RAMPART_EXPOSE_ALL=1` exposes the full gated toolset. Build the desktop app with `cd frontend && npm run dist:dir`.
+`RAMPART_EXPOSE_ALL=1` exposes the full gated toolset. Build the desktop app locally with `cd frontend && npm run dist:mac`.
+
+## Releasing
+
+The macOS DMG on the [Releases page](https://github.com/adamsjack711-ux/s-ide/releases/latest) is rebuilt by CI on every version tag. To ship a big update:
+
+```bash
+npm --prefix frontend version minor          # bump 0.1.0 → 0.2.0 (or major / patch)
+git commit -am "Release v0.2.0"
+git tag v0.2.0 && git push --follow-tags     # tag push → GitHub Actions builds + attaches the DMG
+```
 
 ## ⚠️ Authorized use only
 
