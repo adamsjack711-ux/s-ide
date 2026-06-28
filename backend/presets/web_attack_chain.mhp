@@ -1,0 +1,115 @@
+{
+  "id": "web_attack_chain",
+  "name": "Web Attack Chain Playbook",
+  "description": "Narrow web exploit chain: identify a single injection vector, expand it into code/data exposure, escalate to host-level access where possible. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "url",
+  "estimated_duration": "30-60 min",
+  "risk_level": "critical",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "web",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Quick Footprint",
+      "description": "Minimum recon to pick the right payloads.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "cms_fingerprint", "tool": "cms_fingerprint",
+         "display_name": "Stack fingerprint",
+         "output_keys": ["tech_count", "tech_names"]},
+        {"id": "http_probe", "tool": "http_probe",
+         "display_name": "Path probe",
+         "options": {"wordlist": "small"},
+         "output_keys": ["paths", "admin_panels", "config_files",
+                         "backup_files", "api_endpoints"]},
+        {"id": "security_headers", "tool": "security_headers",
+         "display_name": "Headers / CSP",
+         "output_keys": ["missing_headers", "csp_policy"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Injection Probe",
+      "description": "Hammer the input surfaces in parallel; first hit drives escalation.",
+      "rate_limit": 4,
+      "steps": [
+        {"id": "xss", "tool": "xss",
+         "display_name": "XSS",
+         "approval": true,
+         "output_keys": ["reflected_xss", "stored_xss", "dom_xss", "contexts"]},
+        {"id": "sqli", "tool": "sqli",
+         "display_name": "SQLi",
+         "approval": true,
+         "output_keys": ["injectable_params", "dbms", "blind_sqli", "union_sqli"],
+         "on_finding": "pause"},
+        {"id": "cmdi", "tool": "cmdi",
+         "display_name": "Command injection",
+         "approval": true,
+         "output_keys": ["cmdi_found", "os", "output"],
+         "on_finding": "pause"},
+        {"id": "ssti", "tool": "ssti",
+         "display_name": "SSTI",
+         "approval": true,
+         "output_keys": ["ssti_found", "template_engine", "rce_possible"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Expand the Foothold",
+      "description": "Use the injection to read code and configuration.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "lfi", "tool": "lfi",
+         "display_name": "LFI / traversal",
+         "approval": true,
+         "options": {"targets": "{phase_1.http_probe.config_files}"},
+         "output_keys": ["lfi_found", "files_accessible"]},
+        {"id": "xxe", "tool": "xxe",
+         "display_name": "XXE",
+         "approval": true,
+         "output_keys": ["xxe_found", "files_read", "ssrf_via_xxe"]},
+        {"id": "ssrf", "tool": "ssrf",
+         "display_name": "SSRF → internal",
+         "approval": true,
+         "output_keys": ["ssrf_found", "internal_hosts", "cloud_metadata"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Escalate to Host",
+      "description": "Turn data exposure into operator-grade access.",
+      "rate_limit": 2,
+      "steps": [
+        {"id": "secret_dump", "tool": "secret_dump",
+         "display_name": "Secret dump",
+         "output_keys": ["secrets", "api_keys", "db_creds"]},
+        {"id": "ssrf_imds", "tool": "ssrf_imds",
+         "display_name": "SSRF → IMDS",
+         "approval": true,
+         "condition": "phase_3.ssrf.cloud_metadata != null",
+         "options": {"imds_focus": true},
+         "output_keys": ["imds_accessible", "credentials_exposed", "iam_role"]},
+        {"id": "docker_socket", "tool": "docker_socket",
+         "display_name": "Docker socket exposure",
+         "approval": true,
+         "output_keys": ["socket_exposed", "container_escape_possible"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Attack-chain report",
+         "options": {"template": "web", "attack_path_diagram": true,
+                     "owasp_mapping": true, "cvss_scoring": true}}
+      ]
+    }
+  ]
+}

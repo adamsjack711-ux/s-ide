@@ -1,0 +1,139 @@
+{
+  "id": "active_directory_kill_chain",
+  "name": "Active Directory Kill Chain",
+  "description": "AD-focused kill chain: network position, unauthenticated enumeration, credential capture, authenticated enumeration, privilege escalation. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "ip",
+  "estimated_duration": "45-90 min",
+  "risk_level": "critical",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "internal",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Network Position",
+      "description": "Where are we, what's around us, where are the DCs.",
+      "rate_limit": 8,
+      "steps": [
+        {"id": "lan_scan", "tool": "lan_scan",
+         "display_name": "LAN sweep",
+         "output_keys": ["hosts", "ips"]},
+        {"id": "find_dcs", "tool": "find_dcs",
+         "display_name": "Locate DCs",
+         "options": {"ports": "88,389,445,636,3268,3269"},
+         "output_keys": ["domain_controllers", "ports"]},
+        {"id": "dns_internal", "tool": "dns_internal",
+         "display_name": "Internal DNS recon",
+         "output_keys": ["domain_name", "forest", "trusts"]},
+        {"id": "local_disco", "tool": "local_disco",
+         "display_name": "Multicast snooping",
+         "output_keys": ["llmnr_active", "nbns_active", "mdns_active"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Unauthenticated Enumeration",
+      "description": "Pre-auth surface — null sessions, anonymous LDAP, AS-REP, MS17-010.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "smb_null", "tool": "smb_null",
+         "display_name": "SMB null session",
+         "options": {"null_session": true},
+         "output_keys": ["null_session_allowed", "shares", "users", "groups"]},
+        {"id": "ldap_anon", "tool": "ldap_anon",
+         "display_name": "Anonymous LDAP bind",
+         "options": {"anonymous": true},
+         "output_keys": ["anonymous_bind", "base_dn", "users", "password_policy"]},
+        {"id": "asrep_roast", "tool": "asrep_roast",
+         "display_name": "AS-REP roast",
+         "output_keys": ["vulnerable_accounts", "hashes", "account_count"]},
+        {"id": "nmap_smb", "tool": "nmap_smb",
+         "display_name": "Nmap SMB scripts",
+         "options": {"preset": "smb_enum"},
+         "output_keys": ["ms17_010", "eternalblue",
+                         "smb_version", "signing_disabled"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Credential Capture",
+      "description": "Crack what we got, spray cautiously.",
+      "rate_limit": 2,
+      "steps": [
+        {"id": "hash_cracker", "tool": "hash_cracker",
+         "display_name": "AS-REP hash crack",
+         "options": {"wordlist": "rockyou", "hashtype": "krb5asrep",
+                     "targets": "{phase_2.asrep_roast.hashes}"},
+         "output_keys": ["cracked", "plaintext"]},
+        {"id": "password_spray", "tool": "password_spray",
+         "display_name": "Password spray",
+         "condition": "phase_2.ldap_anon.users != null",
+         "approval": true,
+         "options": {"policy_aware": true},
+         "output_keys": ["valid_creds", "locked_accounts"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Authenticated Enumeration",
+      "description": "Authenticated AD enumeration once we have credentials.",
+      "rate_limit": 5,
+      "condition": "phase_3.password_spray.valid_creds != null or phase_3.hash_cracker.cracked != null",
+      "steps": [
+        {"id": "ldap_full", "tool": "ldap_full",
+         "display_name": "LDAP full enum",
+         "options": {"authenticated": true, "full": true},
+         "output_keys": ["users", "groups", "ous", "gpos",
+                         "admins", "service_accounts", "password_policy"]},
+        {"id": "kerberoast", "tool": "kerberoast",
+         "display_name": "Kerberoast",
+         "output_keys": ["spn_accounts", "hashes", "privileged_spns"]},
+        {"id": "bloodhound", "tool": "bloodhound",
+         "display_name": "BloodHound graph",
+         "output_keys": ["da_path", "shortest_path_length",
+                         "kerberoastable_das",
+                         "unconstrained_delegation", "acl_abuses"]},
+        {"id": "gpo_analysis", "tool": "gpo_analysis",
+         "display_name": "GPO analysis",
+         "output_keys": ["interesting_gpos", "script_paths", "writable_gpos"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Privilege Escalation",
+      "description": "Turn enumerated edges into a path to DA.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "crack_spns", "tool": "crack_spns",
+         "display_name": "Crack Kerberoast hashes",
+         "options": {"wordlist": "rockyou", "rules": "best64",
+                     "hashtype": "krb5tgs",
+                     "targets": "{phase_4.kerberoast.hashes}"},
+         "output_keys": ["cracked_spns", "plaintext"]},
+        {"id": "acl_abuse", "tool": "acl_abuse",
+         "display_name": "ACL abuse paths",
+         "options": {"targets": "{phase_4.bloodhound.acl_abuses}"},
+         "output_keys": ["exploitable_acls", "paths"]},
+        {"id": "delegation_abuse", "tool": "delegation_abuse",
+         "display_name": "Delegation abuse",
+         "options": {"targets": "{phase_4.bloodhound.unconstrained_delegation}"},
+         "output_keys": ["vulnerable_computers", "coerce_targets"]}
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "AD kill-chain report",
+         "options": {"template": "internal", "bloodhound_graphs": true,
+                     "attack_path_diagram": true}}
+      ]
+    }
+  ]
+}

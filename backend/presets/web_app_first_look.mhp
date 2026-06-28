@@ -1,0 +1,62 @@
+{
+  "id": "web_app_first_look",
+  "name": "Web App First Look",
+  "description": "First-pass assessment of a web application. Resolve the domain, audit its TLS, fingerprint the stack, sweep common paths, and check CT logs for forgotten subdomains. Engagement mode only.",
+  "category": "web_app",
+  "target_type": "domain",
+  "mode_required": "engagement",
+  "author": "built-in",
+  "steps": [
+    {
+      "id": "whois",
+      "tool": "whois",
+      "rationale": "Confirm ownership before touching the target. If WHOIS shows a different org than the engagement scope expects, stop.",
+      "success": "Registrant and ASN match the expected owner.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "dns_recon",
+      "tool": "dns_recon",
+      "rationale": "Map the DNS posture — A/AAAA for the apex, NS for hosting, MX for mail routing. Sets the IP set the rest of the playbook is allowed to talk to.",
+      "success": "Records enumerated and reconciled against engagement scope.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "ct_log",
+      "tool": "ct_log",
+      "rationale": "CT logs reveal subdomains that didn't show up in DNS — staging hosts, internal tools that briefly got public certs, forgotten environments. Often where the real findings live.",
+      "success": "Subdomain list saved; flag anything looking dev/staging/admin.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "tls_audit",
+      "tool": "tls_audit",
+      "rationale": "Audit the live TLS posture before sending unencrypted-ish requests. If TLS is broken, all later assumptions about confidentiality go with it.",
+      "success": "TLS 1.2+/1.3 only; HSTS present; chain valid; >30 days expiry.",
+      "approval": false,
+      "options": { "port": 443 }
+    },
+    {
+      "id": "cms_fingerprint",
+      "tool": "cms_fingerprint",
+      "rationale": "Identify the CMS / framework / server stack so subsequent active checks pick relevant payloads instead of blasting everything.",
+      "success": "Stack identified at med+ confidence; outdated versions flagged.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "http_probe",
+      "tool": "http_probe",
+      "rationale": "Light path/endpoint enumeration informed by the stack fingerprint. Looking for admin UIs, exposed configs, status endpoints — anything that hands an attacker reconnaissance for free.",
+      "success": "No 200s on sensitive paths; security headers present (CSP, X-Frame-Options, HSTS).",
+      "approval": true,
+      "options": {
+        "wordlist": "small",
+        "max_concurrency": 16
+      }
+    }
+  ]
+}

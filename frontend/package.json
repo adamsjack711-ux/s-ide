@@ -1,0 +1,88 @@
+{
+  "name": "s-ide",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "description": "s-ide — an IDE for security engagements (working name). Electron + React, on a vendored FastAPI backend.",
+  "author": {
+    "name": "Jack Adams-Lovell",
+    "email": "adamsjack711@gmail.com"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "dev:all": "concurrently -k -n vite,electron -c blue,magenta \"npm run dev\" \"npm run dev:electron\"",
+    "build": "tsc && vite build",
+    "build:backend": "cd ../backend && pyinstaller network-tools-backend.spec --noconfirm",
+    "build:all": "npm run build:backend && npm run build",
+    "dist:dir": "npm run build:all && electron-builder --dir",
+    "dist:mac": "npm run build:all && electron-builder --mac",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@dopaminefx/effects": "^0.1.0",
+    "@dopaminefx/react": "^0.1.0",
+    "@monaco-editor/react": "^4.7.0",
+    "dockview": "^7.0.0",
+    "dockview-react": "^7.0.2",
+    "electron-updater": "^6.8.9",
+    "gsap": "^3.15.0",
+    "monaco-editor": "^0.55.1",
+    "performative-ui": "^0.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
+    "happy-dom": "^15.11.7",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.9",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.s-ide.app",
+    "productName": "s-ide",
+    "asar": true,
+    "directories": {
+      "buildResources": "build",
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/dist/network-tools-backend",
+        "to": "backend/network-tools-backend"
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "identity": null
+    }
+  }
+}

@@ -1,0 +1,66 @@
+# vulhub-net — a small vulnerable LAN.
+#
+# 3 deliberately insecure hosts on bridge 10.20.0.0/24, plus a "scanner"
+# sidecar on the same bridge. The sidecar is how the HackingPal backend
+# reaches the internal IPs from macOS, where Docker Desktop doesn't expose
+# the bridge to the host. POST /labs/vulhub-net/sidecar/exec runs nmap /
+# smbclient / curl / dig inside this container.
+#
+# Hosts (all reachable from inside the bridge):
+#   gateway     10.20.0.1   (auto)
+#   scanner     10.20.0.5   (sidecar)
+#   node-web    10.20.0.10  (Apache + vulnerable PHP)
+#   node-files  10.20.0.20  (Samba + vsftpd)
+#   node-db     10.20.0.30  (MariaDB + Redis, no auth)
+#
+# Only the scanner publishes a port to the host — everything else stays on
+# the bridge by design.
+
+name: mhp-lab-vulhub-net
+
+networks:
+  vulnnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.20.0.0/24
+          gateway: 10.20.0.1
+
+services:
+  scanner:
+    build: ./scanner
+    image: mhp/lab-vulhub-net-scanner:latest
+    container_name: mhp-lab-vulhub-net-scanner
+    networks:
+      vulnnet:
+        ipv4_address: 10.20.0.5
+    # Sidecar runs idle — we exec into it on demand.
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+
+  node-web:
+    build: ./node-web
+    image: mhp/lab-vulhub-net-web:latest
+    container_name: mhp-lab-vulhub-net-web
+    networks:
+      vulnnet:
+        ipv4_address: 10.20.0.10
+    restart: unless-stopped
+
+  node-files:
+    build: ./node-files
+    image: mhp/lab-vulhub-net-files:latest
+    container_name: mhp-lab-vulhub-net-files
+    networks:
+      vulnnet:
+        ipv4_address: 10.20.0.20
+    restart: unless-stopped
+
+  node-db:
+    build: ./node-db
+    image: mhp/lab-vulhub-net-db:latest
+    container_name: mhp-lab-vulhub-net-db
+    networks:
+      vulnnet:
+        ipv4_address: 10.20.0.30
+    restart: unless-stopped

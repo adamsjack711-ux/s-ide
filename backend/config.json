@@ -1,0 +1,10 @@
+{
+  "target_policy": {
+    "_comment": "Default-deny external. Private/loopback/Tailscale allowed silently. External targets require explicit listing in allow_external (engagement scope still gates engagement-mode runs separately). Was previously 'warn' as default but that let one confirm-click drive scans against the public internet.",
+    "allow_private": true,
+    "allow_loopback": true,
+    "allow_tailscale": true,
+    "allow_external": [],
+    "deny_external_by_default": true
+  }
+}

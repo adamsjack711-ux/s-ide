@@ -1,0 +1,64 @@
+# Runtime deps for the PyInstaller-bundled HackingPal sidecar.
+# Kept in sync with what's actually imported by routers/ + lib/ + main.py.
+#
+# pyproject.toml still drives `pip install -e .` for the dev backend; this
+# file is the source of truth for *bundled* deps (PyInstaller CI + Docker).
+#
+# Note: pyobjc-* bindings (CoreWLAN, CoreBluetooth, etc.) are macOS-only and
+# installed via dev env on the Mac runner. They're intentionally NOT listed
+# here so Linux/Windows CI pip installs succeed.
+
+# --- Core HTTP / web framework ---
+fastapi>=0.110
+uvicorn[standard]>=0.27
+# wsproto/h11 are referenced explicitly by the PyInstaller spec (uvicorn's
+# websocket and HTTP protocol impls). uvicorn[standard] pulls websockets +
+# httptools but not these — install them so PyInstaller can find them.
+wsproto>=1
+h11>=0.14
+python-multipart>=0.0.9
+httpx>=0.27
+
+# --- Crypto / auth / hashing ---
+cryptography>=42
+passlib>=1.7
+bcrypt>=4
+argon2-cffi>=23
+pycryptodome>=3.20
+pycryptodomex>=3.20
+pyasn1>=0.6
+
+# --- Misc runtime ---
+Pillow>=10
+psutil>=5.9
+pydantic>=2
+dnspython>=2.6
+
+# --- Chat assistant ---
+anthropic>=0.92
+
+# --- Report exporter (engagement deliverable, PDF + markdown) ---
+reportlab>=4.0
+
+# --- Cloud recon SDKs (boto3 / azure-mgmt-* / google-cloud-*) ---
+boto3>=1.34
+azure-identity>=1.15
+azure-mgmt-resource>=23
+# Only pre-release wheels exist on PyPI as of 2026-05; allow the beta.
+azure-mgmt-resource-subscriptions>=1.0.0b1
+azure-mgmt-storage>=21
+azure-mgmt-compute>=30
+azure-mgmt-network>=25
+azure-mgmt-keyvault>=10
+msal>=1.28
+google-cloud-resource-manager>=1.12
+google-cloud-storage>=2.14
+google-cloud-compute>=1.16
+
+# --- AD tooling ---
+ldap3>=2.9
+impacket>=0.12
+bloodhound>=1.7
+
+# --- Build-time only (not bundled into the sidecar) ---
+pyinstaller>=6

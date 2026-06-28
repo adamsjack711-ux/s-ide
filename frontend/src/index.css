@@ -1,0 +1,327 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── HackingPal design system ───────────────────────────────────────────
+ *
+ * Two parallel token surfaces:
+ *
+ * 1. SEMANTIC NAMES used directly via var() in new components
+ *    (--bg-base, --bg-surface, --accent, --critical, --text-primary, ...).
+ *    These are stored as hex values for crisp readability in DevTools.
+ *
+ * 2. RGB-TRIPLET BACKING used by Tailwind's `rgb(var(--xxx) / <alpha-value>)`
+ *    bindings in tailwind.config.js so opacity modifiers like `bg-bg-base/40`
+ *    keep working. The triplets carry the SAME color values as the hex tokens
+ *    above — both surfaces resolve to the same palette.
+ *
+ * Dark is the default; adding `.light` to <html> swaps the palette. The theme
+ * hook (src/lib/theme.ts) manages that class.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Semantic hex tokens (use via var() in new components) ── */
+  --bg-base:        #0a0e15;
+  --bg-surface:     #0d1320;
+  --bg-elevated:    #131c2c;
+  --bg-hover:       #1a2433;
+  --bg-active:      #1e2c40;
+
+  --accent:         #39d98a;
+  --accent-bright:  #5fe6a3;
+  --accent-dim:     #39d98a33;
+  --accent-glow:    #39d98a55;
+
+  --critical:       #ff5d6c;
+  --critical-dim:   #ef444420;
+  --high:           #ff9340;
+  --high-dim:       #f9731620;
+  --medium:         #ffc043;
+  --medium-dim:     #eab30820;
+  --low:            #4d9fff;
+  --low-dim:        #3b82f620;
+  --success:        #39d98a;
+  --success-dim:    #22c55e20;
+
+  --text-primary:   #dde3ee;
+  --text-secondary: #8b95a8;
+  --text-muted:     #586173;
+  --text-accent:    #5fe6a3;
+
+  --border:         #1c2533;
+  --border-bright:  #26344a;
+  --border-accent:  #39d98a44;
+
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ── RGB-triplet backing for Tailwind utilities (same colors as above) ── */
+  --bg-base-rgb:        10 14 21;
+  --bg-sidebar-rgb:     13 19 32;
+  --bg-card-rgb:        19 28 44;
+  --bg-panel-rgb:       13 19 32;
+  --bg-row-alt-rgb:     22 30 46;
+  --bg-nav-hover-rgb:   26 36 51;
+  --bg-nav-active-rgb:  30 44 64;
+  --divider-rgb:        28 35 47;
+  --ink-primary-rgb:    221 227 238;
+  --ink-muted-rgb:      139 149 168;
+  --ink-dim-rgb:        88 97 115;
+  --accent-rgb:         57 217 138;
+  --accent-dim-rgb:     45 174 110;
+  --accent-bright-rgb:  95 230 163;
+  --text-accent-rgb:    95 230 163;
+  --phos-rgb:           57 217 138;
+  --amber-rgb:          255 192 67;
+  --danger-rgb:         255 93 108;
+  --critical-rgb:       255 93 108;
+  --high-rgb:           255 147 64;
+  --medium-rgb:         255 192 67;
+  --low-rgb:            77 159 255;
+  --success-rgb:        57 217 138;
+  --border-rgb:         28 35 47;
+  --border-bright-rgb:  40 52 70;
+
+  --scrollbar-track:       10 10 15;
+  --scrollbar-thumb:       40 52 70;
+  --scrollbar-thumb-hover: 57 217 138;
+}
+
+:root.light {
+  --bg-base:        #eef0f4;
+  --bg-surface:     #ffffff;
+  --bg-elevated:    #f4f6f9;
+  --bg-hover:       #e6e9ef;
+  --bg-active:      #dce1ea;
+
+  --accent-dim:     #39d98a18;
+  --accent-glow:    #39d98a22;
+
+  --text-primary:   #1a2030;
+  --text-secondary: #5a6475;
+  --text-muted:     #98a0b0;
+
+  --border:         #dde1e8;
+  --border-bright:  #c4cad4;
+  --border-accent:  #7c3aed44;
+
+  /* Severity + accent colors are intentionally identical in light mode —
+     severity meaning shouldn't depend on theme. */
+
+  --bg-base-rgb:        238 240 244;
+  --bg-sidebar-rgb:     255 255 255;
+  --bg-card-rgb:        255 255 255;
+  --bg-panel-rgb:       244 246 249;
+  --bg-row-alt-rgb:     244 246 249;
+  --bg-nav-hover-rgb:   230 233 239;
+  --bg-nav-active-rgb:  219 227 219;
+  --divider-rgb:        221 225 232;
+  --ink-primary-rgb:    26 32 48;
+  --ink-muted-rgb:      90 100 117;
+  --ink-dim-rgb:        152 160 176;
+  --border-rgb:         221 225 232;
+  --border-bright-rgb:  196 202 212;
+
+  --scrollbar-track:       241 245 249;
+  --scrollbar-thumb:       203 213 225;
+  --scrollbar-thumb-hover: 124 58 237;
+}
+
+/* Graphite — the design's neutral-dark theme. Overrides only surface/ink tokens;
+   accent + severity inherit from :root (midnight). */
+:root.graphite {
+  --bg-base:        #16181d;
+  --bg-surface:     #1c1f26;
+  --bg-elevated:    #242832;
+  --bg-hover:       #22262f;
+  --bg-active:      #2a2f3a;
+  --text-primary:   #e6e9ef;
+  --text-secondary: #959cab;
+  --text-muted:     #646b79;
+  --border:         #2a2e38;
+  --border-bright:  #383e4a;
+
+  --bg-base-rgb:        22 24 29;
+  --bg-sidebar-rgb:     28 31 38;
+  --bg-card-rgb:        36 40 50;
+  --bg-panel-rgb:       28 31 38;
+  --bg-row-alt-rgb:     36 40 50;
+  --bg-nav-hover-rgb:   34 38 47;
+  --bg-nav-active-rgb:  40 46 58;
+  --divider-rgb:        42 46 56;
+  --ink-primary-rgb:    230 233 239;
+  --ink-muted-rgb:      149 156 171;
+  --ink-dim-rgb:        100 107 121;
+  --border-rgb:         42 46 56;
+  --border-bright-rgb:  56 62 74;
+}
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: rgb(var(--bg-base-rgb));
+  color: rgb(var(--ink-primary-rgb));
+  position: relative;
+}
+
+/* Phosphor-green underglow — sits behind everything, evokes a CRT
+   terminal's bottom bezel bloom. Anchored just below the bottom edge so
+   only the top of the radial bleeds into view. Disabled in light mode. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    1400px 500px at 50% 110%,
+    rgba(34, 197, 94, 0.12),
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+:root.light body::before { display: none; }
+
+#root { position: relative; z-index: 1; }
+
+/* Light-mode brand mark — flip the dark squircle PNG to the "Badge / Light"
+   variant from the brand guide (white squircle, dark glyph) so the icon
+   doesn't look like a stark black block against the white sidebar. */
+:root.light .mhp-brand-mark { filter: invert(1); }
+
+/* Tame performative-ui's EyebrowPill default chrome (padded pill on glass)
+   down to the existing in-app eyebrow look: small mono uppercase label,
+   no background, no border. Applied where we pass className="mhp-eyebrow"
+   to <EyebrowPill>. */
+.pui-eyebrow.mhp-eyebrow {
+  display: inline-flex;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: rgb(var(--ink-dim-rgb));
+}
+
+/* Mono helper — for IPs, ports, hashes, URLs, CVEs, raw output, etc. */
+.data {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-feature-settings: "tnum" 1, "zero" 1;
+  letter-spacing: 0;
+}
+
+/* ── Selection + focus rings ── */
+::selection {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Dopamine canvas blend modes ──
+ * Dopamine ships each effect on a canvas with `mix-blend-mode: screen` (bright
+ * bloom over a dark page). On a light page that blend mode washes everything
+ * out — violet × white via screen = white = invisible. Force `multiply` on
+ * the light theme so the same violet × white = violet = a visible mark.
+ *
+ * The override is namespaced to `canvas[data-dopamine]` so it doesn't touch
+ * any other canvas in the app. */
+:root.light canvas[data-dopamine] {
+  mix-blend-mode: multiply !important;
+}
+
+/* ── Thin, theme-aware scrollbars ── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: rgb(var(--scrollbar-track)); }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb));
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--scrollbar-thumb-hover)); }
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--scrollbar-thumb)) transparent; }
+
+/* ── Electron window dragging ── */
+.app-drag    { -webkit-app-region: drag; }
+.app-no-drag { -webkit-app-region: no-drag; }
+
+/* ── Global transition baseline ── */
+button, a, input, select, textarea, [role="button"] {
+  transition: background-color 150ms ease, border-color 150ms ease,
+              color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+/* Blinking caret accent for the terminal feel */
+@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.caret-blink::after {
+  content: "▍";
+  margin-left: 4px;
+  animation: blink 1.1s steps(1, end) infinite;
+  color: var(--accent-bright);
+}
+
+/* ── Result row entrance ── */
+@keyframes mhp-result-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mhp-result-in {
+  animation: mhp-result-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Newer spec name (used by the rebuilt ResultsPanel) */
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in {
+  animation: slideInUp 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mhp-result-in, .animate-in, .caret-blink::after { animation: none; }
+}
+
+/* ── Brief glow when a critical-severity result arrives ── */
+@keyframes mhp-critical-pulse {
+  0%   { box-shadow: 0 0 0 0 rgb(var(--critical-rgb) / 0.55); }
+  70%  { box-shadow: 0 0 0 6px rgb(var(--critical-rgb) / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--critical-rgb) / 0); }
+}
+.mhp-critical-pulse {
+  animation: mhp-critical-pulse 1.8s ease-out 1;
+  box-shadow: 0 0 0 1px rgb(var(--critical-rgb) / 0.45) inset;
+}
+@media (prefers-reduced-motion: reduce) { .mhp-critical-pulse { animation: none; } }
+
+/* ── Scanning pulse — for the WsStatus indicator + active-scan dot ── */
+@keyframes scanPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(var(--success-rgb) / 0.6); }
+  50%      { opacity: 0.7; box-shadow: 0 0 0 6px rgb(var(--success-rgb) / 0); }
+}
+.scanning { animation: scanPulse 1.5s ease-in-out infinite; }
+
+@keyframes scanPulseAccent {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0.5); }
+  50%      { opacity: 0.7; box-shadow: 0 0 0 6px rgb(var(--accent-rgb) / 0); }
+}
+.scanning-accent { animation: scanPulseAccent 1.5s ease-in-out infinite; }
+
+@keyframes connectPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+.connecting { animation: connectPulse 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scanning, .scanning-accent, .connecting { animation: none; }
+}

@@ -1,0 +1,133 @@
+{
+  "id": "full_internal_network",
+  "name": "Full Internal Network Compromise",
+  "description": "Internal network assessment from a planted foothold: host discovery, service enumeration, AD enumeration, credential attacks, persistence hunt, and report. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "cidr",
+  "estimated_duration": "60-120 min",
+  "risk_level": "critical",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "internal",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Network Discovery",
+      "description": "Map who's on the wire.",
+      "rate_limit": 10,
+      "steps": [
+        {"id": "lan_scan", "tool": "lan_scan",
+         "display_name": "LAN sweep",
+         "output_keys": ["hosts", "ips", "macs", "vendors"]},
+        {"id": "local_disco", "tool": "local_disco",
+         "display_name": "mDNS / SSDP / LLMNR",
+         "output_keys": ["mdns_hosts", "ssdp_devices", "llmnr_hosts", "services"]},
+        {"id": "ping_sweep", "tool": "ping_sweep",
+         "display_name": "Ping sweep",
+         "options": {"targets": "{phase_1.lan_scan.ips}"},
+         "output_keys": ["alive_hosts", "rtt_map"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Service Enumeration",
+      "description": "What's listening, what's it running.",
+      "rate_limit": 10,
+      "steps": [
+        {"id": "port_scanner", "tool": "port_scanner",
+         "display_name": "Full port scan",
+         "options": {"ports": "full", "targets": "{phase_1.lan_scan.ips}"},
+         "output_keys": ["open_ports", "services", "open_count"]},
+        {"id": "fingerprint", "tool": "fingerprint",
+         "display_name": "Service fingerprint",
+         "options": {"targets": "{phase_2.port_scanner.open_ports}"},
+         "output_keys": ["service_versions", "banners"]},
+        {"id": "smb_enum", "tool": "smb_enum",
+         "display_name": "SMB enumeration",
+         "output_keys": ["shares", "null_session", "os_version", "users"]},
+        {"id": "nmap_full", "tool": "nmap_full",
+         "display_name": "Nmap full recon",
+         "options": {"preset": "full_recon"},
+         "output_keys": ["os_detection", "scripts_output"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "AD Enumeration",
+      "description": "Identify and enumerate the Active Directory surface.",
+      "rate_limit": 5,
+      "condition": "phase_2.port_scanner.open_count > 0",
+      "steps": [
+        {"id": "ldap_enum", "tool": "ldap_enum",
+         "display_name": "LDAP enum",
+         "output_keys": ["users", "groups", "ous", "gpos",
+                         "password_policy", "domain_name"]},
+        {"id": "kerberoast", "tool": "kerberoast",
+         "display_name": "Kerberoast SPN list",
+         "output_keys": ["spn_accounts", "ticket_hashes"]},
+        {"id": "asrep_roast", "tool": "asrep_roast",
+         "display_name": "AS-REP roast",
+         "output_keys": ["vulnerable_accounts", "hashes"]},
+        {"id": "bloodhound", "tool": "bloodhound",
+         "display_name": "BloodHound ingest",
+         "output_keys": ["attack_paths", "da_path_length",
+                         "kerberoastable_das"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Credential Attacks",
+      "description": "Crack what we collected; spray cautiously.",
+      "rate_limit": 2,
+      "steps": [
+        {"id": "hash_cracker", "tool": "hash_cracker",
+         "display_name": "Hash cracker",
+         "options": {"wordlist": "rockyou", "rules": true,
+                     "targets": "{phase_3.kerberoast.ticket_hashes}"},
+         "output_keys": ["cracked_hashes", "plaintext_passwords"]},
+        {"id": "password_spray", "tool": "password_spray",
+         "display_name": "Password spray",
+         "options": {"policy_aware": true, "lockout_threshold": 3,
+                     "targets": "{phase_3.ldap_enum.users}"},
+         "approval": true,
+         "output_keys": ["valid_credentials", "accounts"]},
+        {"id": "default_creds", "tool": "default_creds",
+         "display_name": "Default creds sweep",
+         "options": {"preset": "auth_check",
+                     "targets": "{phase_2.port_scanner.open_ports}"},
+         "output_keys": ["default_creds_found", "services"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Persistence Hunt",
+      "description": "Are existing footholds already here? Inventory persistence vectors.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "persistence", "tool": "persistence_audit",
+         "display_name": "Persistence audit",
+         "output_keys": ["total", "high", "warn"]},
+        {"id": "processes", "tool": "processes",
+         "display_name": "Process inventory",
+         "output_keys": ["processes", "listeners", "unsigned_binaries"]},
+        {"id": "ids_check", "tool": "ids_check",
+         "display_name": "Local IDS snapshot",
+         "output_keys": ["new_listeners", "auth_failures"]}
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Report Generation",
+      "description": "Compose the internal-network report.",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Internal report",
+         "options": {"template": "internal"}}
+      ]
+    }
+  ]
+}

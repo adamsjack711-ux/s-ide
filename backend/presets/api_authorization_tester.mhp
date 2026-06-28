@@ -1,0 +1,93 @@
+{
+  "id": "api_authorization_tester",
+  "name": "API Authorization Tester",
+  "description": "Authorization-focused API assessment: discover routes + auth model, verify JWT/session integrity, probe IDOR + CORS + OAuth on the live endpoints. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "web_app",
+  "target_type": "url",
+  "estimated_duration": "25-50 min",
+  "risk_level": "high",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "web",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Discover API Surface",
+      "description": "Find the routes and how auth is wired.",
+      "rate_limit": 6,
+      "steps": [
+        {"id": "wayback", "tool": "wayback",
+         "display_name": "Wayback API endpoints",
+         "output_keys": ["api_endpoints", "js_files"]},
+        {"id": "js_analysis", "tool": "js_analysis",
+         "display_name": "JS endpoint extraction",
+         "options": {"targets": "{phase_1.wayback.js_files}"},
+         "output_keys": ["endpoints", "api_keys", "comments"]},
+        {"id": "http_probe_auth", "tool": "http_probe_auth",
+         "display_name": "Auth-path probe",
+         "options": {"wordlist": "auth-paths", "detect_login": true},
+         "output_keys": ["login_pages", "mfa_present",
+                         "oauth_detected", "sso_detected"]},
+        {"id": "graphql", "tool": "graphql",
+         "display_name": "GraphQL introspection",
+         "condition": "phase_1.wayback.api_endpoints contains \"graphql\"",
+         "output_keys": ["schema", "mutations", "introspection_enabled"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Token Integrity",
+      "description": "JWT / cookie / OAuth flow security.",
+      "rate_limit": 4,
+      "steps": [
+        {"id": "jwt_check", "tool": "jwt_check",
+         "display_name": "JWT analyzer",
+         "output_keys": ["algorithm", "claims", "weak_secret", "expiry"]},
+        {"id": "cookie_analysis", "tool": "cookie_analysis",
+         "display_name": "Cookie flags",
+         "output_keys": ["missing_secure", "missing_httponly",
+                         "samesite_missing", "session_fixation"]},
+        {"id": "oauth_check", "tool": "oauth_check",
+         "display_name": "OAuth flow checks",
+         "condition": "phase_1.http_probe_auth.oauth_detected == true",
+         "output_keys": ["token_leakage", "state_bypass", "redirect_uri_bypass"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Authorization Probes",
+      "description": "Test the authz model on identified endpoints.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "idor", "tool": "idor",
+         "display_name": "IDOR sweep",
+         "approval": true,
+         "output_keys": ["idor_found", "exposed_objects"]},
+        {"id": "idor_own", "tool": "idor_own",
+         "display_name": "Cross-user object access",
+         "approval": true,
+         "output_keys": ["cross_user_read", "cross_user_write"]},
+        {"id": "cors", "tool": "cors",
+         "display_name": "CORS misconfig",
+         "output_keys": ["cors_misconfig", "origins_allowed", "credentials_allowed"]},
+        {"id": "open_redirect", "tool": "open_redirect",
+         "display_name": "Open redirect",
+         "output_keys": ["redirect_found", "params"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "API authorization report",
+         "options": {"template": "web", "owasp_api_mapping": true,
+                     "cvss_scoring": true}}
+      ]
+    }
+  ]
+}

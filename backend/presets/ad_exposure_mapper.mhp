@@ -1,0 +1,98 @@
+{
+  "id": "ad_exposure_mapper",
+  "name": "AD Exposure Mapper",
+  "description": "Passive AD exposure map: locate DCs, enumerate unauthenticated surface, graph relationships. No spraying, no cracking — produces the picture a defender wants of what's reachable without credentials.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "ip",
+  "estimated_duration": "25-45 min",
+  "risk_level": "low",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "internal",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Network Position",
+      "description": "Locate the DCs and the AD-relevant services around us.",
+      "rate_limit": 8,
+      "steps": [
+        {"id": "lan_scan", "tool": "lan_scan",
+         "display_name": "LAN sweep",
+         "output_keys": ["hosts", "ips"]},
+        {"id": "find_dcs", "tool": "find_dcs",
+         "display_name": "Locate Domain Controllers",
+         "options": {"ports": "88,389,445,636,3268,3269"},
+         "output_keys": ["domain_controllers", "ports"]},
+        {"id": "dns_internal", "tool": "dns_internal",
+         "display_name": "Internal DNS recon",
+         "output_keys": ["domain_name", "forest", "trusts"]},
+        {"id": "local_disco", "tool": "local_disco",
+         "display_name": "Multicast / broadcast snooping",
+         "output_keys": ["llmnr_active", "nbns_active", "mdns_active"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Unauthenticated Enumeration",
+      "description": "Surface accessible without any credentials — the real exposure picture.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "smb_null", "tool": "smb_null",
+         "display_name": "SMB null session",
+         "options": {"null_session": true},
+         "output_keys": ["null_session_allowed", "shares", "users", "groups"]},
+        {"id": "smb_enum", "tool": "smb_enum",
+         "display_name": "SMB share enum",
+         "output_keys": ["readable_shares", "writable_shares",
+                         "signing_disabled"]},
+        {"id": "ldap_anon", "tool": "ldap_anon",
+         "display_name": "Anonymous LDAP bind",
+         "options": {"anonymous": true},
+         "output_keys": ["anonymous_bind", "base_dn", "users", "password_policy"]},
+        {"id": "nmap_smb", "tool": "nmap_smb",
+         "display_name": "Nmap SMB scripts",
+         "options": {"preset": "smb_enum"},
+         "output_keys": ["ms17_010", "eternalblue",
+                         "smb_version", "signing_disabled"]},
+        {"id": "asrep_roast", "tool": "asrep_roast",
+         "display_name": "AS-REP roastable accounts",
+         "output_keys": ["vulnerable_accounts", "account_count"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Graph the Exposure",
+      "description": "Render the relationships an attacker would walk — even before they have creds.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "ldap_enum", "tool": "ldap_enum",
+         "display_name": "LDAP enum (anonymous-only)",
+         "options": {"authenticated": false},
+         "output_keys": ["users", "groups", "ous", "service_accounts"]},
+        {"id": "bloodhound", "tool": "bloodhound",
+         "display_name": "BloodHound graph (read-only)",
+         "options": {"collection": "anonymous"},
+         "output_keys": ["shortest_path_length",
+                         "unconstrained_delegation", "acl_abuses",
+                         "kerberoastable_das"]},
+        {"id": "gpo_analysis", "tool": "gpo_analysis",
+         "display_name": "GPO exposure",
+         "output_keys": ["interesting_gpos", "script_paths", "writable_gpos"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "AD exposure map",
+         "options": {"template": "internal",
+                     "bloodhound_graphs": true}}
+      ]
+    }
+  ]
+}

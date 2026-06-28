@@ -1,0 +1,116 @@
+{
+  "id": "container_kubernetes_escape",
+  "name": "Container + Kubernetes Escape",
+  "description": "From a planted container/pod foothold: fingerprint the container, scan the cluster network, attempt escapes, enumerate the cluster on success. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "ip",
+  "estimated_duration": "20-40 min",
+  "risk_level": "critical",
+  "requires_auth": true,
+  "stop_on_critical": true,
+  "mode_required": "engagement",
+  "report_template": "container",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Container Fingerprint",
+      "description": "What kind of container are we in, what's mounted, what env do we have.",
+      "rate_limit": 10,
+      "steps": [
+        {"id": "processes", "tool": "processes",
+         "display_name": "Process inventory",
+         "output_keys": ["processes", "capabilities",
+                         "privileged", "pid_1_process"]},
+        {"id": "persistence", "tool": "persistence_audit",
+         "display_name": "Mounts + volumes",
+         "output_keys": ["total", "docker_socket_present",
+                         "host_path_mounts"]},
+        {"id": "linux_posture", "tool": "linux_posture",
+         "display_name": "Linux posture",
+         "output_keys": ["selinux", "apparmor",
+                         "firewall_backend", "luks_present"]},
+        {"id": "env_check", "tool": "env_check",
+         "display_name": "Env / secrets",
+         "output_keys": ["k8s_service_account_token", "k8s_namespace",
+                         "k8s_api_url", "aws_credentials",
+                         "sensitive_env_vars"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Network Recon from Container",
+      "description": "What can we reach from inside the pod / container network.",
+      "rate_limit": 8,
+      "steps": [
+        {"id": "lan_scan", "tool": "lan_scan",
+         "display_name": "LAN sweep",
+         "output_keys": ["hosts", "ips", "k8s_pod_cidr"]},
+        {"id": "port_scanner", "tool": "port_scanner",
+         "display_name": "K8s ports",
+         "options": {"ports": "443,6443,2379,2380,8443,10250,10255"},
+         "output_keys": ["open_ports", "k8s_api_exposed",
+                         "etcd_exposed", "kubelet_exposed"]},
+        {"id": "ssrf_imds", "tool": "ssrf_imds",
+         "display_name": "IMDS via SSRF",
+         "approval": true,
+         "options": {"imds_focus": true, "cloud": "all"},
+         "output_keys": ["imds_accessible", "cloud_credentials",
+                         "k8s_metadata"],
+         "on_finding": "pause"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Escape Attempts",
+      "description": "Try the standard container-escape primitives.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "docker_socket", "tool": "docker_socket",
+         "display_name": "Docker socket abuse",
+         "condition": "phase_1.persistence.docker_socket_present == true",
+         "approval": true,
+         "output_keys": ["socket_writable", "escape_possible", "container_list"]},
+        {"id": "privileged_check", "tool": "privileged_check",
+         "display_name": "Privileged caps abuse",
+         "condition": "phase_1.processes.privileged == true",
+         "approval": true,
+         "output_keys": ["privileged_escape_path", "host_access"]},
+        {"id": "host_path_abuse", "tool": "host_path_abuse",
+         "display_name": "HostPath abuse",
+         "condition": "phase_1.persistence.host_path_mounts != null",
+         "approval": true,
+         "output_keys": ["writable_host_paths", "escape_via_host_path"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Cluster Enumeration",
+      "description": "Once we have cluster credentials or host break-out, enumerate the cluster.",
+      "rate_limit": 5,
+      "condition": "phase_3.docker_socket.escape_possible == true or phase_1.env_check.k8s_service_account_token != null",
+      "steps": [
+        {"id": "k8s_api_enum", "tool": "k8s_api_enum",
+         "display_name": "K8s API enum",
+         "output_keys": ["namespaces", "pods", "secrets",
+                         "rbac_permissions", "cluster_admin_possible"]},
+        {"id": "secret_dump", "tool": "secret_dump",
+         "display_name": "Secret dump",
+         "approval": true,
+         "output_keys": ["secrets", "credentials", "api_keys", "tls_certs"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Container report",
+         "options": {"template": "container",
+                     "escape_path_diagram": true}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "local_posture_linux",
+  "name": "Local Posture Audit — Linux",
+  "description": "Snapshot the security posture of this Linux host: MAC (SELinux/AppArmor), firewall, sshd config, sysctl, pending updates, sudoers, disk encryption, and persistence units. Runs entirely against the local host.",
+  "category": "local_posture",
+  "target_type": "local",
+  "mode_required": "lab",
+  "author": "built-in",
+  "steps": [
+    {
+      "id": "linux_posture",
+      "tool": "linux_posture",
+      "rationale": "Check MAC enforcement (SELinux/AppArmor), firewall state, sshd hardening flags, kernel sysctls, the patch backlog, and disk encryption — the levers that decide what a local compromise can do next.",
+      "success": "MAC enforcing, firewall active, sshd disallows password+root login, no critical sysctls disabled.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "persistence_audit",
+      "tool": "persistence_audit",
+      "rationale": "Enumerate systemd units (system + user), cron, rc.local, and autostart entries. Anything in /tmp, /var/tmp, or a user-writable path is worth a closer look.",
+      "success": "No entries marked high severity; nothing executing from world-writable paths.",
+      "approval": false,
+      "options": {}
+    }
+  ]
+}

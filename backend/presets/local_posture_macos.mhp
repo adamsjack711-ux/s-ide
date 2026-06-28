@@ -1,0 +1,27 @@
+{
+  "id": "local_posture_macos",
+  "name": "Local Posture Audit — macOS",
+  "description": "Snapshot the security posture of this Mac: SIP, Gatekeeper, FileVault, firewall, XProtect, and what's persisting on disk. Runs entirely against the local host — no network, no targets.",
+  "category": "local_posture",
+  "target_type": "local",
+  "mode_required": "lab",
+  "author": "built-in",
+  "steps": [
+    {
+      "id": "macos_posture",
+      "tool": "macos_posture",
+      "rationale": "Check the four headline controls Apple ships: System Integrity Protection, Gatekeeper, FileVault, and the application firewall. If any are off, almost everything downstream is weaker than the vendor expects.",
+      "success": "All four enabled. XProtect version recent.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "persistence_audit",
+      "tool": "persistence_audit",
+      "rationale": "Enumerate LaunchDaemons, LaunchAgents, and login items. Any unsigned or ad-hoc-signed entry running from a non-standard path is a credible persistence vector.",
+      "success": "No entries marked high severity; suspicious paths empty.",
+      "approval": false,
+      "options": {}
+    }
+  ]
+}

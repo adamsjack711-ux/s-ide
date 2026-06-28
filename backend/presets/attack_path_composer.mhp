@@ -1,0 +1,121 @@
+{
+  "id": "attack_path_composer",
+  "name": "Attack Path Composer",
+  "description": "End-to-end path from external recon to exploitation to escalation, composing tools per phase with feed-forward between them. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "url",
+  "estimated_duration": "40-75 min",
+  "risk_level": "high",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "web",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Footprint",
+      "description": "Map the perimeter the target sits on.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "whois", "tool": "whois",
+         "display_name": "WHOIS / ownership",
+         "output_keys": ["asn", "domain", "network"]},
+        {"id": "dns_recon", "tool": "dns_recon",
+         "display_name": "DNS records",
+         "output_keys": ["a", "ns", "mx"]},
+        {"id": "ct_logs", "tool": "ct_log",
+         "display_name": "CT log sweep",
+         "output_keys": ["subdomains", "subdomain_count"]},
+        {"id": "wayback", "tool": "wayback",
+         "display_name": "Wayback URLs",
+         "output_keys": ["forgotten_endpoints", "js_files", "api_endpoints"]},
+        {"id": "tls_audit", "tool": "tls_audit",
+         "display_name": "TLS audit",
+         "output_keys": ["policy", "expiry_days"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Surface Map",
+      "description": "Identify the live services and stack — the actual attack surface.",
+      "rate_limit": 6,
+      "steps": [
+        {"id": "port_scanner", "tool": "port_scanner",
+         "display_name": "Top-ports scan",
+         "output_keys": ["open_ports", "services"]},
+        {"id": "cms_fingerprint", "tool": "cms_fingerprint",
+         "display_name": "Stack fingerprint",
+         "output_keys": ["tech_count", "tech_names"]},
+        {"id": "security_headers", "tool": "security_headers",
+         "display_name": "Security headers",
+         "output_keys": ["missing_headers", "csp_policy"]},
+        {"id": "http_probe", "tool": "http_probe",
+         "display_name": "Path probe",
+         "options": {"wordlist": "small"},
+         "output_keys": ["paths", "admin_panels", "config_files"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Initial Access",
+      "description": "Hunt the first foothold from the mapped surface.",
+      "rate_limit": 4,
+      "steps": [
+        {"id": "default_creds", "tool": "default_creds",
+         "display_name": "Default-cred sweep",
+         "approval": true,
+         "options": {"targets": "{phase_2.http_probe.admin_panels}"},
+         "output_keys": ["valid_creds", "panels_pwned"]},
+        {"id": "sqli", "tool": "sqli",
+         "display_name": "SQL injection",
+         "approval": true,
+         "output_keys": ["injectable_params", "dbms"],
+         "on_finding": "pause"},
+        {"id": "cmdi", "tool": "cmdi",
+         "display_name": "Command injection",
+         "approval": true,
+         "output_keys": ["cmdi_found", "os"]},
+        {"id": "ssrf", "tool": "ssrf",
+         "display_name": "SSRF",
+         "approval": true,
+         "output_keys": ["ssrf_found", "internal_hosts", "cloud_metadata"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Escalate",
+      "description": "Turn the foothold into something an operator would actually use.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "ssrf_imds", "tool": "ssrf_imds",
+         "display_name": "SSRF → IMDS",
+         "approval": true,
+         "condition": "phase_3.ssrf.ssrf_found == true",
+         "options": {"imds_focus": true, "cloud": "aws"},
+         "output_keys": ["imds_accessible", "credentials_exposed", "iam_role"]},
+        {"id": "secret_dump", "tool": "secret_dump",
+         "display_name": "Secret dump from code/comments",
+         "options": {"targets": "{phase_1.wayback.js_files}"},
+         "output_keys": ["secrets", "api_keys"]},
+        {"id": "lfi", "tool": "lfi",
+         "display_name": "Sensitive file read",
+         "approval": true,
+         "options": {"targets": "{phase_2.http_probe.config_files}"},
+         "output_keys": ["lfi_found", "files_accessible"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Attack-path report",
+         "options": {"template": "web", "attack_path_diagram": true,
+                     "owasp_mapping": true, "cvss_scoring": true}}
+      ]
+    }
+  ]
+}

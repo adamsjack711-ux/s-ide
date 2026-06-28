@@ -1,0 +1,118 @@
+{
+  "id": "phishing_campaign_recon",
+  "name": "Phishing Campaign Recon",
+  "description": "Pre-phishing intelligence: org mapping, infrastructure recon, delivery surface, pretext intelligence. No active sending; pure recon. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "org",
+  "estimated_duration": "20-40 min",
+  "risk_level": "medium",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "phishing",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Organization Mapping",
+      "description": "Who works here, what's the email format, what's been breached.",
+      "rate_limit": 2,
+      "steps": [
+        {"id": "whois", "tool": "whois",
+         "display_name": "WHOIS",
+         "output_keys": ["registrar", "domain", "asn"]},
+        {"id": "email_harvest", "tool": "email_harvest",
+         "display_name": "Email harvest",
+         "options": {"path": "/osint/emails/{target}"},
+         "output_keys": ["emails", "names", "departments", "email_format"]},
+        {"id": "breach_domain", "tool": "breach_domain",
+         "display_name": "Breach corpus",
+         "options": {"path": "/breach/domain/{target}"},
+         "output_keys": ["breached_accounts", "passwords",
+                         "breach_dates", "data_types"]},
+        {"id": "ct_logs", "tool": "ct_log",
+         "display_name": "CT log subdomains",
+         "output_keys": ["subdomains"]},
+        {"id": "wayback", "tool": "wayback",
+         "display_name": "Wayback Machine",
+         "options": {"path": "/wayback/{target}"},
+         "output_keys": ["old_employee_pages",
+                         "org_structure_clues", "tech_stack_clues"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Infrastructure Recon",
+      "description": "Mail policy, gateways, webmail.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "email_sec", "tool": "email_audit",
+         "display_name": "Email security",
+         "output_keys": ["spf_present", "dmarc_present",
+                         "mta_sts", "bimi"]},
+        {"id": "mx_trace", "tool": "mx_trace",
+         "display_name": "Mail provider trace",
+         "output_keys": ["mail_provider", "security_gateway",
+                         "filtering_vendor"]},
+        {"id": "webmail_discovery", "tool": "webmail_discovery",
+         "display_name": "Webmail discovery",
+         "options": {"wordlist": "webmail-paths"},
+         "output_keys": ["webmail_url", "portal_type", "mfa_required"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Delivery Surface",
+      "description": "Identify deliverability and lookalike risks.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "subdomain_enum", "tool": "subdomain_enum",
+         "display_name": "Subdomain enum",
+         "output_keys": ["subdomains"]},
+        {"id": "takeover", "tool": "takeover",
+         "display_name": "Subdomain takeover",
+         "options": {"targets": "{phase_3.subdomain_enum.subdomains}"},
+         "output_keys": ["takeover_candidates"]},
+        {"id": "open_redirect", "tool": "open_redirect",
+         "display_name": "Open redirect sweep",
+         "options": {"check_redirects": true},
+         "output_keys": ["open_redirects", "redirect_params"]},
+        {"id": "typosquat", "tool": "typosquat",
+         "display_name": "Typosquat domains",
+         "output_keys": ["typosquat_domains", "registered_lookalikes",
+                         "parked_domains"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Pretext Intelligence",
+      "description": "Generate dorks + technology context to shape the pretext.",
+      "rate_limit": 2,
+      "steps": [
+        {"id": "dork_generator", "tool": "dork_generator",
+         "display_name": "Dork generator",
+         "options": {"path": "/osint/dorks/{target}"},
+         "output_keys": ["credential_dorks", "document_dorks",
+                         "employee_dorks", "tech_stack_dorks"]},
+        {"id": "urlscan", "tool": "urlscan",
+         "display_name": "URLScan tech",
+         "options": {"path": "/osint/urlscan/{target}"},
+         "output_keys": ["technologies", "third_party_scripts",
+                         "cdn_providers"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Phishing recon report",
+         "options": {"template": "phishing",
+                     "spoofing_summary": true,
+                     "pretext_suggestions": true}}
+      ]
+    }
+  ]
+}

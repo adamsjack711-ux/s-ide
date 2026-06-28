@@ -1,0 +1,126 @@
+{
+  "id": "compromise_assessment",
+  "name": "Compromise Assessment",
+  "description": "Defensive sweep: are we already owned? Host integrity, network integrity, credential exposure, external exposure, IOC summary. Runs in Lab mode and doesn't require auth — it's checking your own posture.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "local_posture",
+  "target_type": "ip",
+  "estimated_duration": "20-40 min",
+  "risk_level": "low",
+  "requires_auth": false,
+  "stop_on_critical": true,
+  "mode_required": "either",
+  "report_template": "compromise",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Host Integrity",
+      "description": "Persistence vectors, processes, posture, user accounts.",
+      "rate_limit": 10,
+      "steps": [
+        {"id": "persistence", "tool": "persistence_audit",
+         "display_name": "Persistence audit",
+         "output_keys": ["total", "high", "warn"]},
+        {"id": "processes", "tool": "processes",
+         "display_name": "Process inventory",
+         "output_keys": ["processes", "listeners",
+                         "unsigned_binaries", "network_connections"]},
+        {"id": "posture", "tool": "macos_posture",
+         "display_name": "Posture (macOS adapter; falls back gracefully)",
+         "output_keys": ["sip", "gatekeeper",
+                         "filevault", "firewall_on"]},
+        {"id": "users_audit", "tool": "users_audit",
+         "display_name": "Users audit",
+         "output_keys": ["users", "sudo_users",
+                         "new_users", "authorized_keys"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Network Integrity",
+      "description": "WiFi posture, local IDS snapshot, unexpected hosts on the LAN.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "wifi_integrity", "tool": "wifi_integrity",
+         "display_name": "WiFi integrity",
+         "output_keys": ["evil_twin_detected", "dns_hijacked",
+                         "gateway_changed", "unexpected_ssid"]},
+        {"id": "ids_snapshot", "tool": "ids_snapshot",
+         "display_name": "Local IDS snapshot",
+         "options": {"duration": 60, "snapshot_mode": true},
+         "output_keys": ["new_listeners", "auth_failures",
+                         "suspicious_connections", "port_scan_detected"]},
+        {"id": "lan_scan", "tool": "lan_scan",
+         "display_name": "LAN sweep",
+         "output_keys": ["hosts", "ips", "unexpected_hosts", "new_macs"]},
+        {"id": "local_disco", "tool": "local_disco",
+         "display_name": "Passive mDNS/SSDP",
+         "options": {"passive": true, "duration": 30},
+         "output_keys": ["unexpected_services", "rogue_mdns", "ssdp_anomalies"]},
+        {"id": "tcpdump_sample", "tool": "tcpdump_sample",
+         "display_name": "Quick packet sample",
+         "options": {"duration": 30,
+                     "filter": "not port 443 and not port 80"},
+         "output_keys": ["unusual_protocols", "unexpected_destinations",
+                         "c2_indicators"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Credential Exposure",
+      "description": "Are our identities in breach corpora? Anything unexpected on Shodan?",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "breach_check", "tool": "breach_check",
+         "display_name": "Breach corpus",
+         "options": {"path": "/breach/domain/{target}"},
+         "output_keys": ["breached_accounts", "recent_breaches",
+                         "plaintext_passwords"]},
+        {"id": "shodan_self", "tool": "shodan_self",
+         "display_name": "Shodan self view",
+         "options": {"path": "/shodan/host/{target}"},
+         "output_keys": ["exposed_services", "unexpected_ports", "cves"]},
+        {"id": "ct_logs", "tool": "ct_log",
+         "display_name": "CT log certs",
+         "output_keys": ["subdomains", "subdomain_count", "recent_7d"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "External Exposure",
+      "description": "Quick external sweep against ourselves.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "port_scanner_external", "tool": "port_scanner_external",
+         "display_name": "External top-100",
+         "options": {"ports": "top-100", "external_view": true},
+         "output_keys": ["exposed_ports", "unexpected_services"]},
+        {"id": "takeover", "tool": "takeover",
+         "display_name": "Takeover sweep",
+         "output_keys": ["vulnerable_subdomains"]},
+        {"id": "tls_audit", "tool": "tls_audit",
+         "display_name": "TLS audit",
+         "output_keys": ["host", "port", "policy", "expiry_days"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "IOC Summary + Report",
+      "description": "Correlate findings into IOC list and generate the report.",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "ioc_correlate", "tool": "ioc_correlate",
+         "display_name": "IOC correlation",
+         "output_keys": ["iocs_found", "risk_score",
+                         "incident_response_needed"]},
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Compromise report",
+         "options": {"template": "compromise",
+                     "ioc_timeline": true,
+                     "ir_recommendations": true,
+                     "executive_summary": true}}
+      ]
+    }
+  ]
+}

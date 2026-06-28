@@ -1,0 +1,34 @@
+# OWASP WebGoat + WebWolf
+#
+# WebGoat is the lesson host (the vulnerable app you attack); WebWolf is
+# the companion service that hosts attacker-controlled files and catches
+# callbacks for the CSRF / exfil exercises.
+#
+# Both upstream images are published on Docker Hub. We pin tags so a
+# WebGoat point-release that breaks a lesson doesn't surprise users.
+
+name: mhp-lab-webgoat
+
+services:
+  webgoat:
+    image: webgoat/webgoat:v2023.8
+    container_name: mhp-lab-webgoat
+    # Loopback-only — the lab is for the user, not the LAN.
+    ports:
+      - "127.0.0.1:8084:8080"
+    environment:
+      # WebGoat needs to know where WebWolf is so the lesson UI can link
+      # to it. Inside the compose network we reach it as `webwolf:9090`.
+      - WEBWOLF_HOST=webwolf
+      - WEBWOLF_PORT=9090
+      - TZ=UTC
+    restart: unless-stopped
+
+  webwolf:
+    image: webgoat/webwolf:v2023.8
+    container_name: mhp-lab-webgoat-webwolf
+    ports:
+      - "127.0.0.1:9094:9090"
+    environment:
+      - TZ=UTC
+    restart: unless-stopped

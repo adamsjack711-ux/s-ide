@@ -1,0 +1,21 @@
+# Minimal Postfix main.cf for the Metasploitable lab — listens on 25,
+# spoofs banner. Not a real relay; just enough to fingerprint.
+
+smtpd_banner = $myhostname ESMTP Postfix (Ubuntu)
+biff = no
+append_dot_mydomain = no
+readme_directory = no
+compatibility_level = 2
+
+myhostname = metasploitable
+mydomain = local
+myorigin = $mydomain
+mydestination = $myhostname, localhost.$mydomain, localhost
+relayhost =
+mynetworks = 127.0.0.0/8 [::1]/128
+mailbox_size_limit = 0
+recipient_delimiter = +
+inet_interfaces = all
+inet_protocols = ipv4
+
+smtpd_relay_restrictions = permit_mynetworks reject_unauth_destination

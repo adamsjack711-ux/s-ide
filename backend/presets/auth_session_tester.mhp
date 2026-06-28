@@ -1,0 +1,84 @@
+{
+  "id": "auth_session_tester",
+  "name": "Auth & Session Security Tester",
+  "description": "Hardening review of authentication, session, and CSRF posture on a web target. Mostly passive checks suitable for production-with-permission runs.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "web_app",
+  "target_type": "url",
+  "estimated_duration": "15-30 min",
+  "risk_level": "medium",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "web",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Auth Surface",
+      "description": "Map login / register / reset paths and the auth model.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "http_probe_auth", "tool": "http_probe_auth",
+         "display_name": "Auth-path probe",
+         "options": {"wordlist": "auth-paths", "detect_login": true},
+         "output_keys": ["login_pages", "mfa_present",
+                         "oauth_detected", "sso_detected", "register_pages"]},
+        {"id": "security_headers", "tool": "security_headers",
+         "display_name": "Security headers",
+         "output_keys": ["missing_headers", "csp_policy", "xfo", "xcto"]},
+        {"id": "tls_audit", "tool": "tls_audit",
+         "display_name": "TLS audit",
+         "output_keys": ["policy", "expiry_days"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Tokens & Cookies",
+      "description": "Inspect what the server hands out and how it's protected.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "jwt_check", "tool": "jwt_check",
+         "display_name": "JWT integrity",
+         "output_keys": ["algorithm", "claims", "weak_secret", "expiry"]},
+        {"id": "cookie_analysis", "tool": "cookie_analysis",
+         "display_name": "Cookie flags + scope",
+         "output_keys": ["missing_secure", "missing_httponly",
+                         "samesite_missing", "session_fixation",
+                         "domain_overscoped"]},
+        {"id": "oauth_check", "tool": "oauth_check",
+         "display_name": "OAuth flow checks",
+         "condition": "phase_1.http_probe_auth.oauth_detected == true",
+         "output_keys": ["token_leakage", "state_bypass", "redirect_uri_bypass"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Session Behavior",
+      "description": "Probe how the app handles re-auth, redirects, and cross-site requests.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "open_redirect", "tool": "open_redirect",
+         "display_name": "Open redirect on auth flow",
+         "output_keys": ["redirect_found", "params"]},
+        {"id": "cors", "tool": "cors",
+         "display_name": "CORS / credentials",
+         "output_keys": ["cors_misconfig", "origins_allowed", "credentials_allowed"]},
+        {"id": "http_smuggling", "tool": "http_smuggling",
+         "display_name": "Request smuggling",
+         "output_keys": ["cl_te", "te_cl", "te_te"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Auth & session report",
+         "options": {"template": "web", "owasp_mapping": true,
+                     "cvss_scoring": true}}
+      ]
+    }
+  ]
+}

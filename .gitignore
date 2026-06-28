@@ -1,0 +1,25 @@
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist-electron/
+
+# Python / backend
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+backend/build/
+backend/dist/
+*.spec.bak
+
+# App data / databases (live in OS app-data dir, never in repo)
+*.db
+engagements.db
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log

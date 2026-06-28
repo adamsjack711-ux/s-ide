@@ -1,0 +1,30 @@
+# Build the Linux ELF sidecar inside a Debian-slim container so the binary
+# matches the AppImage/deb target. PyInstaller can't cross-compile from macOS;
+# this is the workaround.
+#
+# Build:    docker build -t hackingpal-linux-bundler -f Dockerfile.linux .
+# Run:      docker run --rm -v "$PWD:/src" -w /src hackingpal-linux-bundler \
+#               pyinstaller network-tools-backend.spec --noconfirm
+# Output:   ./dist/network-tools-backend  (Linux ELF, x86_64)
+
+FROM python:3.11-slim
+
+# binutils provides `strip` + `objcopy` that PyInstaller uses;
+# build-essential covers the C-extension wheels (argon2-cffi, bcrypt, cryptography
+# all ship manylinux wheels so we *probably* don't need it, but keep it in case
+# pip falls back to source).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        binutils \
+        build-essential \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Cache pip layer separately from source so iterative builds are fast.
+COPY requirements-bundle.txt /tmp/requirements-bundle.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-bundle.txt
+
+# Source is mounted at runtime via -v, not COPY'd, so changes to routers/
+# don't require rebuilding the image.
+CMD ["pyinstaller", "network-tools-backend.spec", "--noconfirm"]

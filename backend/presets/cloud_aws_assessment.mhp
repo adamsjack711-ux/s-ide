@@ -1,0 +1,126 @@
+{
+  "id": "cloud_aws_assessment",
+  "name": "Cloud Infrastructure Assessment (AWS)",
+  "description": "AWS-focused external + post-IMDS-exposure assessment: external recon, IMDS abuse, service enumeration, misconfiguration analysis. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "domain",
+  "estimated_duration": "30-60 min",
+  "risk_level": "high",
+  "requires_auth": true,
+  "stop_on_critical": true,
+  "mode_required": "engagement",
+  "report_template": "cloud",
+  "phases": [
+    {
+      "id": 1,
+      "name": "External Recon",
+      "description": "What does the org look like from outside?",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "whois", "tool": "whois",
+         "display_name": "WHOIS / netblocks",
+         "output_keys": ["asn", "domain", "network"]},
+        {"id": "dns_recon", "tool": "dns_recon",
+         "display_name": "DNS records",
+         "output_keys": ["a", "ns", "mx", "axfr_succeeded"]},
+        {"id": "ct_logs", "tool": "ct_log",
+         "display_name": "CT log subdomains",
+         "output_keys": ["subdomains"]},
+        {"id": "shodan", "tool": "shodan",
+         "display_name": "Shodan host view",
+         "options": {"path": "/shodan/host/{target}"},
+         "output_keys": ["open_ports", "aws_services", "exposed_services"]},
+        {"id": "s3_scan", "tool": "s3_scan",
+         "display_name": "S3 bucket sweep",
+         "options": {"permutations": true, "wordlist": "s3-buckets"},
+         "output_keys": ["public_buckets", "listable_buckets", "bucket_count"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "IMDS + Metadata",
+      "description": "Can we get to the instance metadata service?",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "ssrf_imds", "tool": "ssrf_imds",
+         "display_name": "SSRF → IMDS",
+         "approval": true,
+         "options": {"imds_focus": true, "cloud": "aws"},
+         "output_keys": ["imds_accessible", "credentials_exposed",
+                         "iam_role", "metadata"],
+         "on_finding": "pause"},
+        {"id": "imds_v2_check", "tool": "imds_v2_check",
+         "display_name": "IMDSv2 enforcement",
+         "output_keys": ["imdsv2_enforced", "token_required"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Service Enumeration",
+      "description": "Use the captured credentials to enumerate AWS services.",
+      "rate_limit": 5,
+      "condition": "phase_2.ssrf_imds.credentials_exposed == true",
+      "steps": [
+        {"id": "aws_iam", "tool": "aws_iam",
+         "display_name": "IAM enum",
+         "output_keys": ["users", "roles", "policies",
+                         "admin_users", "mfa_disabled", "access_keys_age"]},
+        {"id": "aws_s3", "tool": "aws_s3",
+         "display_name": "S3 enum",
+         "output_keys": ["buckets", "public_buckets", "acls",
+                         "encryption_disabled", "versioning_disabled"]},
+        {"id": "aws_ec2", "tool": "aws_ec2",
+         "display_name": "EC2 enum",
+         "output_keys": ["instances", "security_groups",
+                         "public_instances", "open_security_groups"]},
+        {"id": "aws_lambda", "tool": "aws_lambda",
+         "display_name": "Lambda enum",
+         "output_keys": ["functions", "env_vars", "public_functions"]},
+        {"id": "aws_rds", "tool": "aws_rds",
+         "display_name": "RDS enum",
+         "output_keys": ["databases", "public_rds",
+                         "encryption_disabled", "backup_disabled"]},
+        {"id": "cloudtrail", "tool": "cloudtrail",
+         "display_name": "CloudTrail posture",
+         "output_keys": ["logging_enabled", "log_validation", "multi_region"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Misconfiguration Analysis",
+      "description": "Correlate findings: SG misconfigs, IAM priv-esc, S3 ACL drift.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "sg_analysis", "tool": "sg_analysis",
+         "display_name": "Security Group analysis",
+         "options": {"targets": "{phase_3.aws_ec2.security_groups}"},
+         "output_keys": ["any_any_rules", "wide_open_ports",
+                         "ssh_exposed", "rdp_exposed"]},
+        {"id": "iam_analysis", "tool": "iam_analysis",
+         "display_name": "IAM policy analysis",
+         "options": {"targets": "{phase_3.aws_iam.policies}"},
+         "output_keys": ["admin_wildcards",
+                         "privilege_escalation_paths",
+                         "unused_permissions"]},
+        {"id": "s3_analysis", "tool": "s3_analysis",
+         "display_name": "S3 ACL analysis",
+         "options": {"targets": "{phase_3.aws_s3.buckets}"},
+         "output_keys": ["public_read", "public_write",
+                         "no_encryption", "no_versioning"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "AWS report",
+         "options": {"template": "cloud", "aws_well_architected": true,
+                     "cis_benchmark_mapping": true}}
+      ]
+    }
+  ]
+}

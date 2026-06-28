@@ -1,0 +1,51 @@
+{
+  "id": "passive_recon_domain",
+  "name": "Passive Recon — Domain Footprint",
+  "description": "Build a low-touch picture of a domain: who owns it, what DNS looks like, what certs have been issued, TLS posture, and email security. No active probing — safe to run in Lab against anything you don't own.",
+  "category": "passive_recon",
+  "target_type": "domain",
+  "mode_required": "either",
+  "author": "built-in",
+  "steps": [
+    {
+      "id": "whois",
+      "tool": "whois",
+      "rationale": "Identify the registrant, registrar, ASN, and netblock. Establishes ownership and the boundary of what's likely 'theirs' vs hosted elsewhere.",
+      "success": "Registrar + ASN identified; expiry date noted.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "dns_recon",
+      "tool": "dns_recon",
+      "rationale": "Pull A/AAAA/MX/NS/TXT/CAA/SOA records and attempt AXFR. Reveals mail providers, NS hosting, and any wildly misconfigured zones.",
+      "success": "Records enumerated. Flag if AXFR succeeds — that's almost always a finding.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "ct_log",
+      "tool": "ct_log",
+      "rationale": "Query CT logs for every cert ever issued to this domain. Surfaces forgotten subdomains, dev/staging hosts, and short-lived assets the owner has lost track of.",
+      "success": "Subdomain list captured. High value if the count is >50 — likely contains shadow IT.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "tls_audit",
+      "tool": "tls_audit",
+      "rationale": "Check the apex's TLS posture: protocol support, cipher choice, HSTS, certificate expiry. Cheap and often shows policy drift.",
+      "success": "Protocol matrix captured. Flag deprecated TLS 1.0/1.1, weak ciphers, or short-dated certs.",
+      "approval": false,
+      "options": { "port": 443 }
+    },
+    {
+      "id": "email_audit",
+      "tool": "email_audit",
+      "rationale": "Inspect SPF, DMARC, MTA-STS, BIMI, and DKIM selectors. Missing or weak SPF/DMARC is the most reliable phishing-spoofing precondition.",
+      "success": "SPF present with a hard fail (-all). DMARC present with p=quarantine or stricter.",
+      "approval": false,
+      "options": {}
+    }
+  ]
+}

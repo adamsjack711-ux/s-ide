@@ -1,0 +1,38 @@
+/* Bind dockview's theme variables to s-ide's CSS-variable token system so the
+   IDE chrome matches the rest of the app in both dark and light. */
+.s-ide-dockview {
+  --dv-background-color: var(--bg-base);
+  --dv-group-view-background-color: var(--bg-base);
+
+  --dv-tabs-and-actions-container-background-color: var(--bg-sidebar);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-base);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-sidebar);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-sidebar);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-sidebar);
+
+  --dv-activegroup-visiblepanel-tab-color: var(--text-primary, #e6e6e6);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-muted, #9aa0a6);
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-muted, #9aa0a6);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted, #9aa0a6);
+
+  --dv-separator-border: var(--border, #2a2a33);
+  --dv-paneview-active-outline-color: var(--accent, #6ee7ff);
+  --dv-tab-divider-color: var(--border, #2a2a33);
+
+  --dv-icon-hover-background-color: var(--bg-hover, #1a1a22);
+  --dv-active-sash-color: var(--accent, #6ee7ff);
+
+  /* Tighter, IDE-like tab strip. */
+  --dv-tabs-and-actions-container-height: 34px;
+}
+
+/* VS Code-style active-tab accent underline + cleaner tab metrics. */
+.s-ide-dockview .dv-tab {
+  font-size: 12px;
+  padding: 0 12px;
+  border-right: 1px solid var(--divider);
+}
+.s-ide-dockview .dv-tab.dv-active-tab {
+  box-shadow: inset 0 -2px 0 0 var(--accent);
+}
+.s-ide-dockview .dv-tabs-container { border-bottom: 1px solid var(--divider); }

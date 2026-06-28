@@ -1,0 +1,55 @@
+{
+  "id": "baseline_home_app",
+  "name": "Baseline — My Web App",
+  "description": "Passive-plus-light baseline for an app you own. Resolves DNS, checks TLS posture, inspects security headers, fingerprints the stack, sweeps common sensitive paths, and pulls CT logs. Safe to run from Lab mode against your own targets — no exploit payloads, no auth bypass attempts.",
+  "category": "surface_inventory",
+  "target_type": "domain",
+  "mode_required": "either",
+  "risk_level": "low",
+  "author": "built-in",
+  "steps": [
+    {
+      "id": "dns_recon",
+      "tool": "dns_recon",
+      "rationale": "Resolve A/AAAA/MX/NS/TXT/CAA. If the app is on a public domain this maps where it actually lives; on a private/localhost target it just no-ops and we keep going.",
+      "success": "Records pulled. Flag missing CAA, oddly-permissive SPF, or AXFR success.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "tls_audit",
+      "tool": "tls_audit",
+      "rationale": "Check TLS protocol, cipher, HSTS, and cert expiry on 443. Weak/expired/missing TLS is the easiest finding to fix and the most common one on home-built apps.",
+      "success": "TLS 1.2 or 1.3 only; HSTS present; chain valid; >30 days until expiry.",
+      "approval": false,
+      "options": { "port": 443 }
+    },
+    {
+      "id": "cms_fingerprint",
+      "tool": "cms_fingerprint",
+      "rationale": "Identify framework / server / language. Knowing the stack lets the AI triage step recommend stack-specific follow-ups (e.g. WordPress hardening vs Express headers).",
+      "success": "Stack identified at med+ confidence. Outdated framework versions are a finding.",
+      "approval": false,
+      "options": {}
+    },
+    {
+      "id": "http_probe",
+      "tool": "http_probe",
+      "rationale": "Hit the app with a small wordlist of common sensitive paths (/admin, /.env, /backup, /.git, /api/docs, /status). Also captures response headers so we can score Content-Security-Policy, X-Frame-Options, HSTS, and Referrer-Policy.",
+      "success": "No 200s on admin/backup/.git-style paths; CSP + X-Frame-Options + HSTS all present.",
+      "approval": true,
+      "options": {
+        "wordlist": "small",
+        "max_concurrency": 8
+      }
+    },
+    {
+      "id": "ct_log",
+      "tool": "ct_log",
+      "rationale": "Pull every cert ever issued for the domain from public CT logs. Home developers commonly forget about staging.myapp.com or old-myapp.example — CT logs surface them.",
+      "success": "Subdomain list captured. Flag obvious dev/stage/admin subdomains.",
+      "approval": false,
+      "options": {}
+    }
+  ]
+}

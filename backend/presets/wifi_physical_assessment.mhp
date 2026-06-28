@@ -1,0 +1,94 @@
+{
+  "id": "wifi_physical_assessment",
+  "name": "WiFi + Physical Assessment",
+  "description": "Walk-through wireless + physical assessment: passive survey, active wifi work, post-connect recon, report. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "org",
+  "estimated_duration": "30-60 min",
+  "risk_level": "high",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "wifi",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Passive Survey",
+      "description": "What's broadcasting nearby — wifi, bluetooth, mDNS.",
+      "rate_limit": 1,
+      "steps": [
+        {"id": "wifi_integrity", "tool": "wifi_integrity",
+         "display_name": "WiFi integrity",
+         "output_keys": ["ssids", "bssids", "encryption",
+                         "signal_strength", "gateway",
+                         "dns_servers", "evil_twin_detected"]},
+        {"id": "bluetooth_recon", "tool": "bluetooth_recon",
+         "display_name": "Bluetooth recon",
+         "output_keys": ["devices", "device_types", "pairable_devices"]},
+        {"id": "local_disco", "tool": "local_disco",
+         "display_name": "Passive mDNS/SSDP",
+         "options": {"passive": true, "duration": 60},
+         "output_keys": ["mdns_services", "ssdp_devices",
+                         "printer_names", "workstation_names"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Active WiFi",
+      "description": "Capture handshakes, look for evil twins.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "evil_twin_check", "tool": "evil_twin_check",
+         "display_name": "Evil twin check",
+         "options": {"targets": "{phase_1.wifi_integrity.ssids}"},
+         "output_keys": ["rogue_aps", "ssid_spoofing", "signal_anomalies"]},
+        {"id": "wpa_capture", "tool": "wpa_capture",
+         "display_name": "WPA / PMKID capture",
+         "approval": true,
+         "options": {"timeout": 120},
+         "output_keys": ["handshakes_captured", "pmkids_captured", "networks"]},
+        {"id": "hash_cracker", "tool": "hash_cracker",
+         "display_name": "Crack handshake",
+         "options": {"wordlist": "rockyou", "hashtype": "wpa2",
+                     "targets": "{phase_2.wpa_capture.handshakes_captured}"},
+         "condition": "phase_2.wpa_capture.handshakes_captured != null",
+         "output_keys": ["cracked_networks", "passwords"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Post-Connect Recon",
+      "description": "Once we're on the wire — quick inventory of the network we joined.",
+      "rate_limit": 8,
+      "condition": "phase_2.hash_cracker.cracked_networks != null",
+      "steps": [
+        {"id": "lan_scan", "tool": "lan_scan",
+         "display_name": "LAN sweep",
+         "output_keys": ["hosts", "ips", "macs", "vendors"]},
+        {"id": "port_scanner", "tool": "port_scanner",
+         "display_name": "Top-100 port scan",
+         "options": {"ports": "top-100", "targets": "{phase_3.lan_scan.ips}"},
+         "output_keys": ["open_ports", "services"]},
+        {"id": "gateway_analysis", "tool": "gateway_analysis",
+         "display_name": "Gateway analysis",
+         "output_keys": ["default_creds", "admin_panel_exposed",
+                         "dns_hijack", "mitm_position"]},
+        {"id": "dns_spoof_check", "tool": "dns_spoof_check",
+         "display_name": "DNS spoof check",
+         "output_keys": ["dns_hijacked", "rogue_responses"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "WiFi report",
+         "options": {"template": "wifi", "network_diagram": true}}
+      ]
+    }
+  ]
+}

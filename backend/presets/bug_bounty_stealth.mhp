@@ -1,0 +1,112 @@
+{
+  "id": "bug_bounty_stealth",
+  "name": "Bug Bounty — Stealth Mode",
+  "description": "Low-noise bug-bounty workflow: pure passive recon, careful active recon, scope-limited testing, programme-style report. Engagement mode required (scope is enforced strictly).",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "domain",
+  "estimated_duration": "20-30 min",
+  "risk_level": "low",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "bugbounty",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Pure Passive",
+      "description": "Zero active contact with the target.",
+      "rate_limit": 1,
+      "steps": [
+        {"id": "shodan", "tool": "shodan",
+         "display_name": "Shodan host view",
+         "options": {"path": "/shodan/host/{target}"},
+         "output_keys": ["open_ports", "cves", "hostnames", "banners"]},
+        {"id": "ct_logs", "tool": "ct_log",
+         "display_name": "CT log subdomains",
+         "output_keys": ["subdomains", "subdomain_count"]},
+        {"id": "wayback", "tool": "wayback",
+         "display_name": "Wayback URLs",
+         "options": {"path": "/wayback/{target}"},
+         "output_keys": ["endpoints", "js_files",
+                         "interesting_urls", "forgotten_endpoints"]},
+        {"id": "breach", "tool": "breach",
+         "display_name": "Breach corpus",
+         "options": {"path": "/breach/domain/{target}"},
+         "output_keys": ["breached_accounts", "data_types"]},
+        {"id": "urlscan", "tool": "urlscan",
+         "display_name": "URLScan history",
+         "options": {"path": "/osint/urlscan/{target}"},
+         "output_keys": ["technologies", "history", "malicious_flags"]},
+        {"id": "github_dorks", "tool": "github_dorks",
+         "display_name": "GitHub secret dorks",
+         "options": {"type": "github_secrets",
+                     "path": "/osint/dorks/{target}"},
+         "output_keys": ["github_dorks", "potential_leaks"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Careful Active",
+      "description": "Minimum-noise active recon.",
+      "rate_limit": 1,
+      "steps": [
+        {"id": "dns_recon", "tool": "dns_recon",
+         "display_name": "DNS records (no brute)",
+         "options": {"brute": false, "zone_transfer": true},
+         "output_keys": ["a", "ns", "mx", "axfr_succeeded"]},
+        {"id": "tls_audit", "tool": "tls_audit",
+         "display_name": "TLS audit",
+         "output_keys": ["host", "port", "policy"]},
+        {"id": "security_headers", "tool": "security_headers",
+         "display_name": "Security headers",
+         "output_keys": ["missing_headers", "csp_policy", "xfo", "xcto"]},
+        {"id": "email_sec", "tool": "email_audit",
+         "display_name": "Email security",
+         "output_keys": ["spf_present", "dmarc_present", "mta_sts", "bimi"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Targeted In-Scope Testing",
+      "description": "Programme-scope-only active testing. Slow, deliberate, well-logged.",
+      "rate_limit": 2,
+      "steps": [
+        {"id": "http_probe", "tool": "http_probe",
+         "display_name": "Light path probe",
+         "approval": true,
+         "options": {"wordlist": "small", "max_concurrency": 4},
+         "output_keys": ["hits", "url"]},
+        {"id": "xss_passive", "tool": "xss",
+         "display_name": "Reflection points",
+         "approval": true,
+         "output_keys": ["reflected_xss", "contexts"]},
+        {"id": "idor_own", "tool": "idor",
+         "display_name": "IDOR (own account)",
+         "approval": true,
+         "output_keys": ["idor_found", "exposed_ids"]},
+        {"id": "cors", "tool": "cors",
+         "display_name": "CORS misconfig",
+         "output_keys": ["cors_misconfig", "credentials_allowed"]},
+        {"id": "jwt_check", "tool": "jwt_check",
+         "display_name": "JWT analyzer",
+         "output_keys": ["algorithm", "weak_secret", "claims"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Bug bounty report",
+         "options": {"template": "bugbounty",
+                     "severity_per_program": true,
+                     "cvss_scores": true,
+                     "poc_steps": true,
+                     "bounty_tier_estimate": true}}
+      ]
+    }
+  ]
+}

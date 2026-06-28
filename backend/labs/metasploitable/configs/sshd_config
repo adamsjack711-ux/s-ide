@@ -1,0 +1,27 @@
+# Intentionally weak OpenSSH config for the Metasploitable lab.
+# Password auth on for everyone, root login allowed, banner spoofed.
+
+Port 22
+Protocol 2
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+LoginGraceTime 120
+PermitRootLogin yes
+StrictModes yes
+
+PubkeyAuthentication yes
+PasswordAuthentication yes
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+
+UsePAM yes
+X11Forwarding yes
+PrintMotd no
+AcceptEnv LANG LC_*
+
+# Spoofed banner — readable in the SSH-2.0-... line on connect.
+Banner /etc/issue.net
+
+Subsystem sftp /usr/lib/openssh/sftp-server

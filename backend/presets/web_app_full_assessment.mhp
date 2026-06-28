@@ -1,0 +1,160 @@
+{
+  "id": "web_app_full_assessment",
+  "name": "Web Application Full Assessment",
+  "description": "Web-app first-look through to active exploitation: footprint, auth recon, content discovery, input validation, access control, infrastructure, and report. Engagement mode required.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "web_app",
+  "target_type": "url",
+  "estimated_duration": "30-60 min",
+  "risk_level": "high",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "web",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Footprint",
+      "description": "DNS, certs, history, stack.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "dns_recon", "tool": "dns_recon",
+         "display_name": "DNS records",
+         "output_keys": ["a", "ns", "mx", "axfr_succeeded"]},
+        {"id": "ct_logs", "tool": "ct_log",
+         "display_name": "CT log search",
+         "output_keys": ["subdomains", "subdomain_count"]},
+        {"id": "wayback", "tool": "wayback",
+         "display_name": "Wayback URLs",
+         "options": {"path": "/wayback/{target}"},
+         "output_keys": ["forgotten_endpoints", "js_files",
+                         "api_endpoints", "interesting_urls"]},
+        {"id": "cms_fingerprint", "tool": "cms_fingerprint",
+         "display_name": "Stack fingerprint",
+         "output_keys": ["tech_count", "tech_names"]},
+        {"id": "tls_audit", "tool": "tls_audit",
+         "display_name": "TLS audit",
+         "output_keys": ["host", "port", "policy", "expiry_days"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Authentication Recon",
+      "description": "Find the login surface and adjacent auth flows.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "http_probe_auth", "tool": "http_probe_auth",
+         "display_name": "Auth-path probe",
+         "options": {"wordlist": "auth-paths", "detect_login": true},
+         "output_keys": ["login_pages", "mfa_present",
+                         "oauth_detected", "sso_detected"]},
+        {"id": "jwt_check", "tool": "jwt_check",
+         "display_name": "JWT analyzer",
+         "condition": "phase_2.http_probe_auth.login_pages contains \"jwt\"",
+         "output_keys": ["algorithm", "claims", "weak_secret", "expiry"]},
+        {"id": "graphql", "tool": "graphql",
+         "display_name": "GraphQL introspection",
+         "condition": "phase_1.wayback.api_endpoints contains \"graphql\"",
+         "output_keys": ["schema", "mutations", "introspection_enabled"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Content Discovery",
+      "description": "Find the unlisted endpoints and embedded references.",
+      "rate_limit": 8,
+      "steps": [
+        {"id": "http_probe_full", "tool": "http_probe_full",
+         "display_name": "Full path enum",
+         "options": {"wordlist": "raft-large",
+                     "recursive": true, "extensions": true},
+         "output_keys": ["paths", "admin_panels", "config_files",
+                         "backup_files", "api_endpoints"]},
+        {"id": "js_analysis", "tool": "js_analysis",
+         "display_name": "JS analysis",
+         "options": {"targets": "{phase_1.wayback.js_files}"},
+         "output_keys": ["endpoints", "secrets", "api_keys", "comments"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Input Validation",
+      "description": "Hammer the input surfaces.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "xss", "tool": "xss", "display_name": "XSS",
+         "approval": true,
+         "output_keys": ["reflected_xss", "stored_xss", "dom_xss", "contexts"]},
+        {"id": "sqli", "tool": "sqli", "display_name": "SQLi",
+         "approval": true,
+         "output_keys": ["injectable_params", "dbms", "blind_sqli", "union_sqli"],
+         "on_finding": "pause"},
+        {"id": "cmdi", "tool": "cmdi", "display_name": "Command injection",
+         "approval": true,
+         "output_keys": ["cmdi_found", "os", "output"]},
+        {"id": "lfi", "tool": "lfi", "display_name": "LFI / traversal",
+         "approval": true,
+         "output_keys": ["lfi_found", "files_accessible"]},
+        {"id": "ssrf", "tool": "ssrf", "display_name": "SSRF",
+         "approval": true,
+         "output_keys": ["ssrf_found", "internal_hosts", "cloud_metadata"]},
+        {"id": "xxe", "tool": "xxe", "display_name": "XXE",
+         "approval": true,
+         "output_keys": ["xxe_found", "files_read", "ssrf_via_xxe"]},
+        {"id": "ssti", "tool": "ssti", "display_name": "SSTI",
+         "approval": true,
+         "output_keys": ["ssti_found", "template_engine", "rce_possible"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Access Control",
+      "description": "Authz and protocol-level issues.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "idor", "tool": "idor", "display_name": "IDOR",
+         "approval": true,
+         "output_keys": ["idor_found", "exposed_objects"]},
+        {"id": "cors", "tool": "cors", "display_name": "CORS misconfig",
+         "output_keys": ["cors_misconfig", "origins_allowed", "credentials_allowed"]},
+        {"id": "http_smuggling", "tool": "http_smuggling",
+         "display_name": "HTTP request smuggling",
+         "output_keys": ["cl_te", "te_cl", "te_te"]},
+        {"id": "oauth", "tool": "oauth_check",
+         "display_name": "OAuth flow checks",
+         "condition": "phase_2.http_probe_auth.oauth_detected == true",
+         "output_keys": ["token_leakage", "state_bypass", "redirect_uri_bypass"]}
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Infrastructure",
+      "description": "Headers, cookies, WAF/CDN posture.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "security_headers", "tool": "security_headers",
+         "display_name": "Security headers",
+         "output_keys": ["missing_headers", "csp_policy", "xfo", "xcto"]},
+        {"id": "cookie_analysis", "tool": "cookie_analysis",
+         "display_name": "Cookie analysis",
+         "output_keys": ["missing_secure", "missing_httponly",
+                         "samesite_missing", "session_fixation"]},
+        {"id": "waf_detection", "tool": "waf_detection",
+         "display_name": "WAF detection",
+         "output_keys": ["waf_present", "waf_vendor", "bypass_vectors"]}
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Web app report",
+         "options": {"template": "web", "owasp_mapping": true,
+                     "cvss_scoring": true}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "id": "cloud_exposure_auditor",
+  "name": "Cloud Exposure Auditor",
+  "description": "Multi-cloud external exposure check: what the organization leaks from outside without credentials. AWS + Azure + GCP + S3 + Shodan + CT. No active exploitation.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "domain",
+  "estimated_duration": "20-40 min",
+  "risk_level": "medium",
+  "requires_auth": true,
+  "stop_on_critical": false,
+  "mode_required": "engagement",
+  "report_template": "cloud",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Ownership & Footprint",
+      "description": "Identify the org's network footprint and DNS posture.",
+      "rate_limit": 6,
+      "steps": [
+        {"id": "whois", "tool": "whois",
+         "display_name": "WHOIS",
+         "output_keys": ["asn", "domain", "network"]},
+        {"id": "asn", "tool": "asn",
+         "display_name": "ASN ranges",
+         "output_keys": ["ranges", "country"]},
+        {"id": "dns_recon", "tool": "dns_recon",
+         "display_name": "DNS records",
+         "output_keys": ["a", "ns", "mx", "axfr_succeeded"]},
+        {"id": "ct_logs", "tool": "ct_log",
+         "display_name": "CT log subdomains",
+         "output_keys": ["subdomains", "subdomain_count"]},
+        {"id": "subdomain_enum", "tool": "subdomain_enum",
+         "display_name": "Subdomain enum",
+         "output_keys": ["live_subdomains", "interesting_envs"]}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Public Buckets & Storage",
+      "description": "Look for openly listable storage across vendors.",
+      "rate_limit": 4,
+      "steps": [
+        {"id": "s3_scan", "tool": "s3_scan",
+         "display_name": "S3 bucket sweep",
+         "options": {"permutations": true, "wordlist": "s3-buckets"},
+         "output_keys": ["public_buckets", "listable_buckets", "bucket_count"]},
+        {"id": "permutation", "tool": "permutation",
+         "display_name": "Bucket-name permutations (Azure/GCP)",
+         "options": {"providers": ["azure", "gcp"]},
+         "output_keys": ["azure_blobs", "gcp_buckets"]}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Internet Surface",
+      "description": "Shodan/Censys lookups against discovered IPs.",
+      "rate_limit": 5,
+      "steps": [
+        {"id": "shodan_host", "tool": "shodan_host",
+         "display_name": "Shodan host view",
+         "output_keys": ["open_ports", "aws_services", "azure_services",
+                         "gcp_services", "exposed_services"]},
+        {"id": "shodan_self", "tool": "shodan_self",
+         "display_name": "Shodan self search",
+         "output_keys": ["matches", "indexed_count"]}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Cloud Metadata Probes",
+      "description": "Non-credentialed metadata-service exposure checks.",
+      "rate_limit": 3,
+      "steps": [
+        {"id": "imds_v2_check", "tool": "imds_v2_check",
+         "display_name": "IMDSv2 enforcement",
+         "output_keys": ["imdsv2_enforced", "token_required"]},
+        {"id": "ssrf", "tool": "ssrf",
+         "display_name": "SSRF (read-only)",
+         "approval": true,
+         "options": {"safe_mode": true},
+         "output_keys": ["ssrf_found", "cloud_metadata"]}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Report",
+      "rate_limit": 0,
+      "steps": [
+        {"id": "generate_report", "tool": "generate_report",
+         "display_name": "Cloud exposure report",
+         "options": {"template": "cloud",
+                     "cis_benchmark_mapping": true}}
+      ]
+    }
+  ]
+}

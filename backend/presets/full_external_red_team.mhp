@@ -1,0 +1,226 @@
+{
+  "id": "full_external_red_team",
+  "name": "Full External Red Team",
+  "description": "End-to-end external assessment: passive intel, DNS recon, surface mapping, vulnerability discovery, web exploitation, and final report. Engagement mode required; every active phase carries an authorization gate and scope check.",
+  "version": "1.0",
+  "author": "built-in",
+  "category": "engagement_attack",
+  "target_type": "domain",
+  "estimated_duration": "45-90 min",
+  "risk_level": "high",
+  "requires_auth": true,
+  "stop_on_critical": true,
+  "mode_required": "engagement",
+  "report_template": "external",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Passive Intelligence",
+      "description": "Build a low-touch picture of the target — registration, certificate history, breach exposure, OSINT chatter, and Shodan vantage.",
+      "rate_limit": 2,
+      "steps": [
+        {
+          "id": "whois", "tool": "whois", "display_name": "WHOIS / ASN",
+          "rationale": "Identify the registrant, registrar, and netblock owner.",
+          "output_keys": ["registrar", "org_name", "nameservers", "admin_email", "creation_date"]
+        },
+        {
+          "id": "asn", "tool": "asn", "display_name": "ASN lookup",
+          "options": {"path": "/whois/{target}"},
+          "output_keys": ["asn", "netblock", "org", "country"]
+        },
+        {
+          "id": "ct_logs", "tool": "ct_log", "display_name": "CT log search",
+          "rationale": "CT logs reveal forgotten/dev/staging subdomains that didn't show up in DNS.",
+          "output_keys": ["subdomains", "subdomain_count", "recent_7d"]
+        },
+        {
+          "id": "wayback", "tool": "wayback", "display_name": "Wayback Machine",
+          "options": {"path": "/wayback/{target}"},
+          "output_keys": ["interesting_urls", "js_files", "api_endpoints", "total_urls"]
+        },
+        {
+          "id": "breach", "tool": "breach", "display_name": "Breach domain check",
+          "options": {"path": "/breach/domain/{target}"},
+          "output_keys": ["breached_accounts", "breach_count", "exposed_data_types"]
+        },
+        {
+          "id": "email_harvest", "tool": "email_harvest", "display_name": "Email harvest",
+          "options": {"path": "/osint/emails/{target}"},
+          "output_keys": ["emails", "sources"]
+        },
+        {
+          "id": "dorks", "tool": "dorks", "display_name": "Search engine dorks",
+          "options": {"path": "/osint/dorks/{target}"},
+          "output_keys": ["dork_strings", "search_urls"]
+        },
+        {
+          "id": "shodan_host", "tool": "shodan_host", "display_name": "Shodan host view",
+          "options": {"path": "/shodan/host/{target}"},
+          "output_keys": ["open_ports", "cves", "hostnames", "tags"]
+        },
+        {
+          "id": "urlscan", "tool": "urlscan", "display_name": "URLScan history",
+          "options": {"path": "/osint/urlscan/{target}"},
+          "output_keys": ["screenshots", "technologies", "malicious_indicators"]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Active DNS Recon",
+      "description": "Active DNS work — full records, brute, zone transfer, subdomain enumeration, takeover signatures.",
+      "rate_limit": 5,
+      "steps": [
+        {
+          "id": "dns_recon", "tool": "dns_recon", "display_name": "DNS records + AXFR",
+          "rationale": "Pull A/AAAA/MX/NS/TXT/CAA/SOA records and probe zone transfer.",
+          "output_keys": ["a", "ns", "mx", "axfr_succeeded", "dnssec_signed"]
+        },
+        {
+          "id": "subdomain_enum", "tool": "subdomain_enum", "display_name": "Subdomain enum",
+          "options": {"sources": "all", "permutations": true,
+                      "targets": "{phase_1.ct_logs.subdomains}"},
+          "output_keys": ["subdomains", "total_found"]
+        },
+        {
+          "id": "permutation", "tool": "permutation", "display_name": "Permutation generator",
+          "options": {"targets": "{phase_2.subdomain_enum.subdomains}"},
+          "output_keys": ["permutation_hits"]
+        },
+        {
+          "id": "reverse_ip", "tool": "reverse_ip", "display_name": "Reverse IP",
+          "output_keys": ["co_hosted_domains", "ip"]
+        },
+        {
+          "id": "takeover", "tool": "takeover", "display_name": "Subdomain takeover",
+          "options": {"targets": "{phase_2.subdomain_enum.subdomains}"},
+          "output_keys": ["vulnerable_subdomains"],
+          "on_finding": "pause"
+        },
+        {
+          "id": "email_sec", "tool": "email_audit", "display_name": "Email security",
+          "output_keys": ["spf_present", "dmarc_present", "mta_sts", "bimi"]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Surface Mapping",
+      "description": "Map the attack surface — what's listening, what's serving HTTP, what's the stack.",
+      "rate_limit": 8,
+      "steps": [
+        {
+          "id": "port_scanner", "tool": "port_scanner", "display_name": "Port scan",
+          "options": {"ports": "top-1000",
+                      "targets": "{phase_2.dns_recon.a}"},
+          "output_keys": ["open_count", "open_ports"]
+        },
+        {
+          "id": "fingerprint", "tool": "fingerprint", "display_name": "Service fingerprint",
+          "options": {"targets": "{phase_3.port_scanner.open_ports}"},
+          "output_keys": ["service_versions", "banners"]
+        },
+        {
+          "id": "tls_audit", "tool": "tls_audit", "display_name": "TLS posture",
+          "options": {"port": 443},
+          "output_keys": ["host", "port", "negotiated", "policy", "expiry_days"]
+        },
+        {
+          "id": "http_probe", "tool": "http_probe", "display_name": "HTTP path probe",
+          "options": {"wordlist": "small", "max_concurrency": 16},
+          "output_keys": ["hits", "url"]
+        },
+        {
+          "id": "cms_fingerprint", "tool": "cms_fingerprint", "display_name": "CMS / stack",
+          "output_keys": ["tech_count", "tech_names", "host", "status_code"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Vulnerability Discovery",
+      "description": "Scriptable vulnerability surfaces — NSE vuln category, exploit-db cross-reference, CVE lookup, GraphQL introspection, JWT analysis.",
+      "rate_limit": 5,
+      "steps": [
+        {
+          "id": "nmap_vuln", "tool": "nmap_vuln", "display_name": "Nmap vuln scan",
+          "options": {"preset": "quick_vuln",
+                      "targets": "{phase_2.dns_recon.a}"},
+          "output_keys": ["vulnerabilities", "cves"]
+        },
+        {
+          "id": "searchsploit", "tool": "searchsploit", "display_name": "ExploitDB cross-ref",
+          "options": {"targets": "{phase_3.fingerprint.service_versions}"},
+          "output_keys": ["matching_exploits", "exploit_count"]
+        },
+        {
+          "id": "cve_lookup", "tool": "cve_lookup", "display_name": "CVE lookup",
+          "options": {"targets": "{phase_3.fingerprint.service_versions}"},
+          "output_keys": ["cves", "severity_breakdown"]
+        },
+        {
+          "id": "graphql", "tool": "graphql", "display_name": "GraphQL introspection",
+          "condition": "phase_3.http_probe.hits > 0",
+          "output_keys": ["schema", "mutations", "queries"]
+        },
+        {
+          "id": "jwt_check", "tool": "jwt_check", "display_name": "JWT analyzer",
+          "output_keys": ["algorithm", "weak_secret", "claims"]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Web Exploitation",
+      "description": "Active exploitation surfaces — XSS, SQLi, SSRF, LFI, command injection, IDOR. Each surfaces auto-promoted findings on hit.",
+      "rate_limit": 3,
+      "steps": [
+        {
+          "id": "xss", "tool": "xss", "display_name": "Reflected XSS",
+          "approval": true,
+          "output_keys": ["reflected_xss", "contexts"]
+        },
+        {
+          "id": "sqli", "tool": "sqli", "display_name": "SQL injection",
+          "approval": true,
+          "output_keys": ["injectable_params", "dbms", "sqli_detected"],
+          "on_finding": "pause"
+        },
+        {
+          "id": "ssrf", "tool": "ssrf", "display_name": "SSRF",
+          "approval": true,
+          "output_keys": ["ssrf_found", "internal_access", "imds_access"]
+        },
+        {
+          "id": "lfi", "tool": "lfi", "display_name": "Local File Inclusion",
+          "approval": true,
+          "output_keys": ["lfi_found", "files_read"]
+        },
+        {
+          "id": "cmdi", "tool": "cmdi", "display_name": "Command injection",
+          "approval": true,
+          "output_keys": ["cmdi_found", "output"]
+        },
+        {
+          "id": "idor", "tool": "idor", "display_name": "IDOR",
+          "approval": true,
+          "output_keys": ["idor_found", "exposed_ids"]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Report Generation",
+      "description": "Aggregate findings into a single external red-team report.",
+      "rate_limit": 0,
+      "steps": [
+        {
+          "id": "generate_report", "tool": "generate_report",
+          "display_name": "External report",
+          "options": {"template": "external"}
+        }
+      ]
+    }
+  ]
+}
