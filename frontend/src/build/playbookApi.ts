@@ -91,6 +91,12 @@ export async function coverage(id: string): Promise<Coverage> {
   return json<Coverage>(await authFetch(`/playbooks/${id}/coverage`, { method: "POST" }));
 }
 
+/** Delete a playbook entirely. */
+export async function deletePlaybook(id: string): Promise<void> {
+  const r = await authFetch(`/playbooks/${id}`, { method: "DELETE" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+}
+
 export type Lab = { id: string; name: string };
 
 export async function listLabs(): Promise<Lab[]> {

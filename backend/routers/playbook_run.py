@@ -120,6 +120,16 @@ def get_playbook(playbook_id: str) -> dict[str, Any]:
     return _row_to_playbook(r)
 
 
+@router.delete("/{playbook_id}")
+def delete_playbook(playbook_id: str) -> dict[str, Any]:
+    """Delete a playbook. 404 if the id is unknown."""
+    with _conn() as conn:
+        cur = conn.execute("DELETE FROM playbooks WHERE id=?", (playbook_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="playbook not found")
+    return {"deleted": True, "id": playbook_id}
+
+
 @router.put("/{playbook_id}")
 def update_playbook(playbook_id: str, body: PlaybookIn) -> dict[str, Any]:
     """Replace a playbook's name, steps, and lab binding.

@@ -1,111 +1,209 @@
 # OWASP crAPI — Completely Ridiculous API
 #
 # Stack: web (NGINX) + identity (Java/Spring) + community (Go) + workshop
-# (Python/Flask), backed by mongodb + postgresdb, with mailhog as a fake
+# (Python/Django), backed by mongodb + postgresdb, with mailhog as a fake
 # inbox for the signup/verification flow.
 #
-# Vendored from the upstream crAPI docker-compose.yml at v0.10 — trimmed
-# to the services we need, port-mapped to 127.0.0.1 only, and stripped of
-# anything that exposes telemetry off-host.
+# Vendored from the upstream crAPI deploy/docker/docker-compose.yml and
+# trimmed for local training use:
+#   * loopback-only port publishing (web on 8085, mailhog UI on 8095)
+#   * the chatbot + chromadb + gateway services are dropped — the chatbot
+#     needs an external LLM API key and the gateway only backs one lesson.
+#     crapi-web still needs a non-empty CHATBOT_SERVICE so its nginx config
+#     renders, so we point it at identity (chatbot routes simply won't work).
+#   * healthcheck-gated `depends_on` is KEPT — it's what stops crapi-workshop
+#     crash-looping (Django runs its DB check before postgres is ready).
+#
+# Versions are pinned to match the upstream compose (mongo:4.4, postgres:14,
+# crapi/* :latest, crapi/mailhog).
 
 name: mhp-lab-crapi
 
 services:
-  crapi-web:
-    image: crapi/crapi-web:latest
-    container_name: mhp-lab-crapi-web
-    ports:
-      - "127.0.0.1:8085:80"
-    environment:
-      - LISTEN_IP=0.0.0.0
-      - LISTEN_PORT=80
-      - IDENTITY_SERVICE=crapi-identity
-      - COMMUNITY_SERVICE=crapi-community
-      - WORKSHOP_SERVICE=crapi-workshop
-    depends_on:
-      - crapi-identity
-      - crapi-community
-      - crapi-workshop
-    restart: unless-stopped
-
   crapi-identity:
-    image: crapi/crapi-identity:latest
     container_name: mhp-lab-crapi-identity
+    image: crapi/crapi-identity:latest
+    volumes:
+      - ./keys:/app/keys
     environment:
-      - JWT_EXPIRATION_TIME=30000000
-      - POSTGRES_HOST=postgresdb
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=crapisecretpassword
-      - POSTGRES_NAME=crapi
-      - MONGO_DB_HOST=mongodb
-      - MONGO_DB_PORT=27017
-      - MONGO_DB_USER=admin
-      - MONGO_DB_PASSWORD=crapisecretpassword
-      - MONGO_DB_NAME=crapi
-      - SMTP_HOST=mailhog
-      - SMTP_PORT=1025
+      - LOG_LEVEL=INFO
+      - DB_NAME=crapi
+      - DB_USER=admin
+      - DB_PASSWORD=crapisecretpassword
+      - DB_HOST=postgresdb
+      - DB_PORT=5432
+      - SERVER_PORT=8080
+      - ENABLE_SHELL_INJECTION=false
+      - JWT_SECRET=crapi
+      - MAILHOG_HOST=mailhog
+      - MAILHOG_PORT=1025
+      - MAILHOG_DOMAIN=example.com
+      - SMTP_HOST=smtp.example.com
+      - SMTP_PORT=587
+      - SMTP_EMAIL=user@example.com
+      - SMTP_PASS=xxxxxxxxxxxxxx
       - SMTP_FROM=no-reply@example.com
+      - SMTP_AUTH=true
+      - SMTP_STARTTLS=true
+      - JWT_EXPIRATION=604800000
+      - ENABLE_LOG4J=false
+      - API_GATEWAY_URL=https://api.mypremiumdealership.com
+      - TLS_ENABLED=false
     depends_on:
-      - postgresdb
-      - mongodb
-      - mailhog
+      postgresdb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      mailhog:
+        condition: service_healthy
+    healthcheck:
+      test: /app/health.sh
+      interval: 15s
+      timeout: 15s
+      retries: 20
     restart: unless-stopped
 
   crapi-community:
-    image: crapi/crapi-community:latest
     container_name: mhp-lab-crapi-community
+    image: crapi/crapi-community:latest
     environment:
-      - IDENTITY_SERVICE=crapi-identity
+      - LOG_LEVEL=INFO
+      - IDENTITY_SERVICE=crapi-identity:8080
+      - DB_NAME=crapi
+      - DB_USER=admin
+      - DB_PASSWORD=crapisecretpassword
+      - DB_HOST=postgresdb
+      - DB_PORT=5432
+      - SERVER_PORT=8087
       - MONGO_DB_HOST=mongodb
       - MONGO_DB_PORT=27017
       - MONGO_DB_USER=admin
       - MONGO_DB_PASSWORD=crapisecretpassword
       - MONGO_DB_NAME=crapi
+      - TLS_ENABLED=false
     depends_on:
-      - crapi-identity
-      - mongodb
+      postgresdb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      crapi-identity:
+        condition: service_healthy
+    healthcheck:
+      test: /app/health.sh
+      interval: 15s
+      timeout: 15s
+      retries: 20
     restart: unless-stopped
 
   crapi-workshop:
-    image: crapi/crapi-workshop:latest
     container_name: mhp-lab-crapi-workshop
+    image: crapi/crapi-workshop:latest
     environment:
-      - IDENTITY_SERVICE=crapi-identity
-      - POSTGRES_HOST=postgresdb
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=crapisecretpassword
-      - POSTGRES_NAME=crapi
+      - LOG_LEVEL=INFO
+      - IDENTITY_SERVICE=crapi-identity:8080
+      - DB_NAME=crapi
+      - DB_USER=admin
+      - DB_PASSWORD=crapisecretpassword
+      - DB_HOST=postgresdb
+      - DB_PORT=5432
+      - SERVER_PORT=8000
       - MONGO_DB_HOST=mongodb
       - MONGO_DB_PORT=27017
       - MONGO_DB_USER=admin
       - MONGO_DB_PASSWORD=crapisecretpassword
       - MONGO_DB_NAME=crapi
+      - SECRET_KEY=crapi
+      - API_GATEWAY_URL=https://api.mypremiumdealership.com
+      - TLS_ENABLED=false
+      - FILES_LIMIT=1000
+      - GUNICORN_WORKERS=4
+      - GUNICORN_TIMEOUT=120
+      - GUNICORN_MAX_REQUESTS=1000
+      - GUNICORN_MAX_REQUESTS_JITTER=50
+      - DB_CONN_MAX_AGE=600
     depends_on:
-      - crapi-identity
-      - postgresdb
-      - mongodb
+      postgresdb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      crapi-identity:
+        condition: service_healthy
+      crapi-community:
+        condition: service_healthy
+    healthcheck:
+      test: /app/health.sh
+      interval: 15s
+      timeout: 15s
+      retries: 20
     restart: unless-stopped
 
-  mongodb:
-    image: mongo:6
-    container_name: mhp-lab-crapi-mongo
+  crapi-web:
+    container_name: mhp-lab-crapi-web
+    image: crapi/crapi-web:latest
+    ports:
+      - "127.0.0.1:8085:80"
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=crapisecretpassword
+      - COMMUNITY_SERVICE=crapi-community:8087
+      - IDENTITY_SERVICE=crapi-identity:8080
+      - WORKSHOP_SERVICE=crapi-workshop:8000
+      # Chatbot isn't deployed here, but nginx resolves every proxy_pass host
+      # at startup — so point this at a service that DOES exist (identity) to
+      # keep the config valid. Chatbot routes will 404 rather than crash nginx.
+      - CHATBOT_SERVICE=crapi-identity:8080
+      - MAILHOG_WEB_SERVICE=mailhog:8025
+      - TLS_ENABLED=false
+    depends_on:
+      crapi-community:
+        condition: service_healthy
+      crapi-identity:
+        condition: service_healthy
+      crapi-workshop:
+        condition: service_healthy
+      mailhog:
+        condition: service_healthy
     restart: unless-stopped
 
   postgresdb:
-    image: postgres:14
     container_name: mhp-lab-crapi-postgres
+    image: postgres:14
+    command: ["postgres", "-c", "max_connections=500"]
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=crapisecretpassword
-      - POSTGRES_DB=crapi
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: crapisecretpassword
+      POSTGRES_DB: crapi
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 15s
+      timeout: 15s
+      retries: 15
+    restart: unless-stopped
+
+  mongodb:
+    container_name: mhp-lab-crapi-mongo
+    image: mongo:4.4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: crapisecretpassword
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo mongodb:27017/test --quiet
+      interval: 15s
+      timeout: 15s
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
 
   mailhog:
-    image: mailhog/mailhog:latest
     container_name: mhp-lab-crapi-mailhog
+    user: root
+    image: crapi/mailhog:latest
+    environment:
+      MH_MONGO_URI: admin:crapisecretpassword@mongodb:27017
+      MH_STORAGE: mongodb
     ports:
       - "127.0.0.1:8095:8025"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8025"]
+      interval: 15s
+      timeout: 15s
+      retries: 15
     restart: unless-stopped

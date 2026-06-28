@@ -1,7 +1,7 @@
 /**
  * Labs — vulnerable apps you can spin up locally and aim the IDE's tools at.
  *
- * Rebuilt to match HackingPal's proven flow (the rail version "wasn't spinning
+ * Rebuilt around a full-width flow (the rail version "wasn't spinning
  * up" because failed builds/starts did nothing visible). This version:
  *
  *   • Renders FULL-WIDTH as a main view (default export, no props).
@@ -13,7 +13,7 @@
  *     aware labels AND surfaced error text — the actual "aren't spinning up"
  *     fix is showing why a build/start failed instead of silently no-op'ing.
  *   • Per-lab suggested-steps rendered as chips that emit("openTool") into the
- *     shell bus, mapping HackingPal route names → s-ide tool ids.
+ *     shell bus, mapping backend route names → s-ide tool ids.
  *
  * Everything degrades gracefully: fetch errors render inline, never crash.
  */
@@ -23,6 +23,7 @@ import { authFetch } from "../api";
 import { emit } from "../shell/bus";
 import ViewModeToggle from "../shell/ViewModeToggle";
 import { useViewMode } from "../lib/viewMode";
+import { openLabTab } from "../lib/labTabs";
 import {
   createEngagement,
   getActiveEngagementId,
@@ -52,9 +53,17 @@ type Lab = {
   default_creds: string | null;
   has_sidecar: boolean;
   suggested_steps: SuggestedStep[];
+  enabled?: boolean; // from /labs/catalog — whether it's in the working grid
 };
 
 type CatalogResponse = { labs: Lab[] };
+
+function formatBytes(n: number): string {
+  if (!n) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+  return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
 
 type RuntimeStatus = {
   state: string; // "ok" | "binary_missing" | "daemon_stopped" | ...
@@ -86,7 +95,7 @@ type LabStatus = {
 type ApiError = { error?: string; code?: string; detail?: string };
 
 // ── Route → tool-id map ──────────────────────────────────────────────────────
-// HackingPal's suggested_steps carry HackingPal route names. Map them onto the
+// The backend's suggested_steps carry raw route names. Map them onto the
 // s-ide tool registry ids (src/shell/tools/*). Unknown routes are dropped so a
 // chip never points at a tool that doesn't exist. `labs` is a sidecar route
 // with no tool surface here — intentionally omitted.
@@ -246,11 +255,26 @@ export default function LabsView() {
 
   const runtimeOk = runtime?.state === "ok";
 
+  // Split the catalog into the working grid (enabled) and the "+ Add lab"
+  // drawer (everything else). `enabled` is undefined on older payloads — treat
+  // missing as enabled so the grid never goes empty against a stale backend.
+  const enabledLabs = labs.filter((l) => l.enabled !== false);
+  const disabledLabs = labs.filter((l) => l.enabled === false);
+
+  const gridClass =
+    labsMode === "list"
+      ? "grid grid-cols-1 gap-2.5"
+      : "grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3";
+
   return (
     <div className="flex h-full flex-col overflow-auto bg-bg-base">
       <header className="border-b border-divider px-6 pt-5 pb-4">
         <EyebrowPill>Training</EyebrowPill>
-        <h1 className="mt-2 text-lg font-bold tracking-wide text-ink-primary">Labs</h1>
+        <div className="mt-2 flex items-center gap-3">
+          <h1 className="text-lg font-bold tracking-wide text-ink-primary">Labs</h1>
+          <div className="flex-1" />
+          <CleanupAllButton onDone={loadCatalog} disabled={!runtimeOk} />
+        </div>
         <div className="mt-4">
           <RuntimeBanner runtime={runtime} onRecheck={loadRuntime} />
         </div>
@@ -268,19 +292,13 @@ export default function LabsView() {
           <div className="text-sm text-ink-dim">Loading labs…</div>
         )}
 
-        {labs.length > 0 && (
+        {enabledLabs.length > 0 && (
           <div className="mb-3 flex items-center justify-end">
             <ViewModeToggle storageKey="labs" />
           </div>
         )}
-        <div
-          className={
-            labsMode === "list"
-              ? "grid grid-cols-1 gap-2.5"
-              : "grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
-          }
-        >
-          {labs.map((lab) => (
+        <div className={gridClass}>
+          {enabledLabs.map((lab) => (
             <LabCard
               key={lab.id}
               lab={lab}
@@ -288,10 +306,165 @@ export default function LabsView() {
               runtimeOk={runtimeOk}
               activeEngagementId={activeEngagementId}
               onRefresh={() => refreshStatus(lab.id)}
+              onCatalogChange={loadCatalog}
+              compact={labsMode === "list"}
             />
           ))}
         </div>
+
+        {!catalogError && labs.length > 0 && enabledLabs.length === 0 && (
+          <div className="rounded border border-divider bg-bg-card px-4 py-6 text-center text-[13px] text-ink-dim">
+            No labs in your grid — add one from the catalog below.
+          </div>
+        )}
+
+        <AddLabDrawer labs={disabledLabs} onAdded={loadCatalog} />
       </div>
+    </div>
+  );
+}
+
+// ── "+ Add lab" drawer ───────────────────────────────────────────────────────
+// Lists the catalog labs that aren't in the grid yet. Adding one POSTs
+// /labs/{id}/enable and reloads the catalog so it hops up into the grid.
+
+function AddLabDrawer({ labs, onAdded }: { labs: Lab[]; onAdded: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (labs.length === 0) return null;
+
+  async function add(id: string) {
+    setBusy(id);
+    setError(null);
+    try {
+      const res = await authFetch(`/labs/${id}/enable`, { method: "POST" });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      onAdded();
+    } catch (e) {
+      setError(errString(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mt-8 border-t border-divider pt-5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-widest text-ink-muted hover:text-accent"
+      >
+        <span className="text-base leading-none">{open ? "−" : "+"}</span>
+        Add lab ({labs.length} available)
+      </button>
+      {error && (
+        <div className="mt-2">
+          <InlineError message={error} onDismiss={() => setError(null)} />
+        </div>
+      )}
+      {open && (
+        <div className="mt-3 grid grid-cols-1 gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+          {labs.map((lab) => (
+            <GlassCard key={lab.id} className="flex items-start gap-3 p-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[13px] font-semibold text-ink-primary">{lab.name}</span>
+                  <span
+                    className={`rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${categoryClasses(
+                      lab.category,
+                    )}`}
+                  >
+                    {lab.category || "Lab"}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-ink-muted">
+                  {lab.summary}
+                </p>
+              </div>
+              <Button
+                variant="glow"
+                size="sm"
+                loading={busy === lab.id}
+                disabled={busy !== null}
+                onClick={() => add(lab.id)}
+              >
+                Add
+              </Button>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── "Stop & purge all" cleanup ───────────────────────────────────────────────
+// One-shot teardown: stops + removes every lab and deletes all lab images.
+// Two-step inline confirm (no browser dialog) so a stray click can't wipe a
+// half-hour of pulls.
+
+function CleanupAllButton({ onDone, disabled }: { onDone: () => void; disabled?: boolean }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await authFetch("/labs/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purge_image: true }),
+      });
+      if (!res.ok) {
+        setResult(`Cleanup failed — ${await readError(res)}`);
+        return;
+      }
+      const body = (await res.json()) as { total_bytes_freed?: number };
+      setResult(`Reclaimed ${formatBytes(body.total_bytes_freed ?? 0)}.`);
+      onDone();
+    } catch (e) {
+      setResult(`Cleanup failed — ${errString(e)}`);
+    } finally {
+      setBusy(false);
+      setConfirming(false);
+    }
+  }
+
+  if (result) {
+    return (
+      <button
+        onClick={() => setResult(null)}
+        className="rounded border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] text-accent"
+        title="Click to dismiss"
+      >
+        {result}
+      </button>
+    );
+  }
+
+  if (!confirming) {
+    return (
+      <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setConfirming(true)}>
+        Stop &amp; purge all
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[11px] text-ink-muted">Remove every lab + image?</span>
+      <Button variant="solid" size="sm" loading={busy} onClick={run}>
+        Yes, purge
+      </Button>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
+        Cancel
+      </Button>
     </div>
   );
 }
@@ -358,18 +531,23 @@ function LabCard({
   runtimeOk,
   activeEngagementId,
   onRefresh,
+  onCatalogChange,
+  compact,
 }: {
   lab: Lab;
   status: LabStatus | undefined;
   runtimeOk: boolean;
   activeEngagementId: string | null;
   onRefresh: () => void;
+  onCatalogChange?: () => void;
+  compact?: boolean;
 }) {
-  const [pending, setPending] = useState<"build" | "start" | "stop" | "attach" | null>(
-    null,
-  );
+  const [pending, setPending] = useState<
+    "build" | "start" | "stop" | "attach" | "remove" | "disable" | null
+  >(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const noticeTimer = useRef<number | null>(null);
   useEffect(
@@ -408,6 +586,51 @@ function LabCard({
             : "Stopped",
       );
       await onRefresh();
+    } catch (e) {
+      setActionError(errString(e));
+    } finally {
+      setPending(null);
+    }
+  }
+
+  // Remove = stop + delete the container(s) AND the image(s), reclaiming disk.
+  // Distinct from Stop (which leaves the multi-GB image behind).
+  async function remove() {
+    setPending("remove");
+    setActionError(null);
+    try {
+      const res = await authFetch(`/labs/${lab.id}/remove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purge_image: true }),
+      });
+      if (!res.ok) {
+        setActionError(await readError(res));
+        return;
+      }
+      const body = (await res.json()) as { bytes_freed?: number };
+      flash(`Removed — reclaimed ${formatBytes(body.bytes_freed ?? 0)}.`);
+      await onRefresh();
+    } catch (e) {
+      setActionError(errString(e));
+    } finally {
+      setPending(null);
+      setConfirmRemove(false);
+    }
+  }
+
+  // Disable = take the lab out of the working grid (does not touch containers
+  // or images). It drops back into the "+ Add lab" drawer.
+  async function disable() {
+    setPending("disable");
+    setActionError(null);
+    try {
+      const res = await authFetch(`/labs/${lab.id}/disable`, { method: "POST" });
+      if (!res.ok) {
+        setActionError(await readError(res));
+        return;
+      }
+      onCatalogChange?.();
     } catch (e) {
       setActionError(errString(e));
     } finally {
@@ -468,14 +691,51 @@ function LabCard({
 
   const steps = lab.suggested_steps.filter((s) => ROUTE_TO_TOOL[s.route]);
 
+  function openTab() {
+    openLabTab({
+      id: lab.id,
+      name: lab.name,
+      primaryUrl: lab.primary_url,
+      address:
+        lab.primary_url.replace(/^https?:\/\//, "") ||
+        Object.values(lab.port_map).map((p) => `127.0.0.1:${p}`)[0] ||
+        "",
+      hasSidecar: lab.has_sidecar,
+    });
+  }
+
+  // List mode — a slim single row with the essential actions.
+  if (compact) {
+    return (
+      <GlassCard glowOnHover className="flex items-center gap-3 px-[var(--row-px)] py-[var(--row-py)]">
+        <StatusDot color={dotColor(status)} static={!live && !building} />
+        <span className="truncate text-[length:var(--row-name)] font-semibold text-ink-primary">{lab.name}</span>
+        <span className={`hidden rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest sm:inline ${categoryClasses(lab.category)}`}>
+          {lab.category || "Lab"}
+        </span>
+        <span className="font-mono text-[9.5px] uppercase tracking-widest text-ink-dim">{stateLabel(status)}</span>
+        <div className="ml-auto flex items-center gap-1.5">
+          {!live ? (
+            <Button variant="glow" size="sm" loading={pending === "start" || building} disabled={!runtimeOk || pending !== null} onClick={() => doAction(status?.build_status === "built" || live ? "start" : "build")}>
+              {building ? "Building…" : status?.build_status === "built" ? "Start" : "Build"}
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" loading={pending === "stop"} disabled={pending !== null} onClick={() => doAction("stop")}>Stop</Button>
+          )}
+          <Button variant="ghost" size="sm" disabled={!live} onClick={openTab} title={live ? "Open as a working tab" : "Start the lab first"}>Tab ↹</Button>
+        </div>
+      </GlassCard>
+    );
+  }
+
   return (
-    <GlassCard glowOnHover className="flex flex-col gap-3 p-4">
+    <GlassCard glowOnHover className="flex flex-col gap-[var(--card-gap)] p-[var(--card-pad)]">
       {/* Header */}
       <div className="flex items-start gap-3">
         <StatusDot color={dotColor(status)} static={!live && !building} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-bold text-ink-primary">{lab.name}</h3>
+            <h3 className="text-[length:var(--card-name)] font-bold text-ink-primary">{lab.name}</h3>
             <span
               className={`rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${categoryClasses(
                 lab.category,
@@ -552,6 +812,26 @@ function LabCard({
         <Button
           variant="ghost"
           size="sm"
+          disabled={!live}
+          onClick={() =>
+            openLabTab({
+              id: lab.id,
+              name: lab.name,
+              primaryUrl: lab.primary_url,
+              address:
+                lab.primary_url.replace(/^https?:\/\//, "") ||
+                Object.values(lab.port_map).map((p) => `127.0.0.1:${p}`)[0] ||
+                "",
+              hasSidecar: lab.has_sidecar,
+            })
+          }
+          title={live ? "Open this lab as a working tab" : "Start the lab first"}
+        >
+          Open as tab ↹
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           loading={pending === "attach"}
           disabled={pending !== null}
           onClick={attach}
@@ -563,6 +843,46 @@ function LabCard({
         >
           {activeEngagementId ? "Attach to engagement" : "Start engagement with this lab"}
         </Button>
+
+        {/* Removal controls — pushed to the right of the row. */}
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={pending === "disable"}
+            disabled={pending !== null}
+            onClick={disable}
+            title="Take this lab out of the grid (keeps its image — re-add it any time)"
+          >
+            Remove from grid
+          </Button>
+          {!confirmRemove ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pending !== null}
+              onClick={() => setConfirmRemove(true)}
+              title="Stop and delete the container(s) and image(s) to reclaim disk"
+            >
+              Delete image
+            </Button>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <span className="text-[11px] text-ink-muted">Delete image &amp; free disk?</span>
+              <Button variant="solid" size="sm" loading={pending === "remove"} onClick={remove}>
+                Delete
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pending === "remove"}
+                onClick={() => setConfirmRemove(false)}
+              >
+                Cancel
+              </Button>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Notice + error surfaces */}

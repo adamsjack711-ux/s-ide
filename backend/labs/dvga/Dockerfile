@@ -16,5 +16,11 @@
 
 FROM dolevf/dvga:latest
 
+# DVGA's app.py binds to ``WEB_HOST`` (default 127.0.0.1) — which is
+# unreachable from outside the container, so the published port answers
+# nothing. Force it onto 0.0.0.0 so the lab is actually serveable.
+ENV WEB_HOST=0.0.0.0
+ENV WEB_PORT=5013
+
 EXPOSE 5013
 # Upstream CMD already starts the Flask app on 5013, so we leave it alone.

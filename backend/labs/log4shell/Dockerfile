@@ -4,10 +4,18 @@
 # log4j 2.14.x. Hit it with a JNDI payload in the header and it makes
 # an outbound LDAP query.
 #
-# We wrap christophetd's canonical training image — the upstream is
-# tagged stable, runs cleanly, and is what the public writeups use.
-# The container exposes 8080 internally; we publish it on host 8087.
+# We wrap christophetd's canonical training image — the one the public
+# writeups use. BUT that image ships an amd64-only Java 8/Alpine JVM, which
+# hangs (100% CPU, no heap, never listens) under qemu emulation on Apple
+# Silicon. The vulnerable artifact is the *jar* (platform-neutral Java
+# bytecode bundling log4j 2.14.1), so we lift it out of the upstream image
+# and run it on a NATIVE multi-arch JRE — fast, no emulation, vuln preserved.
+#
+# The COPY --from stage only extracts files; the amd64 image is never executed.
 
-FROM ghcr.io/christophetd/log4shell-vulnerable-app:latest
+FROM ghcr.io/christophetd/log4shell-vulnerable-app:latest AS upstream
 
+FROM eclipse-temurin:8-jre
+COPY --from=upstream /app/spring-boot-application.jar /app/spring-boot-application.jar
 EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/spring-boot-application.jar"]
