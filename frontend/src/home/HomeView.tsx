@@ -76,6 +76,7 @@ import { emit, useBus } from "../shell/bus";
 import { notify } from "../shell/toast";
 import ViewModeToggle from "../shell/ViewModeToggle";
 import { useViewMode } from "../lib/viewMode";
+import MatrixRain from "./MatrixRain";
 
 // localStorage flag: once the user has dismissed (or completed) the first-run
 // getting-started hero we don't nag returning users. The ⌘K "Show Getting
@@ -445,6 +446,17 @@ function DashboardHeader({
 
   return (
     <header className="relative overflow-hidden border-b border-divider px-6 pt-6 pb-5">
+      {/* Matrix "digital rain" backdrop, with the ASCII hero layered on top and
+          a base→transparent gradient so the header text stays legible. */}
+      <MatrixRain className="pointer-events-none absolute inset-0 opacity-[0.22]" />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgb(var(--bg-base-rgb) / 0.35) 0%, rgb(var(--bg-base-rgb) / 0.65) 100%)",
+        }}
+        aria-hidden
+      />
       <AsciiHero
         variant="bare"
         className="pointer-events-none absolute inset-0 opacity-[0.10]"
