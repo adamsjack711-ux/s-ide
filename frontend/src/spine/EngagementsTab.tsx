@@ -5,7 +5,7 @@
 // confers scope). Each attach/detach is an explicit act. Engagement creation
 // itself lives on the Home dashboard — this tab focuses on the arming surface.
 import { useEffect, useMemo, useState } from "react";
-import { Button, EyebrowPill, Sparkle } from "performative-ui";
+import { Button, Sparkle } from "performative-ui";
 import Icon from "../shell/Icon";
 import { inkConfirm } from "../lib/dopamine";
 import { createEngagement, type Engagement } from "../lib/engagement";
@@ -83,7 +83,7 @@ export default function EngagementsTab({
       {/* Left — engagement list */}
       <aside className="flex w-72 shrink-0 flex-col border-r border-divider">
         <div className="shrink-0 border-b border-divider px-3 py-2.5">
-          <div className="mb-2"><EyebrowPill className="mhp-eyebrow">Engagements</EyebrowPill></div>
+          <div className="mb-2"><span className="text-[11px] text-ink-dim">Engagements</span></div>
           <div className="flex gap-1.5">
             <input
               value={newName}
@@ -116,12 +116,12 @@ export default function EngagementsTab({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-[13px] font-semibold tracking-tight text-ink-primary">{e.name}</span>
-                  <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-muted ring-1 ring-divider">
+                  <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
                     {e.provenance}
                   </span>
                 </div>
                 <span className="text-[11.5px] text-ink-muted">
-                  {armed > 0 ? <span className="text-accent"><span className="data">{armed}</span> sub-target{armed === 1 ? "" : "s"} armed</span> : <span className="italic text-ink-dim">arms nothing</span>}
+                  {armed > 0 ? <span className="text-accent"><span className="">{armed}</span> sub-target{armed === 1 ? "" : "s"} armed</span> : <span className="text-ink-dim">arms nothing</span>}
                 </span>
               </button>
             );
@@ -172,20 +172,20 @@ function EngagementDetail({
     <div className="p-5">
       <h2 className="text-[18px] font-bold tracking-tight text-ink-primary">{engagement.name}</h2>
       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11.5px]">
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-muted ring-1 ring-divider">
+        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
           {engagement.provenance}
         </span>
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-muted ring-1 ring-divider">
+        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
           {engagement.type}
         </span>
         <span className="text-ink-muted">
-          scope: {scope.length === 0 ? <span className="italic text-ink-dim">unrestricted</span> : <span className="data">{scope.join(", ")}</span>}
+          scope: {scope.length === 0 ? <span className="text-ink-dim">unrestricted</span> : <span className="">{scope.join(", ")}</span>}
         </span>
       </div>
 
       {/* Attach a sub-target (arm) */}
       <div className="mt-4 rounded-lg border border-divider bg-bg-surface p-3">
-        <div className="mb-2.5"><EyebrowPill className="mhp-eyebrow">Arm a sub-target with this engagement</EyebrowPill></div>
+        <div className="mb-2.5"><span className="text-[11px] text-ink-dim">Arm a sub-target with this engagement</span></div>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={pick}
@@ -216,7 +216,7 @@ function EngagementDetail({
 
       {/* Armed sub-targets */}
       <div className="mt-5 flex items-center justify-between">
-        <EyebrowPill className="mhp-eyebrow">Sub-targets this engagement arms · {armed.length}</EyebrowPill>
+        <span className="text-[11px] text-ink-dim">Sub-targets this engagement arms · {armed.length}</span>
         {armed.length > 0 && (
           <button
             onClick={onOpenWorkbench}
@@ -239,10 +239,10 @@ function EngagementDetail({
             className="flex flex-wrap items-center gap-3 rounded-lg border border-accent/30 bg-accent/[0.05] px-3 py-2.5"
           >
             <span className="text-[11.5px] text-ink-dim">{s.targetName} ›</span>
-            <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-muted ring-1 ring-divider">
+            <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
               {s.type}
             </span>
-            <span className="data text-ink-primary">{s.address}</span>
+            <span className="text-ink-primary">{s.address}</span>
             <div className="flex-1" />
             <Button variant="ghost" size="sm" onClick={() => guard(() => disarmSubTarget(s))}>
               Detach

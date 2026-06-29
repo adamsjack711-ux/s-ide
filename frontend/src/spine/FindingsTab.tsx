@@ -113,7 +113,7 @@ export default function FindingsTab({
           Roll up by Target
         </label>
         <div className="flex-1" />
-        <span className="text-[11.5px] text-ink-muted"><span className="data">{filtered.length}</span> finding{filtered.length === 1 ? "" : "s"}</span>
+        <span className="text-[11.5px] text-ink-muted"><span className="">{filtered.length}</span> finding{filtered.length === 1 ? "" : "s"}</span>
       </div>
 
       {/* List */}
@@ -129,7 +129,7 @@ export default function FindingsTab({
                 <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold tracking-tight text-ink-primary">
                   {targetName(tid)}
                   <span className="text-[11.5px] font-normal text-ink-muted">
-                    <span className="data">{fs.length}</span> finding{fs.length === 1 ? "" : "s"} across sub-targets
+                    <span className="">{fs.length}</span> finding{fs.length === 1 ? "" : "s"} across sub-targets
                   </span>
                 </div>
                 <div className="space-y-1.5">
@@ -167,7 +167,7 @@ function Row({
 }) {
   return (
     <GlassCard className="flex flex-wrap items-center gap-3 px-3 py-2.5" glowOnHover>
-      <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${SEV_PILL[f.severity as FindingSeverity]}`}>
+      <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${SEV_PILL[f.severity as FindingSeverity]}`}>
         {SEV_LABEL[f.severity as FindingSeverity]}
       </span>
       <span className="text-[13px] font-medium text-ink-primary">{f.title}</span>
@@ -178,7 +178,7 @@ function Row({
             {targetName(f.target_id)}
           </span>
         )}
-        <span className="data">{subAddr(f.sub_target_id)}</span>
+        <span className="">{subAddr(f.sub_target_id)}</span>
         <span className="font-medium text-accent">{engName(f.engagement_id)}</span>
       </div>
     </GlassCard>

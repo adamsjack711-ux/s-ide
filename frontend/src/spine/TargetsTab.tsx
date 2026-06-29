@@ -6,7 +6,7 @@
 // or from the Engagements tab. Each sub-target shows its armed/un-armed state
 // and, when armed, which engagement arms it.
 import { useEffect, useState } from "react";
-import { Button, EyebrowPill, GlassCard, Sparkle, StatusDot } from "performative-ui";
+import { Button, GlassCard, Sparkle, StatusDot } from "performative-ui";
 import Icon from "../shell/Icon";
 import { inkConfirm, pulse } from "../lib/dopamine";
 import type { Engagement } from "../lib/engagement";
@@ -90,7 +90,7 @@ export default function TargetsTab({
     <div className="flex h-full min-h-0 flex-col">
       {/* Declare bar */}
       <div className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-divider px-4 py-3">
-        <EyebrowPill className="mhp-eyebrow">Declare a target</EyebrowPill>
+        <span className="text-[11px] text-ink-dim">Declare a target</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -171,15 +171,15 @@ function TargetNode({
         <button onClick={onOpen} className="text-[13px] font-semibold tracking-tight text-ink-primary hover:text-accent">
           {target.name}
         </button>
-        <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${PROV_PILL[target.provenance]}`}>
+        <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${PROV_PILL[target.provenance]}`}>
           {target.provenance}
         </span>
         <span className="flex items-center gap-1.5 text-[11.5px] text-ink-muted">
           {armed > 0 && <StatusDot color={ARMED_COLOR} />}
-          <span className="data">{subs.length}</span> sub-target{subs.length === 1 ? "" : "s"}
-          {armed > 0 && <span className="text-accent"><span className="data">{armed}</span> armed</span>}
+          <span className="">{subs.length}</span> sub-target{subs.length === 1 ? "" : "s"}
+          {armed > 0 && <span className="text-accent"><span className="">{armed}</span> armed</span>}
         </span>
-        <span className="hidden text-[11.5px] italic text-ink-dim lg:inline">inert · authorizes nothing</span>
+        <span className="hidden text-[11.5px] text-ink-dim lg:inline">inert · authorizes nothing</span>
         <div className="flex-1" />
         <Button
           variant="ghost"
@@ -236,10 +236,10 @@ function SubTargetRow({
         sub.armed ? "border-accent/30 bg-accent/[0.05]" : "border-divider bg-bg-base"
       }`}
     >
-      <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-muted ring-1 ring-divider">
+      <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
         {sub.type}
       </span>
-      <span className="data text-ink-primary">{sub.address}</span>
+      <span className="text-ink-primary">{sub.address}</span>
       {sub.label && <span className="text-[11.5px] text-ink-dim">{sub.label}</span>}
 
       <div className="flex-1" />
@@ -260,7 +260,7 @@ function SubTargetRow({
         </>
       ) : (
         <>
-          <span className="text-[11.5px] italic text-ink-dim">un-armed</span>
+          <span className="text-[11.5px] text-ink-dim">un-armed</span>
           <select
             value={pick}
             onChange={(e) => setPick(e.target.value)}
@@ -330,7 +330,7 @@ function AddSubTarget({
         onChange={(e) => setAddr(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && onAdd()}
         placeholder="address (host, host:port, url, path…)"
-        className="data min-w-[200px] flex-1 rounded-md border border-divider bg-bg-base px-2.5 py-1 text-ink-primary outline-none placeholder:font-sans placeholder:text-ink-dim focus:border-accent/50"
+        className="min-w-[200px] flex-1 rounded-md border border-divider bg-bg-base px-2.5 py-1 text-ink-primary outline-none placeholder:text-ink-dim focus:border-accent/50"
       />
       <input
         value={label}

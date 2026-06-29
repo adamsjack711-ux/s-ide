@@ -10,7 +10,7 @@
 // (armed/disarmed/findingCreated) trigger a reload so every surface stays
 // consistent.
 import { useCallback, useEffect, useState } from "react";
-import { Button, EyebrowPill, GradientText, Sparkle } from "performative-ui";
+import { Button, GradientText, Sparkle } from "performative-ui";
 import { on } from "../shell/bus";
 import { celebrateBig, pulse } from "../lib/dopamine";
 import { listEngagements, type Engagement } from "../lib/engagement";
@@ -60,11 +60,11 @@ export default function SpineView() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-bg-base">
+    <div className="spine-ui flex h-full min-h-0 flex-col bg-bg-base">
       {/* Header — Targets is the top of the spine. */}
       {!openTarget && (
         <div className="flex shrink-0 items-center gap-3 border-b border-divider bg-bg-sidebar px-4 py-3">
-          <EyebrowPill className="mhp-eyebrow">Engagement Spine</EyebrowPill>
+          <span className="text-[11px] text-ink-dim">Engagement Spine</span>
           <h1 className="flex items-center gap-2 text-[20px] font-bold tracking-tight leading-none">
             <GradientText>Targets</GradientText>
             <Sparkle />

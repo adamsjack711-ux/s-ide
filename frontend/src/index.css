@@ -217,6 +217,20 @@ body::before {
   letter-spacing: 0;
 }
 
+/* ── Engagement-spine type base ──
+ * The spine surface uses ONE font — the terminal/mono face — at different
+ * sizes, so its text reads as a single coherent system instead of a mono/sans
+ * mix. Driven through the font tokens (and performative-ui's --pui-font-*)
+ * rather than hard-coded, so a theme upload that changes --font-mono restyles
+ * the whole spine. Tabular figures so numbers/addresses line up. */
+.spine-ui {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+  --pui-font-sans: var(--font-mono);
+  --pui-font-mono: var(--font-mono);
+  --pui-font-serif: var(--font-mono);
+}
+
 /* ── Selection + focus rings ── */
 ::selection {
   background: var(--accent-dim);

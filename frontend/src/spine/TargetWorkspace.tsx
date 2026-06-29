@@ -55,10 +55,10 @@ export default function TargetWorkspace({
         <h2 className="text-[17px] font-bold tracking-tight leading-none">
           <GradientText>{target.name}</GradientText>
         </h2>
-        <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${PROV_PILL[target.provenance] ?? ""}`}>
+        <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${PROV_PILL[target.provenance] ?? ""}`}>
           {target.provenance}
         </span>
-        <span className="text-[11.5px] text-ink-muted"><span className="data">{subCount}</span> sub-target{subCount === 1 ? "" : "s"}</span>
+        <span className="text-[11.5px] text-ink-muted"><span className="">{subCount}</span> sub-target{subCount === 1 ? "" : "s"}</span>
       </div>
 
       {/* Inner tabs */}
