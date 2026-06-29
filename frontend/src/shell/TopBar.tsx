@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
 import Icon from "./Icon";
-import { useActiveEngagementId, listEngagements } from "../lib/engagement";
+import EngagementSwitcher from "./EngagementSwitcher";
 
 /**
  * Full-width title bar (the design's top bar): brand on the left, a centered
@@ -11,15 +10,6 @@ import { useActiveEngagementId, listEngagements } from "../lib/engagement";
  */
 export default function TopBar() {
   const isMac = (window as any).nt?.platform === "darwin";
-  const activeId = useActiveEngagementId();
-  const [name, setName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!activeId) return setName(null);
-    listEngagements()
-      .then((es) => setName(es.find((e) => e.id === activeId)?.name ?? null))
-      .catch(() => setName(null));
-  }, [activeId]);
 
   const drag = { WebkitAppRegion: "drag" } as CSSProperties;
   const noDrag = { WebkitAppRegion: "no-drag" } as CSSProperties;
@@ -47,16 +37,7 @@ export default function TopBar() {
         <span className="ml-auto font-mono text-[11px] text-ink-dim">{mod}K</span>
       </button>
 
-      <span className="flex items-center gap-1.5 text-ink-muted" style={noDrag}>
-        {name ? (
-          <>
-            <span className="text-accent">⛬</span>
-            {name}
-          </>
-        ) : (
-          <span className="text-ink-dim">no engagement</span>
-        )}
-      </span>
+      <EngagementSwitcher />
     </div>
   );
 }
