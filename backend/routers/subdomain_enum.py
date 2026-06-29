@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["subdomain-enum"])
 
-UA = "HackingPal/0.1 subdomain-enum"
+UA = "s-ide/0.1 subdomain-enum"
 TIMEOUT = 15.0
 
 ALL_SOURCES = [

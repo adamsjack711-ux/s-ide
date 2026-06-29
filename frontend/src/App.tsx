@@ -4,11 +4,13 @@ import TopBar from "./shell/TopBar";
 import MainArea from "./shell/MainArea";
 import StatusBar from "./shell/StatusBar";
 import CommandPalette from "./shell/CommandPalette";
+import { ToastProvider } from "./shell/toast";
+import { useGlobalKeymap } from "./shell/keymap";
 import PromoteModal from "./engagement/PromoteModal";
 import MethodPromote from "./engagement/MethodPromote";
 import AttestationModal from "./safety/AttestationModal";
 import CopilotRail from "./copilot/CopilotRail";
-import { emit } from "./shell/bus";
+import { emit, on } from "./shell/bus";
 import { BACKEND_URL } from "./api";
 import "./lib/theme"; // self-applies dark/light on import
 
@@ -19,10 +21,34 @@ import "./lib/theme"; // self-applies dark/light on import
  * bottom Output dock; the Copilot rides on the right; status bar at the bottom.
  */
 export default function App() {
-  const [activeNav, setActiveNav] = useState("home");
-  const [copilot, setCopilot] = useState(true);
+  const [activeNav, setActiveNav] = useState("spine");
+  // Copilot is hidden until explicitly asked for — the AI should not feel
+  // ambiently present. The open/closed choice is remembered across launches.
+  const [copilot, setCopilotState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("s-ide:copilot-open") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setCopilot = (v: boolean) => {
+    setCopilotState(v);
+    try {
+      localStorage.setItem("s-ide:copilot-open", v ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
   const [narrow, setNarrow] = useState(typeof window !== "undefined" && window.innerWidth < 820);
   const [ready, setReady] = useState(false);
+
+  // Global keymap + shell command registration (Foundation lane). Mounted once.
+  useGlobalKeymap();
+
+  // Activating an engagement tab is a tab selection, not a rail destination —
+  // clear the rail highlight so no global icon looks selected while a tab owns
+  // the main area.
+  useEffect(() => on("engagementTabActivated", () => setActiveNav("")), []);
 
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < 820);
@@ -87,6 +113,7 @@ export default function App() {
       </div>
       <StatusBar />
       <CommandPalette />
+      <ToastProvider />
       <PromoteModal />
       <MethodPromote />
       <AttestationModal />

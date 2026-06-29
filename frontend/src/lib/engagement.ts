@@ -14,6 +14,14 @@ import { getMode } from "./mode";
 
 export type EngagementStatus = "active" | "completed" | "archived";
 
+// What the engagement hooks onto. `generic` is the legacy/untyped value used
+// by the quick-create paths; the typed-create flow sets local-app / web-app.
+// `host` is reserved for a future third type.
+export type EngagementType = "generic" | "local-app" | "web-app" | "host";
+
+// Provenance drives the safety mode (owned/lab = full, external = gated).
+export type EngagementProvenance = "lab" | "owned" | "external";
+
 export type Engagement = {
   id: string;
   name: string;
@@ -21,8 +29,37 @@ export type Engagement = {
   exclusions: string[];
   notes: string;
   status: EngagementStatus;
+  type: EngagementType;
+  provenance: EngagementProvenance;
+  source_root: string;
+  primary_target: string;
   created_at: string;
   updated_at: string;
+};
+
+// ── Engagement auth (web-app, optional) ─────────────────────────────────────
+// Secret material travels OUT to the backend on create / PUT only; it is
+// encrypted server-side and never returned. Reads come back as a redacted
+// reference (kind + a non-secret hint), never the secret itself.
+
+export type AuthKind = "none" | "cookie" | "bearer" | "credentials";
+
+export type EngagementAuthInput = {
+  kind: AuthKind;
+  cookie?: string;    // kind=cookie: Cookie header to replay
+  token?: string;     // kind=bearer: bearer token to replay
+  username?: string;  // kind=credentials
+  password?: string;  // kind=credentials
+  login_url?: string; // kind=credentials: login form URL
+};
+
+// Redacted reference returned by the backend — never carries secret material.
+export type EngagementAuthMeta = {
+  kind: AuthKind;
+  has_secret: boolean;
+  last4?: string;     // bearer / cookie
+  username?: string;  // credentials (identity, shown)
+  login_url?: string; // credentials
 };
 
 // Canonical Findings Tracker statuses + the legacy set so older DBs keep
@@ -147,16 +184,68 @@ export async function listEngagements(includeArchived = false): Promise<Engageme
   return body.engagements;
 }
 
-export async function createEngagement(payload: {
-  name: string; scope: string[]; exclusions: string[]; notes: string;
-}): Promise<Engagement> {
+export type CreateEngagementInput = {
+  name: string;
+  scope?: string[];
+  exclusions?: string[];
+  notes?: string;
+  type?: EngagementType;
+  provenance?: EngagementProvenance;
+  source_root?: string;        // local-app
+  targets?: string[];          // web-app (first = primary target)
+  auth?: EngagementAuthInput;  // web-app, optional
+};
+
+// The create response is the engagement plus two create-time extras: the id of
+// the registered primary target (so the caller can pin it active) and the
+// redacted auth reference (never the secret).
+export type CreatedEngagement = Engagement & {
+  primary_target_id: string | null;
+  auth: EngagementAuthMeta | null;
+};
+
+export async function createEngagement(
+  payload: CreateEngagementInput,
+): Promise<CreatedEngagement> {
   const r = await authFetch(`/engagements`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      scope: [],
+      exclusions: [],
+      notes: "",
+      ...payload,
+    }),
   });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) throw new Error(await parseError(r));
   return r.json();
+}
+
+// ── Engagement auth (redacted reads + writes) ───────────────────────────────
+
+export async function getEngagementAuth(
+  eid: string,
+): Promise<EngagementAuthMeta | null> {
+  const r = await authFetch(`/engagements/${eid}/auth`);
+  if (!r.ok) throw new Error(await parseError(r));
+  return (await r.json()).auth ?? null;
+}
+
+export async function setEngagementAuth(
+  eid: string, auth: EngagementAuthInput,
+): Promise<EngagementAuthMeta | null> {
+  const r = await authFetch(`/engagements/${eid}/auth`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(auth),
+  });
+  if (!r.ok) throw new Error(await parseError(r));
+  return (await r.json()).auth ?? null;
+}
+
+export async function deleteEngagementAuth(eid: string): Promise<void> {
+  const r = await authFetch(`/engagements/${eid}/auth`, { method: "DELETE" });
+  if (!r.ok) throw new Error(await parseError(r));
 }
 
 export async function updateEngagement(

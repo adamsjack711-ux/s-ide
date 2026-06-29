@@ -123,7 +123,7 @@ def _system_prompt() -> str:
     # prompt file ships in the bundle; the fallback exists so a missing
     # asset doesn't take the feature down.
     return (
-        "You are the playbook-builder copilot for HackingPal. The user is "
+        "You are the playbook-builder copilot for s-ide. The user is "
         "testing their OWN application — a personal project, a home server, "
         "an internal tool. They want a tailored security playbook.\n\n"
         "Return JSON ONLY with this shape:\n"

@@ -278,7 +278,7 @@ def bulk(req: BulkRequest, request: Request) -> BulkResponse:
 
 import httpx  # added for InternetDB only
 
-INTERNETDB_UA = "HackingPal/0.1 internetdb"
+INTERNETDB_UA = "s-ide/0.1 internetdb"
 
 
 def _cached_internetdb(ip: str) -> dict | None:

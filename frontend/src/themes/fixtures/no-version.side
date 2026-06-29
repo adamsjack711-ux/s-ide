@@ -1,0 +1,23 @@
+{
+  "kind": "theme",
+  "name": "No Version",
+  "author": "builtin",
+  "theme": {
+    "--bg-base": "#0d1117",
+    "--bg-surface": "#161b22",
+    "--bg-elevated": "#1c2330",
+    "--bg-hover": "#232c3a",
+    "--bg-active": "#2b3647",
+    "--text-primary": "#e6edf3",
+    "--text-secondary": "#aeb9c6",
+    "--text-muted": "#8b949e",
+    "--border": "#2a3340",
+    "--border-bright": "#3a4658",
+    "--accent": "#58a6ff",
+    "--critical": "#f85149",
+    "--high": "#ff9e40",
+    "--medium": "#e3b341",
+    "--low": "#6cb6ff",
+    "--success": "#3fb950"
+  }
+}

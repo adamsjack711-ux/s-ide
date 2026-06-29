@@ -19,7 +19,15 @@
 //                       field (runs = how many findings each tool produced).
 //   5. Activity feed — most-recent findings across engagements, severity-colored,
 //                       timestamped.
-//   6. Quick links   — emit("openView", …) to Learning / Reports / Settings.
+//   6. Quick links   — a lead "Run a tool →" (opens the ⌘K tool search) +
+//                       Workbench, then emit("openView", …) to Learning /
+//                       Reports / Settings.
+//
+// First-run: when there are no engagements (and the user hasn't dismissed it),
+// a focused getting-started hero replaces the wall-of-zeros — "create your
+// first engagement" then "run a tool". Re-summonable via the ⌘K "Show Getting
+// Started" command (bus: command:show-onboarding). ⌘N (bus: command:focus-create)
+// opens the create modal. Dismiss persists to localStorage (onboarding_done).
 //
 // Labs are NOT here anymore — they're their own rail view. Home is purely the
 // engagements dashboard.
@@ -36,7 +44,7 @@
 // Bus events emitted: openView ("learn" | "reports" | "settings").
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ReactNode, RefObject } from "react";
+import type { ReactNode } from "react";
 import {
   AsciiHero,
   Button,
@@ -52,15 +60,53 @@ import {
   listEngagements,
   listFindings,
   fetchCoverage,
-  createEngagement,
+  deleteEngagement,
+  getActiveEngagementId,
   setActiveEngagementId,
   useActiveEngagementId,
   type Engagement,
+  type CreatedEngagement,
   type Finding,
   type FindingSeverity,
 } from "../lib/engagement";
-import { emit } from "../shell/bus";
+import { setActiveTarget } from "../lib/targets";
+import { openEngagementTab } from "../lib/engagementTabs";
+import NewEngagementModal from "../engagement/NewEngagementModal";
+import { emit, useBus } from "../shell/bus";
+import { notify } from "../shell/toast";
+import ViewModeToggle from "../shell/ViewModeToggle";
+import { useViewMode } from "../lib/viewMode";
 import MatrixRain from "./MatrixRain";
+
+// localStorage flag: once the user has dismissed (or completed) the first-run
+// getting-started hero we don't nag returning users. The ⌘K "Show Getting
+// Started" command can always re-surface it regardless of this flag.
+const ONBOARDING_DONE_KEY = "s-ide:onboarding_done:v1";
+
+function readOnboardingDone(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDING_DONE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeOnboardingDone(done: boolean): void {
+  try {
+    if (done) localStorage.setItem(ONBOARDING_DONE_KEY, "1");
+    else localStorage.removeItem(ONBOARDING_DONE_KEY);
+  } catch {
+    /* quota / unavailable */
+  }
+}
+
+// Focus the palette's tool search (mirrors the keymap's `open-tool` command),
+// so a "Run a tool →" CTA on Home behaves identically to ⌘T / ⌘K.
+function openToolSearch(): void {
+  window.dispatchEvent(
+    new CustomEvent("s-ide:palette", { detail: { mode: "tool" } }),
+  );
+}
 
 // CSS-var colors for the live StatusDot (matches SettingsView's palette).
 const C_SUCCESS = "rgb(var(--success-rgb))";
@@ -125,39 +171,42 @@ function relTime(iso: string): string {
   return `${Math.round(mo / 12)}y ago`;
 }
 
-// ── Shared create-engagement flow ───────────────────────────────────────────
-// One hook drives both the header button's affordance and the dashed grid
-// card's inline field. create() → createEngagement → pin active → broadcast so
-// the dashboard refreshes. Best-effort: a failure surfaces inline, no crash.
+// ── Opening an engagement ────────────────────────────────────────────────────
+// An engagement is a workspace *scope*, not its own view: opening it pins it
+// active (every backend call then carries its X-MHP-Engagement-Id) AND drops
+// the user into the Workbench — the tab where tools + playbooks live and run.
+// Without the second step, clicking "Open" only re-pinned and looked like a
+// no-op (especially for the already-active engagement).
 
-function useCreateEngagement() {
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+// Opening an engagement now opens it as a primary TAB: its workspace holds the
+// Workbench / Map / Findings / Reporting / Terminal sub-tabs, and activating the
+// tab pins the engagement so every tool auto-scopes to it.
+function openEngagement(id: string, name: string): void {
+  openEngagementTab({ id, name });
+}
 
-  async function create() {
-    const trimmed = name.trim();
-    if (!trimmed || busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const eng = await createEngagement({
-        name: trimmed,
-        scope: [],
-        exclusions: [],
-        notes: "",
-      });
-      setActiveEngagementId(eng.id);
-      setName("");
-      window.dispatchEvent(new CustomEvent("side:engagements-changed"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+// Called once the typed-create modal returns a new engagement. Pins it active,
+// makes its primary target / source root the default target for tools (via the
+// active-target snapshot), broadcasts so the dashboard refreshes, and opens the
+// Workbench so the operator lands where they can immediately run playbooks.
+
+function onEngagementCreated(created: CreatedEngagement): void {
+  if (created.primary_target) {
+    // web-app target URL / local-app source root becomes the default target.
+    setActiveTarget({
+      // web-app registers a real target row; local-app's root has no row, so
+      // synthesize a stable id (the snapshot is read directly by useLabIntent).
+      id: created.primary_target_id ?? `eng-root:${created.id}`,
+      address: created.primary_target,
+      name: created.name,
+      kind: created.provenance === "lab" ? "lab" : "manual",
+    });
   }
-
-  return { name, setName, busy, error, create };
+  window.dispatchEvent(new CustomEvent("side:engagements-changed"));
+  // Surface success — creation was previously silent.
+  notify({ kind: "success", message: "Engagement created · opening workbench" });
+  // Pin it active and land in the Workbench (tools + playbooks).
+  openEngagement(created.id, created.name);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -242,20 +291,75 @@ function Dashboard() {
     return () => window.removeEventListener("side:engagements-changed", onChange);
   }, [refresh]);
 
-  // The dashed create card owns the canonical name input; the header's "New
-  // Engagement" button just scrolls to + focuses it (single source of truth).
-  const createInputRef = useRef<HTMLInputElement>(null);
-  const focusCreate = useCallback(() => {
-    const el = createInputRef.current;
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.focus();
+  // The header button and the dashed grid card both open the typed-create
+  // modal (single canonical creation point).
+  const [showCreate, setShowCreate] = useState(false);
+  const openCreate = useCallback(() => setShowCreate(true), []);
+
+  // Id of the just-created engagement — its card briefly flashes once the
+  // refreshed list renders it.
+  const [flashId, setFlashId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flashId) return;
+    const h = setTimeout(() => setFlashId(null), 1600);
+    return () => clearTimeout(h);
+  }, [flashId]);
+
+  const handleCreated = useCallback((created: CreatedEngagement) => {
+    setShowCreate(false);
+    onEngagementCreated(created);
+    setFlashId(created.id);
+  }, []);
+
+  // ── Getting-started hero visibility ───────────────────────────────────────
+  // Re-shown on demand via the ⌘K "Show Getting Started" command (bus event),
+  // and auto-shown on a true first run (no engagements + not yet dismissed).
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const dismissOnboarding = useCallback(() => {
+    writeOnboardingDone(true);
+    setShowOnboarding(false);
+  }, []);
+
+  // Foundation bus: ⌘N "New Engagement" → focus/open the create affordance.
+  useBus("command:focus-create", openCreate);
+  // Foundation bus: "Show Getting Started" → re-surface the hero (ignores the
+  // persisted dismiss flag — an explicit request always wins).
+  useBus(
+    "command:show-onboarding",
+    useCallback(() => setShowOnboarding(true), []),
+  );
+
+  // First run: no engagements + never dismissed → auto-show the hero once the
+  // list has actually loaded (engagements !== null).
+  const firstRun = engagements !== null && engagements.length === 0;
+  useEffect(() => {
+    if (firstRun && !readOnboardingDone()) setShowOnboarding(true);
+  }, [firstRun]);
+
+  // Delete an engagement (the card's × → inline confirm). If it was the
+  // active/pinned one, clear the active pin. Broadcast so the dashboard
+  // refreshes (and any other window re-reads the list).
+  const handleDelete = useCallback(async (eng: Engagement) => {
+    try {
+      await deleteEngagement(eng.id);
+      if (getActiveEngagementId() === eng.id) setActiveEngagementId(null);
+      window.dispatchEvent(new CustomEvent("side:engagements-changed"));
+    } catch (e) {
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    }
   }, []);
 
   return (
-    <>
-      <DashboardHeader engagements={engagements} onNew={focusCreate} />
-      <div className="mx-auto max-w-6xl space-y-4 px-6 pb-12">
+    <div className="h-full overflow-y-auto">
+      <NewEngagementModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={handleCreated}
+      />
+      <DashboardHeader engagements={engagements} onNew={openCreate} />
+      <div className="mx-auto max-w-6xl space-y-4 px-6 pt-5 pb-12">
         {engagements === null ? (
           <GlassCard className="p-0" glowOnHover>
             <div className="flex items-center gap-2 p-5 text-[11px] text-ink-dim">
@@ -268,28 +372,53 @@ function Dashboard() {
           </GlassCard>
         ) : (
           <>
-            <MetricCards engagements={engagements} stats={stats} />
-            <EngagementGrid
-              engagements={engagements}
-              stats={stats}
-              activeId={activeId}
-              createInputRef={createInputRef}
-            />
-            <div className="grid gap-4 lg:grid-cols-2">
-              <ToolsUsedCard
-                engagements={engagements}
-                findingsByEng={findingsByEng}
+            {showOnboarding && (
+              <GettingStartedHero
+                firstRun={firstRun}
+                onCreate={openCreate}
+                onDismiss={dismissOnboarding}
               />
-              <ActivityCard
+            )}
+            {firstRun ? (
+              // First run: skip the wall-of-zeros metric/tool/activity cards —
+              // the hero above already points the user at their first action.
+              // The dashed create card stays available below it.
+              <EngagementGrid
                 engagements={engagements}
-                findingsByEng={findingsByEng}
+                stats={stats}
+                activeId={activeId}
+                flashId={flashId}
+                onOpenCreate={openCreate}
+                onDelete={handleDelete}
               />
-            </div>
+            ) : (
+              <>
+                <MetricCards engagements={engagements} stats={stats} />
+                <EngagementGrid
+                  engagements={engagements}
+                  stats={stats}
+                  activeId={activeId}
+                  flashId={flashId}
+                  onOpenCreate={openCreate}
+                  onDelete={handleDelete}
+                />
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <ToolsUsedCard
+                    engagements={engagements}
+                    findingsByEng={findingsByEng}
+                  />
+                  <ActivityCard
+                    engagements={engagements}
+                    findingsByEng={findingsByEng}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
         <QuickLinksSection />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -343,14 +472,9 @@ function DashboardHeader({
               <GradientText>Engagements</GradientText>
               <Sparkle />
             </h1>
-            <p className="mt-1.5 max-w-2xl text-[12px] text-ink-muted">
-              {summary && (
-                <span className="text-ink-primary">{summary}</span>
-              )}
-              {summary && <span aria-hidden> · </span>}
-              the engagement is the project — scope, findings, coverage &amp;
-              reports all live inside it.
-            </p>
+            {summary && (
+              <p className="mt-1.5 max-w-2xl text-[12px] text-ink-primary">{summary}</p>
+            )}
           </div>
           <Button
             variant="solid"
@@ -496,48 +620,121 @@ function SevChips({ counts }: { counts: SevCounts }) {
   );
 }
 
+// A simple delete affordance: an "×" that turns into a two-click inline
+// confirm (no native dialog). `stopPropagation` so clicking it never trips
+// the card's other click targets.
+function DeleteX({
+  onConfirm,
+  label,
+}: {
+  onConfirm: () => void;
+  label: string;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  if (confirming) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <button
+          onClick={(e) => { e.stopPropagation(); onConfirm(); }}
+          className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-danger ring-1 ring-danger/40 hover:bg-danger/10"
+        >
+          Delete
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
+          className="rounded px-1 py-0.5 text-[11px] text-ink-dim hover:text-ink-primary"
+          aria-label="cancel delete"
+        >
+          ✕
+        </button>
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+      className="shrink-0 rounded px-1 py-0.5 text-[13px] leading-none text-ink-dim hover:text-danger"
+      aria-label={label}
+      title={label}
+    >
+      ✕
+    </button>
+  );
+}
+
 function EngagementCard({
   eng,
   stat,
   isActive,
+  compact,
+  flash,
+  onDelete,
 }: {
   eng: Engagement;
   stat: EngStats | undefined;
   isActive: boolean;
+  compact?: boolean;
+  flash?: boolean;
+  onDelete: (eng: Engagement) => void;
 }) {
   const sm = STATUS_META[eng.status];
+  // A freshly-created engagement briefly glows so the user sees where it landed.
+  const flashRing = flash ? "ring-1 ring-accent" : "";
+
+  // List mode — a slim single row.
+  if (compact) {
+    return (
+      <GlassCard className={`p-0 ${flashRing}`} glowOnHover>
+        <div className="flex items-center gap-3 px-[var(--row-px)] py-[var(--row-py)]">
+          <StatusDot color={sm.color} static={!sm.pulse} />
+          <span className="min-w-0 flex-1 truncate text-[length:var(--row-name)] font-semibold text-ink-primary">{eng.name}</span>
+          {stat ? <div className="hidden items-center gap-1 sm:flex"><SevChips counts={stat.counts} /></div> : null}
+          {stat?.coverage != null && (
+            <span className="data hidden w-12 text-right text-[11px] text-ink-muted md:inline">{stat.coverage}%</span>
+          )}
+          <span className="hidden text-[10.5px] text-ink-dim lg:inline">{relTime(eng.updated_at)}</span>
+          <Button variant={isActive ? "ghost" : "solid"} size="sm" onClick={() => openEngagement(eng.id, eng.name)}>
+            Open
+          </Button>
+          <DeleteX onConfirm={() => onDelete(eng)} label={`Delete ${eng.name}`} />
+        </div>
+      </GlassCard>
+    );
+  }
+
   return (
-    <GlassCard className="p-0" glowOnHover>
-      <div className="flex h-full flex-col p-4">
+    <GlassCard className={`p-0 ${flashRing}`} glowOnHover>
+      <div className="flex h-full flex-col p-[var(--card-pad)]">
         {/* top row: status pill */}
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-2.5 flex items-center gap-2">
           {isActive && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-accent">
+            <span className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
               <Sparkle solid /> pinned
             </span>
           )}
           <span
-            className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-semibold"
+            className="ml-auto inline-flex items-center gap-1.5 text-[10.5px] font-semibold"
             style={{ color: sm.color }}
           >
             <StatusDot color={sm.color} static={!sm.pulse} />
             {sm.label}
           </span>
+          <DeleteX onConfirm={() => onDelete(eng)} label={`Delete ${eng.name}`} />
         </div>
 
         {/* name */}
-        <div className="mb-3 truncate text-[15px] font-bold text-ink-primary">
+        <div className="mb-2.5 truncate text-[length:var(--card-name)] font-bold text-ink-primary">
           {eng.name}
         </div>
 
         {/* coverage bar — only when we have a real number */}
         {stat?.coverage !== null && stat?.coverage !== undefined ? (
-          <div className="mb-3">
-            <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-ink-dim">
+          <div className="mb-2">
+            <div className="mb-1 flex items-center justify-between text-[10.5px] font-medium text-ink-dim">
               <span>Methodology coverage</span>
               <span className="data text-ink-muted">{stat.coverage}%</span>
             </div>
-            <div className="h-[5px] overflow-hidden rounded-full bg-bg-base">
+            <div className="h-[4px] overflow-hidden rounded-full bg-bg-base">
               <div
                 className="h-full rounded-full bg-accent transition-[width]"
                 style={{ width: `${stat.coverage}%` }}
@@ -545,11 +742,11 @@ function EngagementCard({
             </div>
           </div>
         ) : (
-          <div className="mb-3 h-[5px]" aria-hidden />
+          <div className="mb-2 h-[4px]" aria-hidden />
         )}
 
         {/* finding chips */}
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {stat ? (
             <SevChips counts={stat.counts} />
           ) : (
@@ -558,29 +755,18 @@ function EngagementCard({
         </div>
 
         {/* footer: scope + last activity + Open */}
-        <div className="mt-auto flex items-center gap-3 border-t border-divider pt-3">
-          <div className="min-w-0 flex-1 text-[10.5px] text-ink-dim">
+        <div className="mt-auto flex items-center gap-3 border-t border-divider pt-2.5">
+          <div className="min-w-0 flex-1 text-[10px] text-ink-dim">
             <span className="uppercase tracking-wider">{eng.status}</span>
             <span className="mx-1.5" aria-hidden>
               ·
             </span>
             <span>updated {relTime(eng.updated_at)}</span>
-            {eng.scope.length > 0 && (
-              <>
-                <span className="mx-1.5" aria-hidden>
-                  ·
-                </span>
-                <span>
-                  {eng.scope.length} scope{eng.scope.length === 1 ? "" : "s"}
-                </span>
-              </>
-            )}
           </div>
           <Button
             variant={isActive ? "ghost" : "solid"}
             size="sm"
-            disabled={isActive}
-            onClick={() => setActiveEngagementId(eng.id)}
+            onClick={() => openEngagement(eng.id, eng.name)}
           >
             Open
           </Button>
@@ -591,16 +777,12 @@ function EngagementCard({
 }
 
 // The design's prominent dashed "+ New Engagement" create card. It lives as
-// the final cell of the engagement grid and carries an inline name field:
-// Enter (or the Create button) → createEngagement → setActiveEngagementId.
-function NewEngagementCard({
-  inputRef,
-}: {
-  inputRef: RefObject<HTMLInputElement>;
-}) {
-  const { name, setName, busy, error, create } = useCreateEngagement();
+// the final cell of the engagement grid and opens the typed-create modal,
+// which branches the form by engagement type (local-app / web-app).
+function NewEngagementCard({ onOpenCreate }: { onOpenCreate: () => void }) {
   return (
-    <div
+    <button
+      onClick={onOpenCreate}
       className="group flex min-h-[250px] flex-col items-center justify-center gap-3
                  rounded-xl border border-dashed border-divider p-5 text-center
                  transition-colors hover:border-accent"
@@ -616,41 +798,11 @@ function NewEngagementCard({
       <div className="text-[13px] font-bold text-ink-primary">
         Start new engagement
       </div>
-      <div className="max-w-[220px] text-[11.5px] leading-relaxed text-ink-dim">
-        The engagement is the project — name it, then add scope &amp; targets
-        inside.
+      <div className="max-w-[260px] text-[11px] text-ink-dim">
+        Choose a type — a local codebase or a web application — and we'll collect
+        the right details.
       </div>
-
-      <div className="mt-1 w-full max-w-[260px]">
-        <input
-          ref={inputRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void create();
-          }}
-          placeholder="Engagement name…"
-          disabled={busy}
-          spellCheck={false}
-          className="w-full rounded border border-divider bg-bg-base px-2.5 py-1.5
-                     text-center text-[12px] text-ink-primary placeholder:text-ink-dim
-                     focus:border-accent focus:outline-none"
-        />
-        <Button
-          variant="solid"
-          size="sm"
-          className="mt-2 w-full justify-center"
-          loading={busy}
-          disabled={!name.trim()}
-          onClick={() => void create()}
-        >
-          <Sparkle solid /> Create engagement
-        </Button>
-        {error && (
-          <div className="mt-2 text-[11px] text-danger">⚠ {error}</div>
-        )}
-      </div>
-    </div>
+    </button>
   );
 }
 
@@ -658,24 +810,146 @@ function EngagementGrid({
   engagements,
   stats,
   activeId,
-  createInputRef,
+  flashId,
+  onOpenCreate,
+  onDelete,
 }: {
   engagements: Engagement[];
   stats: Record<string, EngStats>;
   activeId: string | null;
-  createInputRef: RefObject<HTMLInputElement>;
+  flashId?: string | null;
+  onOpenCreate: () => void;
+  onDelete: (eng: Engagement) => void;
+}) {
+  const [mode] = useViewMode("engagements");
+  const grid =
+    mode === "list"
+      ? "grid grid-cols-1 gap-2.5"
+      : "grid gap-3 sm:grid-cols-2 lg:grid-cols-3";
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-wide text-ink-dim">Engagements</span>
+        <ViewModeToggle storageKey="engagements" />
+      </div>
+      <div className={grid}>
+        {engagements.map((eng) => (
+          <EngagementCard
+            key={eng.id}
+            eng={eng}
+            stat={stats[eng.id]}
+            isActive={eng.id === activeId}
+            compact={mode === "list"}
+            flash={eng.id === flashId}
+            onDelete={onDelete}
+          />
+        ))}
+        <NewEngagementCard onOpenCreate={onOpenCreate} />
+      </div>
+    </div>
+  );
+}
+
+// ── Getting-started hero ─────────────────────────────────────────────────────
+// Shown on a true first run (no engagements yet) and re-summonable via the ⌘K
+// "Show Getting Started" command. Replaces the wall-of-zeros with a focused
+// next-action: create your first engagement, then run a tool.
+
+function GettingStartedHero({
+  firstRun,
+  onCreate,
+  onDismiss,
+}: {
+  firstRun: boolean;
+  onCreate: () => void;
+  onDismiss: () => void;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {engagements.map((eng) => (
-        <EngagementCard
-          key={eng.id}
-          eng={eng}
-          stat={stats[eng.id]}
-          isActive={eng.id === activeId}
+    <GlassCard className="p-0" glowOnHover>
+      <div className="relative overflow-hidden p-6">
+        <AsciiHero
+          variant="bare"
+          className="pointer-events-none absolute inset-0 opacity-[0.10]"
+          aria-hidden
         />
-      ))}
-      <NewEngagementCard inputRef={createInputRef} />
+        <div className="relative">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <EyebrowPill icon={false} className="text-[10px]">
+                {firstRun ? "welcome" : "getting started"}
+              </EyebrowPill>
+              <h2 className="mt-2 flex items-center gap-2 text-xl font-bold tracking-tight">
+                <GradientText>Create your first engagement</GradientText>
+                <Sparkle />
+              </h2>
+              <p className="mt-1.5 max-w-xl text-[12px] leading-relaxed text-ink-primary">
+                An engagement is your workspace — scope, targets, findings and
+                coverage on one spine. Spin one up, then point a tool at it.
+              </p>
+            </div>
+            <button
+              onClick={onDismiss}
+              className="shrink-0 rounded px-1.5 py-0.5 text-[13px] leading-none text-ink-dim hover:text-ink-primary"
+              aria-label="Dismiss getting started"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Two ordered next-steps. */}
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <StepCard
+              step={1}
+              title="New engagement"
+              hint="Choose a local codebase or a web app — we'll collect the right details."
+              cta={
+                <Button variant="solid" size="sm" onClick={onCreate}>
+                  <Sparkle solid /> New Engagement
+                </Button>
+              }
+            />
+            <StepCard
+              step={2}
+              title="Run a tool"
+              hint="Open the arsenal — ~38 tools share one panel; results stream live."
+              cta={
+                <Button variant="ghost" size="sm" onClick={openToolSearch}>
+                  Run a tool →
+                </Button>
+              }
+            />
+          </div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+function StepCard({
+  step,
+  title,
+  hint,
+  cta,
+}: {
+  step: number;
+  title: string;
+  hint: string;
+  cta: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-divider bg-bg-card p-4">
+      <div className="flex items-center gap-2">
+        <span
+          className="data flex h-6 w-6 items-center justify-center rounded-full border border-accent/40 bg-accent/10 text-[11px] font-bold text-accent"
+          aria-hidden
+        >
+          {step}
+        </span>
+        <span className="text-[13px] font-bold text-ink-primary">{title}</span>
+      </div>
+      <p className="text-[11px] leading-relaxed text-ink-dim">{hint}</p>
+      <div className="mt-1">{cta}</div>
     </div>
   );
 }
@@ -726,7 +1000,7 @@ function ToolsUsedCard({
           </div>
         ) : tools.length === 0 ? (
           <div className="text-[11px] text-ink-dim">
-            No findings recorded yet — tool usage appears here once findings land.
+            No findings yet.
           </div>
         ) : (
           <div className="space-y-3">
@@ -817,7 +1091,7 @@ function ActivityCard({
           </div>
         ) : items.length === 0 ? (
           <div className="text-[11px] text-ink-dim">
-            No findings yet — activity appears here as findings are recorded.
+            No activity yet.
           </div>
         ) : (
           <div>
@@ -906,6 +1180,19 @@ function QuickLinksSection() {
       hint="The rest of the workspace. These open as tabs in the editor area."
     >
       <div className="flex flex-wrap gap-2">
+        {/* Most-likely next action — run a tool — leads as a solid pill. */}
+        <Button variant="solid" size="sm" onClick={openToolSearch}>
+          Run a tool →
+          <span className="ml-1.5 text-[10px] opacity-70">open the arsenal</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => emit("openView", { view: "build" })}
+        >
+          Workbench
+          <span className="ml-1.5 text-[10px] opacity-70">tools & playbooks</span>
+        </Button>
         {QUICK_LINKS.map((l) => (
           <Button
             key={l.view}

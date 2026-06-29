@@ -140,7 +140,7 @@ async def _serve_http(listener: Listener, reader: asyncio.StreamReader,
                 break
         listener.record(source, method, path, head + body)
         # Respond with a small JSON ack
-        resp = (f"HTTP/1.1 200 OK\r\nServer: HackingPal-C2/0.1\r\n"
+        resp = (f"HTTP/1.1 200 OK\r\nServer: s-ide-C2/0.1\r\n"
                 f"Content-Type: application/json\r\nConnection: close\r\n\r\n"
                 f'{{"beacon":"ack","token":"{listener.token}"}}').encode()
         writer.write(resp)

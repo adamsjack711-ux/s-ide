@@ -3,13 +3,12 @@ import { Sparkle, TokenStream } from "performative-ui";
 import MethodReconstruction from "./MethodReconstruction";
 import { authFetch, fetchChatConfig, suggestChecks, type ChatConfig, type SuggestedCheck } from "../api";
 import { snapshot } from "../lib/sessionLog";
+import { confirmStepWhy } from "../lib/retest";
+import { notify } from "../shell/toast";
 import { toolById, TOOLS } from "../shell/tools";
 import { emit, on } from "../shell/bus";
 
 type Msg = { role: "user" | "assistant"; content: string };
-
-/** Suggestion chips beneath the composer — quick prompts that prefill + send. */
-const CHIPS = ["Generate fix", "Write exploit test", "Find similar patterns", "Explain CVSS"];
 
 /** Map a suggested check's tool/nav id onto a slim-set tool id, if we expose it. */
 function resolveTool(c: SuggestedCheck): string | undefined {
@@ -142,26 +141,28 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
             </span>
             <button onClick={() => setFocusedFinding(null)} className="hover:text-ink-primary">close</button>
           </div>
-          <MethodReconstruction findingId={focusedFinding} />
+          <MethodReconstruction
+            findingId={focusedFinding}
+            onConfirmWhy={(stepId, why) =>
+              confirmStepWhy(focusedFinding, stepId, why)
+                .then(() => notify({ kind: "success", message: "Rationale recorded" }))
+                .catch((e: any) =>
+                  notify({ kind: "error", message: e?.message || "failed to record rationale" }),
+                )
+            }
+          />
         </div>
       )}
 
       {cfg && !cfg.usable ? (
         <div className="space-y-2 p-4 text-xs text-ink-muted">
           <div className="font-medium text-ink-primary">Connect AI</div>
-          <p>The copilot is optional. Enable it by either setting an Anthropic API key in Settings, or signing into the <span className="font-mono">claude</span> CLI on your PATH.</p>
-          <p className="text-ink-dim">s-ide is fully usable without it — every tool and the engagement spine work offline.</p>
+          <p>Set an Anthropic API key in Settings, or sign into the <span className="font-mono">claude</span> CLI on your PATH.</p>
         </div>
       ) : (
         <>
           {/* Conversation — AI vs user bubbles, chips pinned under the last turn. */}
           <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-auto px-3.5 py-4">
-            {messages.length === 0 && (
-              <div className="max-w-[90%] self-start rounded-xl rounded-bl-[3px] border border-divider bg-bg-base px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-muted">
-                Ask about a result, or get next-step suggestions from your session activity.
-              </div>
-            )}
-
             {messages.map((m, i) => {
               const isUser = m.role === "user";
               const thinking = !isUser && i === messages.length - 1 && streaming && !m.content;
@@ -179,20 +180,6 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
                 </div>
               );
             })}
-
-            {/* Suggestion chips — quick prompts that prefill + send. */}
-            <div className="mt-0.5 flex flex-wrap gap-1.5">
-              {CHIPS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => send(c)}
-                  disabled={streaming}
-                  className="rounded-full border border-divider bg-bg-base px-3 py-1.5 text-[11.5px] font-medium text-accent hover:border-accent disabled:opacity-50"
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
 
             {checks.length > 0 && (
               <div className="space-y-2">

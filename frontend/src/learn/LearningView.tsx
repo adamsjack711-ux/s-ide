@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import SectionLabel from "../shell/SectionLabel";
+import Icon from "../shell/Icon";
+import LabsView from "../labs/LabsView";
 
 import { authFetch } from "../api";
 import { METHODOLOGY_IDS, methodologyLabel } from "../lib/methodology";
@@ -35,6 +37,8 @@ type Progress = {
 
 export default function LearningView() {
   const [progress, setProgress] = useState<Progress | null>(null);
+  // Labs now live inside Learn — spin up a target here, then learn against it.
+  const [tab, setTab] = useState<"learn" | "labs">("learn");
 
   const refreshProgress = useCallback(() => {
     authFetch("/method/progress")
@@ -46,18 +50,49 @@ export default function LearningView() {
   useEffect(refreshProgress, [refreshProgress]);
 
   return (
-    <div className="flex h-full flex-col overflow-auto bg-bg-sidebar text-sm">
-      <div className="border-b border-divider px-3 py-3">
-        <SectionLabel>Learn</SectionLabel>
-        <p className="mt-2 text-xs text-ink-muted">
-          A guided path through the sandbox. Spin up a lab, reveal a hint when you're stuck,
-          then run a tool against it. The lab's solution stays server-side — hints only.
-        </p>
+    <div className="flex h-full min-h-0 flex-col bg-bg-sidebar text-sm">
+      {/* Learn / Labs tab strip */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-divider px-2">
+        {([
+          { id: "learn", icon: "book", label: "Learn" },
+          { id: "labs", icon: "flask", label: "Labs" },
+        ] as const).map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-[12px] transition-colors ${
+                active ? "border-accent text-ink-primary" : "border-transparent text-ink-dim hover:text-ink-primary"
+              }`}
+            >
+              <Icon name={t.icon} size={15} />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
-      <GuidedSteps />
-      <HintPanel />
-      <ProgressPanel progress={progress} onRefresh={refreshProgress} />
+      {tab === "labs" ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <LabsView />
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+          <div className="border-b border-divider px-3 py-3">
+            <SectionLabel>Learn</SectionLabel>
+            <p className="mt-2 text-xs text-ink-muted">
+              A guided path through the sandbox. Spin up a lab (the Labs tab), reveal a hint
+              when you're stuck, then run a tool against it. The lab's solution stays
+              server-side — hints only.
+            </p>
+          </div>
+
+          <GuidedSteps />
+          <HintPanel />
+          <ProgressPanel progress={progress} onRefresh={refreshProgress} />
+        </div>
+      )}
     </div>
   );
 }

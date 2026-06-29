@@ -1,6 +1,6 @@
 """Capability gate for the s-ide IDE.
 
-The backend is vendored wholesale from HackingPal, but s-ide only *exposes* the
+The backend is vendored wholesale from s-ide, but s-ide only *exposes* the
 zero-setup (Tier 1) toolset. Tier 2 (privilege/root/raw-socket) and Tier 3
 (external setup: API keys / Docker / cloud SDKs / special hardware) routers ship
 in the codebase but are NOT registered by default — their routes return 404 —
@@ -23,6 +23,8 @@ TIER1: frozenset[str] = frozenset(
         # Engagement spine (pure SQLite — the differentiator).
         "engagements", "findings", "cvss", "reports", "scope", "targets",
         "audit_log", "triage", "suggest_checks",
+        # Target / sub-target / engagement / pairing domain model + 4-tab spine.
+        "spine",
         # Discovery / DNS / naming.
         "ip_checker", "dns_recon", "whois", "subdomain_enum", "reverse_ip",
         "local_discovery",
@@ -44,11 +46,16 @@ TIER1: frozenset[str] = frozenset(
         "chat", "summarize",
         # Meta / settings.
         "tool_requirements", "basic_check", "settings", "presets",
+        # Single-shot terminal — zero-setup (localhost + token + engagement
+        # gated). Baked into the Workbench as a quick-run surface.
+        "terminal",
         # Learning-sandbox data model + surfaces (assets/steps/labs/progress,
         # isolation self-check, lab-source fix-in-place, playbooks).
         "method", "isolation", "labfs", "playbook_run",
         # Safety layer — provenance + authorization attestations + audit.
         "safety",
+        # Theme distribution — fetch/validate/cache .side themes (Tier 1).
+        "themes",
     }
 )
 

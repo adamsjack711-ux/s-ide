@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── HackingPal design system ───────────────────────────────────────────
+/* ─── s-ide design system ───────────────────────────────────────────
  *
  * Two parallel token surfaces:
  *
@@ -217,6 +217,20 @@ body::before {
   letter-spacing: 0;
 }
 
+/* ── Engagement-spine type base ──
+ * The spine surface uses ONE font — the terminal/mono face — at different
+ * sizes, so its text reads as a single coherent system instead of a mono/sans
+ * mix. Driven through the font tokens (and performative-ui's --pui-font-*)
+ * rather than hard-coded, so a theme upload that changes --font-mono restyles
+ * the whole spine. Tabular figures so numbers/addresses line up. */
+.spine-ui {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+  --pui-font-sans: var(--font-mono);
+  --pui-font-mono: var(--font-mono);
+  --pui-font-serif: var(--font-mono);
+}
+
 /* ── Selection + focus rings ── */
 ::selection {
   background: var(--accent-dim);
@@ -324,4 +338,48 @@ button, a, input, select, textarea, [role="button"] {
 
 @media (prefers-reduced-motion: reduce) {
   .scanning, .scanning-accent, .connecting { animation: none; }
+}
+
+/* ── performative-ui theme bridge ──────────────────────────────────────────
+   performative-ui ships fixed dark `--pui-*` tokens (light text, a purple
+   GradientText gradient) which look wrong in light mode. Remap them onto the
+   app's own tokens so every performative component follows the active theme
+   (bundled, graphite, light, or a custom .side). Loaded after the package CSS
+   (see main.tsx), so these win. */
+:root {
+  --pui-bg:            rgb(var(--bg-base-rgb));
+  --pui-bg-elev:       rgb(var(--bg-card-rgb));
+  --pui-bg-soft:       rgb(var(--bg-panel-rgb));
+  --pui-border:        rgb(var(--border-rgb));
+  --pui-border-bright: rgb(var(--border-bright-rgb));
+  --pui-fg:            rgb(var(--ink-primary-rgb));
+  --pui-fg-dim:        rgb(var(--ink-muted-rgb));
+  --pui-fg-mute:       rgb(var(--ink-dim-rgb));
+  --pui-success:       rgb(var(--success-rgb));
+  --pui-danger:        rgb(var(--danger-rgb));
+  --pui-warn:          rgb(var(--amber-rgb));
+  /* GradientText: keep it readable in BOTH modes by anchoring the ends to the
+     theme's primary text colour with an accent shimmer in the middle. */
+  --pui-grad-from: rgb(var(--ink-primary-rgb));
+  --pui-grad-mid:  rgb(var(--accent-bright-rgb));
+  --pui-grad-to:   rgb(var(--ink-primary-rgb));
+  --pui-grad: linear-gradient(120deg, rgb(var(--ink-primary-rgb)), rgb(var(--accent-bright-rgb)), rgb(var(--ink-primary-rgb)));
+  /* Glass surfaces follow the theme instead of a fixed dark translucent. */
+  --pui-glass:      rgb(var(--bg-card-rgb));
+  --pui-glass-deep: rgb(var(--bg-panel-rgb));
+  --pui-glass-soft: rgb(var(--bg-sidebar-rgb));
+}
+
+/* ── user-controlled card/list sizing ──────────────────────────────────────
+   `--ui-scale` is set on <html> by lib/density.ts (default 1). Card and row
+   dimensions derive from it so the Settings "Card size" slider scales every
+   tile and list row live. */
+:root {
+  --ui-scale: 1;
+  --card-pad:  calc(0.875rem * var(--ui-scale));
+  --card-name: calc(0.9375rem * var(--ui-scale));
+  --card-gap:  calc(0.625rem * var(--ui-scale));
+  --row-py:    calc(0.5rem * var(--ui-scale));
+  --row-px:    calc(0.875rem * var(--ui-scale));
+  --row-name:  calc(0.84rem * var(--ui-scale));
 }

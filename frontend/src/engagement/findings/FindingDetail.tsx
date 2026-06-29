@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   patchTrackedFinding,
   type Finding,
   type FindingStatus,
 } from "../../lib/engagement";
+import { api } from "../../api";
+import type { FindingMethod } from "../../lib/methodAnalysis";
+import { resolveFindingLabId, confirmStepWhy } from "../../lib/retest";
+import MethodReconstruction from "../../copilot/MethodReconstruction";
 import { SEV_PILL, SEV_LABEL, statusLabel } from "./style";
 
 const STATUSES: FindingStatus[] = ["open", "confirmed", "false_positive", "remediated"];
 
-const TABS = ["Description", "Data Flow", "Vulnerable Code", "Remediation", "History"] as const;
+const TABS = ["Description", "Root Cause", "Data Flow", "Vulnerable Code", "Remediation", "History"] as const;
 type Tab = typeof TABS[number];
 
 /** A labelled placeholder for design sections we don't have data for yet. */
@@ -37,17 +41,71 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export default function FindingDetail({
   finding,
   onChanged,
+  onRetest,
 }: {
   finding: Finding;
   onChanged: () => void;
+  /** Retest the selected finding (resolves its lab + replays the steps). */
+  onRetest?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("Description");
   const f = finding;
 
+  // The method (root cause / remediation / steps) backing this finding.
+  const [method, setMethod] = useState<FindingMethod | null>(null);
+  // Whether this finding resolves to a lab (gates the Retest button).
+  const [labId, setLabId] = useState<string | null | undefined>(undefined); // undefined = resolving
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setMethod(null);
+    api<FindingMethod>(`/method/findings/${encodeURIComponent(f.id)}`)
+      .then((m) => alive && setMethod(m))
+      .catch(() => alive && setMethod(null));
+    setLabId(undefined);
+    resolveFindingLabId(f)
+      .then((id) => alive && setLabId(id))
+      .catch(() => alive && setLabId(null));
+    return () => {
+      alive = false;
+    };
+  }, [f.id, f.target, f.engagement_id]);
+
   async function setStatus(status: FindingStatus) {
-    await patchTrackedFinding(f.id, { status });
-    onChanged();
+    setBusy(true);
+    try {
+      await patchTrackedFinding(f.id, { status });
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
   }
+
+  function reloadMethod() {
+    api<FindingMethod>(`/method/findings/${encodeURIComponent(f.id)}`)
+      .then(setMethod)
+      .catch(() => {});
+  }
+
+  // Persist an operator-confirmed "why" for a step, then refresh the method so
+  // the new rationale shows on the reconstructed flow.
+  async function onConfirmWhy(stepId: string, why: string) {
+    await confirmStepWhy(f.id, stepId, why);
+    reloadMethod();
+  }
+
+  const rootCause = method?.root_cause ?? null;
+  const remediation = method?.remediation ?? null;
+  const steps = method?.steps ?? [];
+
+  const retestable = !!labId;
+  const retestTitle =
+    labId === undefined
+      ? "Resolving lab…"
+      : retestable
+        ? "Replay the recorded steps to confirm the fix"
+        : "No associated lab — retest is only available for lab-backed findings";
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto bg-bg-base">
@@ -66,6 +124,14 @@ export default function FindingDetail({
               {f.tool ? ` · ${f.tool}` : ""}
             </div>
           </div>
+          <button
+            onClick={() => onRetest?.()}
+            disabled={!retestable || !onRetest}
+            title={retestTitle}
+            className="mt-0.5 shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-accent ring-1 ring-accent/40 transition-colors hover:bg-accent/10 disabled:cursor-not-allowed disabled:text-ink-dim disabled:ring-divider disabled:hover:bg-transparent"
+          >
+            {labId === undefined ? "Retest…" : "Retest"}
+          </button>
         </div>
 
         {/* meta cards: CVSS / Type / Status / Owner(tool) */}
@@ -78,8 +144,9 @@ export default function FindingDetail({
             </div>
             <select
               value={f.status}
+              disabled={busy}
               onChange={(e) => setStatus(e.target.value as FindingStatus)}
-              className="w-full bg-transparent text-sm font-semibold text-ink-primary outline-none"
+              className="w-full bg-transparent text-sm font-semibold text-ink-primary outline-none disabled:opacity-60"
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>{statusLabel(s)}</option>
@@ -133,6 +200,30 @@ export default function FindingDetail({
           </div>
         )}
 
+        {tab === "Root Cause" && (
+          <div>
+            <SectionLabel>Root Cause</SectionLabel>
+            {rootCause?.explanation ? (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-primary">
+                {rootCause.explanation}
+              </p>
+            ) : (
+              <Placeholder what="root-cause" />
+            )}
+            {rootCause?.anchor && (
+              <div className="mt-3 inline-flex items-center rounded-md border border-divider bg-bg-card px-3 py-1.5 font-mono text-xs text-ink-muted">
+                {rootCause.anchor}
+              </div>
+            )}
+
+            {/* Reconstructed method — reachable here without opening the copilot
+                rail. It does its own fetch + renders FACT/INFERENCE per step. */}
+            <div className="mt-5 overflow-hidden rounded-xl border border-divider">
+              <MethodReconstruction findingId={f.id} onConfirmWhy={onConfirmWhy} />
+            </div>
+          </div>
+        )}
+
         {tab === "Data Flow" && (
           <div>
             <SectionLabel>Data Flow — source to sink</SectionLabel>
@@ -148,7 +239,13 @@ export default function FindingDetail({
                 {f.target}
               </div>
             ) : null}
-            <Placeholder what="code-snippet" />
+            {rootCause?.anchor ? (
+              <code className="block break-all rounded-lg border border-divider bg-bg-card px-3 py-2 font-mono text-xs text-ink-muted">
+                {rootCause.anchor}
+              </code>
+            ) : (
+              <Placeholder what="code-snippet" />
+            )}
           </div>
         )}
 
@@ -160,14 +257,61 @@ export default function FindingDetail({
               </span>
               <span className="ml-auto font-mono text-[11px] text-accent">S-IDE Copilot</span>
             </div>
-            <Placeholder what="remediation" />
+            {remediation?.change || remediation?.why ? (
+              <div className="space-y-3">
+                {remediation.change && (
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-primary">
+                    {remediation.change}
+                  </p>
+                )}
+                {remediation.why && (
+                  <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink-muted">
+                    {remediation.why}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Placeholder what="remediation" />
+            )}
           </div>
         )}
 
         {tab === "History" && (
           <div>
-            <SectionLabel>History</SectionLabel>
-            <Placeholder what="audit-trail" />
+            <SectionLabel>History — recorded steps</SectionLabel>
+            {steps.length === 0 ? (
+              <Placeholder what="audit-trail" />
+            ) : (
+              <ol className="space-y-2">
+                {steps.map((s, i) => (
+                  <li
+                    key={s.id}
+                    className="flex items-start gap-3 rounded-lg border border-divider bg-bg-card px-3 py-2"
+                  >
+                    <span className="mt-px shrink-0 font-mono text-[11px] text-ink-dim">
+                      {(s.ordinal ?? i) + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-mono text-xs text-ink-primary">
+                        {String(s.action?.tool_id ?? "unknown")}
+                      </div>
+                      {s.evidence?.timestamp != null && (
+                        <div className="mt-0.5 font-mono text-[10.5px] text-ink-dim">
+                          {String(s.evidence.timestamp)}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-px text-[10px] uppercase tracking-wide ${
+                        s.anchored ? "text-phos ring-1 ring-phos/30" : "text-amber ring-1 ring-amber/30"
+                      }`}
+                    >
+                      {s.anchored ? "anchored" : "unanchored"}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
         )}
       </div>

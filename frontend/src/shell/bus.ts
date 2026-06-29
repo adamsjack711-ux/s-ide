@@ -28,7 +28,52 @@ type Events = {
   openAttestation: Record<string, never>;
   attestationsChanged: Record<string, never>;
   /** Open a non-tool view as a tab in the center editor area. */
-  openView: { view: "home" | "findings" | "reports" | "learn" | "settings" | "playbook" | "graph" | "build" | "labs"; params?: Record<string, unknown> };
+  openView: { view: "home" | "findings" | "reports" | "learn" | "settings" | "playbook" | "graph" | "build" | "terminal" | "labs" | "lab" | "spine"; params?: Record<string, unknown> };
+  /**
+   * Engagement-spine domain events. The four spine tabs (Targets / Engagements /
+   * Workbench / Findings) cross-link through these: arming a sub-target in
+   * Targets reflects immediately in Engagements and unlocks it in Workbench.
+   *
+   *  - `subTargetArmed` / `subTargetDisarmed` — an engagement was attached /
+   *    detached from a sub-target. Carries both ids so every tab can refresh.
+   *  - `pairingRunStarted` / `pairingRunOutput` — a pairing (engagement ×
+   *    sub-target) began executing / produced output in the Workbench.
+   *  - `findingCreated` — a finding was born from a pairing; carries its
+   *    provenance triple so Findings + the Target roll-up can update.
+   */
+  subTargetArmed: { subTargetId: string; engagementId: string; targetId: string };
+  subTargetDisarmed: { subTargetId: string; targetId: string };
+  pairingRunStarted: { subTargetId: string; engagementId: string; tool: string };
+  pairingRunOutput: { subTargetId: string; engagementId: string; runId: string; status: string; output: string };
+  findingCreated: { findingId: string; engagementId: string; subTargetId: string; targetId: string };
+  /** Lab MDI — a lab opened/closed/activated as a working tab. */
+  labTabOpened: { labId: string };
+  labTabClosed: { labId: string };
+  labTabActivated: { labId: string };
+  /** Engagement MDI — an engagement opened/closed/activated as a primary tab.
+   *  Activating a tab swaps the main area to that engagement's workspace
+   *  (Workbench / Map / Findings / Terminal sub-surfaces). */
+  engagementTabOpened: { engagementId: string };
+  engagementTabClosed: { engagementId: string };
+  engagementTabActivated: { engagementId: string };
+  /**
+   * Command-system events (owned by the Foundation lane; see shell/commands.ts
+   * + shell/keymap.ts). Feature lanes LISTEN for these to react to global
+   * commands they don't own the wiring for:
+   *
+   *  - `command:focus-create`   — "New Engagement" was invoked. The Home lane
+   *    navigates to the home view itself (via openView) then focuses/opens its
+   *    create-engagement affordance.
+   *  - `command:show-onboarding` — "Show Getting Started" was invoked. The Home
+   *    lane surfaces its onboarding / getting-started panel.
+   *  - `command:run` — a generic contextual command fired by id (e.g. a feature
+   *    lane registered `promote-to-finding` / `retest` with a keybinding and
+   *    wants a single bus hook to listen on instead of a direct closure). The
+   *    payload carries the commandId so multiple listeners can disambiguate.
+   */
+  "command:focus-create": Record<string, never>;
+  "command:show-onboarding": Record<string, never>;
+  "command:run": { commandId: string; params?: Record<string, unknown> };
 };
 
 type Handler<K extends keyof Events> = (payload: Events[K]) => void;

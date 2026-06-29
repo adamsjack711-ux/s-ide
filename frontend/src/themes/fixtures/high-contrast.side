@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "kind": "theme",
+  "name": "High Contrast",
+  "author": "builtin",
+  "theme": {
+    "--bg-base": "#000000",
+    "--bg-surface": "#0a0a0a",
+    "--bg-elevated": "#141414",
+    "--bg-hover": "#1f1f1f",
+    "--bg-active": "#2a2a2a",
+    "--text-primary": "#ffffff",
+    "--text-secondary": "#d0d0d0",
+    "--text-muted": "#a0a0a0",
+    "--border": "#3a3a3a",
+    "--border-bright": "#5a5a5a",
+    "--accent": "#00e5ff",
+    "--critical": "#ff2d2d",
+    "--high": "#ff8c00",
+    "--medium": "#ffd000",
+    "--low": "#2d9bff",
+    "--success": "#00e676",
+    "--font-sans": "Inter",
+    "--font-mono": "JetBrains Mono"
+  }
+}

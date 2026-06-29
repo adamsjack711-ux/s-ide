@@ -45,6 +45,9 @@ _SKIP_DIRS = {
     ".git", "node_modules", "venv", ".venv", "dist", "build",
     "__pycache__", ".mypy_cache", ".pytest_cache", ".tox", ".idea",
     ".gradle", "target", "vendor", ".next", "coverage",
+    # build outputs / packaged artifacts — scanning these is just noise
+    "dist-electron", "out", ".cache", "DerivedData", "Pods", ".turbo",
+    ".parcel-cache", ".svelte-kit", "site-packages",
 }
 
 # Common source / text extensions we are willing to read.
@@ -135,11 +138,120 @@ _RULES = [
           "Insecure ECB cipher mode (CWE-327)", flags=0),
 
     # ── Path traversal ───────────────────────────────────────────────────────
-    _rule(r"\.\./", "medium", "Path Traversal",
-          "Relative path traversal sequence (CWE-22)", flags=0),
+    # NOTE: a bare "../" is NOT flagged — it matches every relative import and
+    # buries the report in false positives. We flag the genuinely suspicious
+    # forms instead: URL-encoded traversal payloads, and path-building from
+    # concatenated/interpolated input.
+    _rule(r"%2e%2e(?:%2f|%5c|/|\\)|\.\.(?:%2f|%5c)", "medium", "Path Traversal",
+          "Encoded path traversal sequence (CWE-22)"),
     _rule(r"\bopen\s*\([^)]*\+", "medium", "Path Traversal",
           "open() with concatenated path (CWE-22)"),
 ]
+
+
+# ── Application-asset inventory ───────────────────────────────────────────────
+# The Graph view's "scan" wants an inventory of the application itself, not just
+# SAST findings. We derive it from the same single walk: languages by extension,
+# entry points, config/secret files, and (parsed from manifests) frameworks +
+# dependencies, plus best-effort route/endpoint extraction.
+
+_LANG_BY_EXT = {
+    ".py": "Python", ".pyw": "Python", ".js": "JavaScript", ".mjs": "JavaScript",
+    ".cjs": "JavaScript", ".jsx": "JavaScript (JSX)", ".ts": "TypeScript",
+    ".tsx": "TypeScript (TSX)", ".vue": "Vue", ".svelte": "Svelte", ".java": "Java",
+    ".kt": "Kotlin", ".kts": "Kotlin", ".go": "Go", ".rb": "Ruby", ".php": "PHP",
+    ".phtml": "PHP", ".c": "C", ".h": "C", ".cpp": "C++", ".cc": "C++", ".hpp": "C++",
+    ".cs": "C#", ".rs": "Rust", ".scala": "Scala", ".swift": "Swift", ".sh": "Shell",
+    ".bash": "Shell", ".zsh": "Shell", ".pl": "Perl", ".pm": "Perl", ".lua": "Lua",
+    ".r": "R", ".sql": "SQL", ".html": "HTML", ".htm": "HTML", ".dart": "Dart",
+    ".ex": "Elixir", ".exs": "Elixir", ".clj": "Clojure", ".groovy": "Groovy",
+}
+
+# Files (by exact name) that are application entry points worth surfacing.
+_ENTRY_NAMES = {
+    "main.py", "app.py", "manage.py", "wsgi.py", "asgi.py", "__main__.py",
+    "server.js", "server.ts", "index.js", "index.ts", "main.js", "main.ts",
+    "main.tsx", "index.tsx", "Dockerfile", "docker-compose.yml",
+    "docker-compose.yaml", "Makefile", "package.json",
+}
+
+# Config / secret-bearing files.
+_CONFIG_SUFFIXES = {".env", ".ini", ".toml", ".cfg", ".conf", ".properties", ".yaml", ".yml"}
+_CONFIG_NAMES = {".env", ".npmrc"}
+
+# package.json dependency → friendly framework name.
+_JS_FRAMEWORKS = {
+    "react": "React", "react-dom": "React", "next": "Next.js", "vue": "Vue",
+    "svelte": "Svelte", "@angular/core": "Angular", "vite": "Vite",
+    "electron": "Electron", "express": "Express", "fastify": "Fastify",
+    "@nestjs/core": "NestJS", "tailwindcss": "Tailwind", "webpack": "Webpack",
+    "typescript": "TypeScript",
+}
+# python dependency (lowercased prefix) → friendly framework name.
+_PY_FRAMEWORKS = {
+    "fastapi": "FastAPI", "flask": "Flask", "django": "Django", "uvicorn": "Uvicorn",
+    "gunicorn": "Gunicorn", "sqlalchemy": "SQLAlchemy", "pydantic": "Pydantic",
+    "starlette": "Starlette", "tornado": "Tornado", "celery": "Celery",
+}
+
+# Route / endpoint extraction (method, path) — FastAPI/Flask/Express style.
+_ROUTE_METHOD_PATH = re.compile(
+    r'@(?:app|router|api)\.(get|post|put|delete|patch|websocket)\(\s*["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
+_ROUTE_FLASK = re.compile(r'@(?:app|bp|blueprint)\.route\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
+_ROUTE_EXPRESS = re.compile(
+    r'\b(?:app|router)\.(get|post|put|delete|patch)\(\s*["\']([^"\']+)["\']'
+)
+
+# Frontend → backend API-call extraction. Captures the string argument of an
+# API/WS call; the path is then pulled out of it (handles `${BASE}/x` templates).
+_API_CALL = re.compile(
+    r'\b(?:authFetch|openWs|watchWsLiveness|api|fetch|axios\.[a-z]+)\(\s*[`"\']([^`"\']+)',
+)
+# Extensions we treat as "frontend" for module grouping / call attribution.
+_FRONTEND_EXTS = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"}
+# Path roots stripped when naming a frontend module from a file path.
+_MODULE_STRIP_ROOTS = {"frontend", "src", "app", "renderer", "client", "web"}
+
+
+def _extract_path(raw: str) -> str | None:
+    """Pull a leading API path out of a call argument string.
+
+    Handles plain "/labs/x", template "`${BASE}/labs/x`", and ignores
+    non-path args. Returns the path starting at the first '/'.
+    """
+    m = re.search(r"/[A-Za-z0-9_\-/{}.$]*", raw)
+    if not m:
+        return None
+    p = m.group(0)
+    # Drop trailing template/format noise.
+    p = p.split("${", 1)[0].split("{", 1)[0] if "/" in p else p
+    return p if p.startswith("/") and len(p) > 1 else None
+
+
+def _route_group(path: str) -> str:
+    """Collapse a path to a node group: first segment, or the ws tool name."""
+    segs = [s for s in path.strip("/").split("/") if s]
+    if not segs:
+        return "root"
+    if segs[0] == "ws" and len(segs) > 1:
+        return segs[1]
+    return segs[0]
+
+
+def _frontend_module(rel_path: str) -> str:
+    """Name the frontend module a file belongs to (a readable area)."""
+    parts = [p for p in rel_path.replace("\\", "/").split("/") if p]
+    # Strip leading known roots.
+    while parts and parts[0] in _MODULE_STRIP_ROOTS:
+        parts = parts[1:]
+    if not parts:
+        return "root"
+    if len(parts) == 1:
+        # A file sitting directly in the source root → use its stem.
+        return Path(parts[0]).stem
+    return parts[0]
 
 
 class _ScanRequest(BaseModel):
@@ -153,18 +265,25 @@ def _is_text_file(p: Path) -> bool:
     return p.suffix.lower() in _TEXT_EXTS
 
 
-def _scan_file(abs_path: Path, rel_path: str) -> list[dict[str, Any]]:
+def _scan_file(
+    abs_path: Path, rel_path: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """Return (findings, routes, api_call_paths) for one file from a single read."""
     findings: list[dict[str, Any]] = []
+    routes: list[dict[str, Any]] = []
+    calls: list[str] = []
     try:
         with abs_path.open("r", encoding="utf-8", errors="strict") as fh:
             lines = fh.readlines()
     except (OSError, UnicodeDecodeError, ValueError):
-        return findings  # unreadable / binary — skip silently
+        return findings, routes, calls  # unreadable / binary — skip silently
 
     # Minified heuristic: any absurdly long line → skip the whole file.
     for ln in lines:
         if len(ln) > _MAX_LINE_LEN:
-            return findings
+            return findings, routes, calls
+
+    is_frontend = abs_path.suffix.lower() in _FRONTEND_EXTS
 
     for i, line in enumerate(lines, start=1):
         for regex, severity, type_, title in _RULES:
@@ -178,7 +297,87 @@ def _scan_file(abs_path: Path, rel_path: str) -> list[dict[str, Any]]:
                     "snippet": line.strip()[:300],
                     "source": "SAST",
                 })
-    return findings
+        # Route extraction (cheap, on the same line buffer).
+        m = _ROUTE_METHOD_PATH.search(line) or _ROUTE_EXPRESS.search(line)
+        if m:
+            routes.append({"method": m.group(1).upper(), "path": m.group(2),
+                           "file": rel_path, "line": i})
+        else:
+            mf = _ROUTE_FLASK.search(line)
+            if mf:
+                routes.append({"method": "ANY", "path": mf.group(1),
+                               "file": rel_path, "line": i})
+        # Frontend API/WS call extraction.
+        if is_frontend:
+            for cm in _API_CALL.finditer(line):
+                p = _extract_path(cm.group(1))
+                if p:
+                    calls.append(p)
+    return findings, routes, calls
+
+
+def _parse_dependencies(root: Path) -> tuple[list[dict[str, str]], set[str]]:
+    """Parse common manifests → (dependencies, framework-names).
+
+    Best-effort + stdlib-only. Missing/unparseable manifests are skipped.
+    """
+    deps: list[dict[str, str]] = []
+    frameworks: set[str] = set()
+
+    # package.json
+    pkg = root / "package.json"
+    if pkg.is_file():
+        try:
+            import json
+            data = json.loads(pkg.read_text(encoding="utf-8", errors="ignore"))
+            for sect in ("dependencies", "devDependencies"):
+                for name, ver in (data.get(sect) or {}).items():
+                    deps.append({"name": name, "version": str(ver), "source": "package.json"})
+                    if name in _JS_FRAMEWORKS:
+                        frameworks.add(_JS_FRAMEWORKS[name])
+        except Exception:
+            pass
+
+    # requirements.txt
+    req = root / "requirements.txt"
+    if req.is_file():
+        try:
+            for raw in req.read_text(encoding="utf-8", errors="ignore").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or line.startswith("-"):
+                    continue
+                name = re.split(r"[=<>!~ \[]", line, 1)[0].strip()
+                if name:
+                    deps.append({"name": name, "version": line[len(name):].strip(),
+                                 "source": "requirements.txt"})
+                    if name.lower() in _PY_FRAMEWORKS:
+                        frameworks.add(_PY_FRAMEWORKS[name.lower()])
+        except Exception:
+            pass
+
+    # pyproject.toml — light regex (avoid a TOML dep)
+    pyproj = root / "pyproject.toml"
+    if pyproj.is_file():
+        try:
+            txt = pyproj.read_text(encoding="utf-8", errors="ignore")
+            for dep in re.findall(r'["\']([A-Za-z0-9_.\-]+)\s*(?:[<>=!~].*?)?["\']', txt):
+                low = dep.lower()
+                if low in _PY_FRAMEWORKS:
+                    frameworks.add(_PY_FRAMEWORKS[low])
+        except Exception:
+            pass
+
+    # Presence-based frameworks
+    if (root / "go.mod").is_file():
+        frameworks.add("Go modules")
+    if (root / "Cargo.toml").is_file():
+        frameworks.add("Cargo / Rust")
+    if (root / "Dockerfile").is_file():
+        frameworks.add("Docker")
+    if any((root / n).is_file() for n in ("docker-compose.yml", "docker-compose.yaml")):
+        frameworks.add("Docker Compose")
+
+    return deps, frameworks
 
 
 @router.post("/codescan")
@@ -199,6 +398,16 @@ def codescan(req: _ScanRequest) -> dict[str, Any]:
 
     scanned = 0
     findings: list[dict[str, Any]] = []
+
+    # Asset-inventory accumulators (built from the same walk).
+    from collections import Counter, defaultdict
+    lang_counts: Counter[str] = Counter()
+    entry_files: list[str] = []
+    config_files: list[str] = []
+    routes: list[dict[str, Any]] = []
+    # Connection-graph accumulators: frontend module → Counter of route groups
+    # it calls; and every route group seen on a frontend call (target set).
+    module_calls: dict[str, Counter] = defaultdict(Counter)
 
     for dirpath, dirnames, filenames in os.walk(root):
         # Prune skip dirs in-place so os.walk doesn't descend into them.
@@ -225,15 +434,125 @@ def codescan(req: _ScanRequest) -> dict[str, Any]:
 
             rel = os.path.relpath(abs_path, root)
             scanned += 1
-            findings.extend(_scan_file(abs_path, rel))
+
+            # ── Asset tallies ──
+            suf = abs_path.suffix.lower()
+            if suf in _LANG_BY_EXT:
+                lang_counts[_LANG_BY_EXT[suf]] += 1
+            if name in _ENTRY_NAMES:
+                entry_files.append(rel)
+            if name in _CONFIG_NAMES or suf in _CONFIG_SUFFIXES:
+                config_files.append(rel)
+
+            f, r, calls = _scan_file(abs_path, rel)
+            findings.extend(f)
+            routes.extend(r)
+            if calls:
+                mod = _frontend_module(rel)
+                for p in calls:
+                    module_calls[mod][_route_group(p)] += 1
 
         if scanned >= max_files:
             break
 
     findings.sort(key=lambda f: (_SEVERITY_ORDER.get(f["severity"], 9), f["file"], f["line"]))
 
+    # ── Assemble the application-asset inventory ──
+    deps, frameworks = _parse_dependencies(root)
+    # Findings grouped by type → an asset category too (links graph ↔ review).
+    finding_types: Counter[str] = Counter(f["type"] for f in findings)
+
+    def _cat(cat_id: str, label: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"id": cat_id, "label": label, "count": len(items), "items": items}
+
+    assets = [
+        _cat("languages", "Languages",
+             [{"name": lang, "detail": f"{n} file{'' if n == 1 else 's'}"}
+              for lang, n in lang_counts.most_common()]),
+        _cat("frameworks", "Frameworks & Tech",
+             [{"name": fw} for fw in sorted(frameworks)]),
+        _cat("entrypoints", "Entry Points",
+             [{"name": p, "file": p} for p in sorted(set(entry_files))][:60]),
+        _cat("routes", "Routes / Endpoints",
+             [{"name": f"{rt['method']} {rt['path']}", "detail": f"{rt['file']}:{rt['line']}",
+               "file": rt["file"], "line": rt["line"]} for rt in routes][:200]),
+        _cat("dependencies", "Dependencies",
+             [{"name": d["name"], "detail": d.get("version", ""), "source": d.get("source", "")}
+              for d in deps][:200]),
+        _cat("configs", "Config & Secrets",
+             [{"name": p, "file": p} for p in sorted(set(config_files))][:80]),
+        _cat("findings", "Code Findings",
+             [{"name": t, "detail": f"{n} finding{'' if n == 1 else 's'}"}
+              for t, n in finding_types.most_common()]),
+    ]
+
+    # ── Assemble the frontend → backend connection graph ──
+    # Backend route groups (with whether the group is a WS/streaming tool and
+    # how many routes back it). The router-prefix is unknown from a bare
+    # @router.get("/x"), so we group by the first path segment — good enough to
+    # show "which area of the backend" a call lands in.
+    route_defs: dict[str, dict[str, Any]] = {}
+    for rt in routes:
+        g = _route_group(rt["path"])
+        d = route_defs.setdefault(g, {"count": 0, "ws": False})
+        d["count"] += 1
+        if rt["path"].startswith("/ws") or rt["method"] == "WEBSOCKET":
+            d["ws"] = True
+
+    g_nodes: list[dict[str, Any]] = []
+    g_edges: list[dict[str, Any]] = []
+    seen_backend: set[str] = set()
+
+    def _add_backend(group: str) -> None:
+        if group in seen_backend:
+            return
+        seen_backend.add(group)
+        d = route_defs.get(group)
+        ws = bool(d and d["ws"])
+        g_nodes.append({
+            "id": f"be:{group}",
+            "label": ("/ws/" if ws else "/") + group,
+            "layer": "backend",
+            "kind": "ws" if ws else "route",
+            "defined": d is not None,
+            "routes": (d or {}).get("count", 0),
+        })
+
+    for mod, targets in sorted(module_calls.items()):
+        g_nodes.append({
+            "id": f"fe:{mod}",
+            "label": mod,
+            "layer": "frontend",
+            "calls": int(sum(targets.values())),
+        })
+        for group, n in targets.items():
+            _add_backend(group)
+            d = route_defs.get(group)
+            g_edges.append({
+                "from": f"fe:{mod}",
+                "to": f"be:{group}",
+                "kind": "ws" if (d and d["ws"]) else "api",
+                "count": int(n),
+            })
+
+    # We deliberately DON'T add every backend route group as a node — the full
+    # surface is ~140 prefixes and makes the visual unreadable. The graph shows
+    # the *wired* path (frontend → the backend areas it actually calls). The
+    # unreferenced backend surface is reported as a count for context.
+    unwired = sum(1 for g in route_defs if g not in seen_backend)
+
+    graph = {
+        "nodes": g_nodes,
+        "edges": g_edges,
+        "frontend_count": sum(1 for n in g_nodes if n["layer"] == "frontend"),
+        "backend_count": sum(1 for n in g_nodes if n["layer"] == "backend"),
+        "unwired_backend_groups": unwired,
+    }
+
     return {
         "root": str(root),
         "scanned_files": scanned,
         "findings": findings,
+        "assets": assets,
+        "graph": graph,
     }

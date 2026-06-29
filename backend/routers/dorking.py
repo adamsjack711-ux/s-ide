@@ -39,7 +39,7 @@ router = APIRouter(prefix="/dorking", tags=["dorking"],
 osint_router = APIRouter(tags=["dorking-osint"],
                          dependencies=[Depends(require_local_auth)])
 
-UA = "HackingPal/0.1 dorking"
+UA = "s-ide/0.1 dorking"
 
 # Each category: a list of dork templates. `{t}` is the target domain.
 CATEGORIES: dict[str, list[str]] = {

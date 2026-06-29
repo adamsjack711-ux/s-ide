@@ -270,7 +270,7 @@ async def _headers_probe(host: str, scheme: str, port: int) -> HeaderResult:
     try:
         async with httpx.AsyncClient(
             timeout=HTTP_TIMEOUT, follow_redirects=False, verify=False,
-            headers={"User-Agent": "HackingPal-BasicCheck/0.1"},
+            headers={"User-Agent": "s-ide-BasicCheck/0.1"},
         ) as client:
             r = await client.head(url)
             # Some servers 405 a HEAD; fall back to GET so we still see headers.

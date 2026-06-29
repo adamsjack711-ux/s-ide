@@ -115,16 +115,11 @@ export default function MethodReconstruction({
             </span>
           )}
         </div>
-        <p className="mt-2 text-[11px] leading-snug text-ink-dim">
-          The factual spine is straight from the evidence log. The inferred
-          &ldquo;why&rdquo; is the operator&rsquo;s interpretation — labeled
-          separately and never invented.
-        </p>
       </header>
 
       {steps.length === 0 ? (
         <div className="p-4 text-xs text-ink-dim">
-          No steps recorded for this finding yet.
+          No steps recorded yet.
         </div>
       ) : (
         <>

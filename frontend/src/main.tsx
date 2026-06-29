@@ -6,6 +6,7 @@ import "dockview-core/dist/styles/dockview.css";
 import "./index.css";
 import "./shell/dockview-theme.css";
 import "./lib/accent"; // applies the saved accent on load
+import "./lib/density"; // applies the saved card-size scale on load
 import { pinWindowEngagement } from "./lib/windowEngagement";
 
 pinWindowEngagement(); // adopt ?engagement=<id> before first render

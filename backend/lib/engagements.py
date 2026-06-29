@@ -77,6 +77,15 @@ SCHEMA = [
       exclusions   TEXT NOT NULL DEFAULT '[]',   -- JSON list of strings
       notes        TEXT NOT NULL DEFAULT '',
       status       TEXT NOT NULL DEFAULT 'active',  -- active|completed|archived
+      -- Typed engagement: `type` decides what the engagement hooks onto and
+      -- which fields it collects. `generic` is the legacy/untyped value for
+      -- engagements created before the typed-create flow (and the quick-create
+      -- paths). `host` is reserved for a future third type.
+      type         TEXT NOT NULL DEFAULT 'generic',  -- generic|local-app|web-app|host
+      -- Provenance drives the safety mode (owned/lab = full, external = gated).
+      provenance   TEXT NOT NULL DEFAULT 'external', -- lab|owned|external
+      source_root  TEXT NOT NULL DEFAULT '',         -- local-app: codebase dir
+      primary_target TEXT NOT NULL DEFAULT '',        -- default target for tools
       created_at   TEXT NOT NULL,
       updated_at   TEXT NOT NULL
     )
@@ -202,6 +211,20 @@ SCHEMA = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS ix_snapshots_engagement ON report_snapshots(engagement_id, ts DESC)",
+    # ── Engagement auth secrets (encrypted at rest) ─────────────────────────
+    # One row per engagement. `ciphertext` is a Fernet token over the auth
+    # JSON; the key lives outside the DB (see lib/engagement_secrets.py).
+    # Defined here (not lazily) so every _connect() — including the per-test
+    # fresh DB — has the table. Cascade-deletes with the engagement.
+    """
+    CREATE TABLE IF NOT EXISTS engagement_secrets (
+      engagement_id  TEXT PRIMARY KEY REFERENCES engagements(id) ON DELETE CASCADE,
+      kind           TEXT NOT NULL DEFAULT 'none',
+      ciphertext     TEXT NOT NULL DEFAULT '',
+      created_at     TEXT NOT NULL,
+      updated_at     TEXT NOT NULL
+    )
+    """,
 ]
 
 
@@ -225,6 +248,26 @@ def _migrate_findings(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE findings ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''")
     if "ai_summary" not in cols:
         conn.execute("ALTER TABLE findings ADD COLUMN ai_summary TEXT NOT NULL DEFAULT ''")
+
+
+def _migrate_engagements(conn: sqlite3.Connection) -> None:
+    """Add typed-engagement columns to `engagements` for older DBs.
+
+    Existing rows keep `type='generic'` / `provenance='external'` (the
+    safe default — external is the gated band), with empty source_root /
+    primary_target. The typed-create flow sets them explicitly going forward.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(engagements)").fetchall()}
+    if not cols:
+        return  # table will be created by SCHEMA below
+    if "type" not in cols:
+        conn.execute("ALTER TABLE engagements ADD COLUMN type TEXT NOT NULL DEFAULT 'generic'")
+    if "provenance" not in cols:
+        conn.execute("ALTER TABLE engagements ADD COLUMN provenance TEXT NOT NULL DEFAULT 'external'")
+    if "source_root" not in cols:
+        conn.execute("ALTER TABLE engagements ADD COLUMN source_root TEXT NOT NULL DEFAULT ''")
+    if "primary_target" not in cols:
+        conn.execute("ALTER TABLE engagements ADD COLUMN primary_target TEXT NOT NULL DEFAULT ''")
 
 
 def _migrate_audit_log(conn: sqlite3.Connection) -> None:
@@ -295,6 +338,7 @@ def _connect() -> sqlite3.Connection:
         for stmt in SCHEMA:
             conn.execute(stmt)
         _migrate_findings(conn)
+        _migrate_engagements(conn)
         _migrate_audit_log(conn)
         conn.commit()
         _conn = conn
@@ -339,17 +383,30 @@ def get_engagement(eid: str) -> dict[str, Any] | None:
         return _row_to_engagement(r) if r else None
 
 
+VALID_ENGAGEMENT_TYPES = {"generic", "local-app", "web-app", "host"}
+VALID_PROVENANCES = {"lab", "owned", "external"}
+
+
 def create_engagement(
     name: str, scope: list[str], exclusions: list[str], notes: str,
+    type: str = "generic", provenance: str = "external",
+    source_root: str = "", primary_target: str = "",
 ) -> dict[str, Any]:
+    if type not in VALID_ENGAGEMENT_TYPES:
+        raise ValueError(f"unknown engagement type {type!r}")
+    if provenance not in VALID_PROVENANCES:
+        raise ValueError(f"unknown provenance {provenance!r}")
     eid = str(uuid.uuid4())
     now = _now()
     with cursor() as c:
         c.execute(
             "INSERT INTO engagements (id, name, scope, exclusions, notes, "
-            "status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "status, type, provenance, source_root, primary_target, "
+            "created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (eid, name, json.dumps(scope), json.dumps(exclusions), notes,
-             "active", now, now),
+             "active", type, provenance, source_root, primary_target,
+             now, now),
         )
     return get_engagement(eid)  # type: ignore[return-value]
 
@@ -357,7 +414,8 @@ def create_engagement(
 def update_engagement(eid: str, patch: dict[str, Any]) -> dict[str, Any] | None:
     fields: list[str] = []
     values: list[Any] = []
-    for key in ("name", "notes", "status"):
+    for key in ("name", "notes", "status", "type", "provenance",
+                "source_root", "primary_target"):
         if key in patch:
             fields.append(f"{key} = ?")
             values.append(patch[key])
@@ -382,15 +440,23 @@ def delete_engagement(eid: str) -> bool:
 
 
 def _row_to_engagement(r: sqlite3.Row) -> dict[str, Any]:
+    keys = r.keys()
     return {
-        "id":         r["id"],
-        "name":       r["name"],
-        "scope":      json.loads(r["scope"] or "[]"),
-        "exclusions": json.loads(r["exclusions"] or "[]"),
-        "notes":      r["notes"] or "",
-        "status":     r["status"],
-        "created_at": r["created_at"],
-        "updated_at": r["updated_at"],
+        "id":             r["id"],
+        "name":           r["name"],
+        "scope":          json.loads(r["scope"] or "[]"),
+        "exclusions":     json.loads(r["exclusions"] or "[]"),
+        "notes":          r["notes"] or "",
+        "status":         r["status"],
+        # Typed-engagement fields. Guarded with `in keys` so a row read before
+        # the migration applied (shouldn't happen, but cheap insurance) still
+        # yields the safe defaults rather than a KeyError.
+        "type":           (r["type"] if "type" in keys else None) or "generic",
+        "provenance":     (r["provenance"] if "provenance" in keys else None) or "external",
+        "source_root":    (r["source_root"] if "source_root" in keys else None) or "",
+        "primary_target": (r["primary_target"] if "primary_target" in keys else None) or "",
+        "created_at":     r["created_at"],
+        "updated_at":     r["updated_at"],
     }
 
 

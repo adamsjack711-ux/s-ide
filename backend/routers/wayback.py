@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/wayback", tags=["wayback"],
                    dependencies=[Depends(require_local_auth)])
 
-UA = "HackingPal/0.1 wayback"
+UA = "s-ide/0.1 wayback"
 TIMEOUT = 30.0
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
 _HARD_LIMIT = 5000

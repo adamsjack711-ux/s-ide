@@ -174,7 +174,7 @@ LABS: dict[str, LabDef] = {
             "Three vulnerable hosts on a private docker bridge (10.20.0.0/24): "
             "node-web (Apache + SQLi/cmdi), node-files (anonymous FTP + Samba), "
             "node-db (MariaDB root no-pw + Redis no-auth). Plus a scanner sidecar "
-            "on the same bridge so the HackingPal tools can reach the internal "
+            "on the same bridge so the s-ide tools can reach the internal "
             "IPs that Docker Desktop hides from macOS."
         ),
         image_tag="mhp/lab-vulhub-net-scanner:latest",
@@ -319,7 +319,9 @@ LABS: dict[str, LabDef] = {
         enabled_by_default=False,
         kind="compose",
         compose_project="mhp-lab-webgoat",
-        compose_services=("webgoat", "webwolf"),
+        # WebGoat 2023.x serves both WebGoat (8080) and WebWolf (9090) from a
+        # single image, so the stack is one service publishing two ports.
+        compose_services=("webgoat",),
         suggested_steps=(
             SuggestedStep(
                 label="Open WebGoat",
@@ -358,8 +360,9 @@ LABS: dict[str, LabDef] = {
         ),
         image_tag="mhp/lab-crapi:latest",
         container_name="mhp-lab-crapi-web",
-        # Web on 8888 + mailhog on 8025 published. Everything else internal.
-        port_map={8888: 8085, 8025: 8095},
+        # Web (nginx :80) on host 8085 + mailhog UI (:8025) on host 8095.
+        # Everything else stays internal to the compose network.
+        port_map={80: 8085, 8025: 8095},
         default_creds="register a fresh account — uses mailhog at :8095 for verification",
         build_dir="crapi",
         category="API",
@@ -972,6 +975,30 @@ async def compose_status(lab: LabDef) -> dict[str, Any]:
     return result
 
 
+async def compose_images_present(lab: LabDef) -> bool:
+    """True if every image the compose file references exists locally.
+
+    Used as the readiness signal for compose labs in place of the single
+    ``image_tag`` probe, which only ever materializes for labs that *build*
+    a local image (vulhub-net) and is permanently absent for pull-only labs
+    (webgoat, crapi). ``docker compose config --images`` lists exactly the
+    images ``up`` would need; we then ``image inspect`` each.
+    """
+    rc, out, _ = await _run(
+        ["docker", "compose", "-p", lab.compose_project,
+         "-f", str(lab.compose_file), "config", "--images"],
+        timeout=10,
+    )
+    imgs = [ln.strip() for ln in (out or "").splitlines() if ln.strip()]
+    if rc != 0 or not imgs:
+        # Fall back to the legacy probe tag if compose config is unavailable.
+        return await image_exists(lab.image_tag)
+    for img in imgs:
+        if not await image_exists(img):
+            return False
+    return True
+
+
 async def get_status(lab_id: str) -> dict[str, Any]:
     lab = LABS[lab_id]
     daemon = await docker_running()
@@ -1012,8 +1039,10 @@ async def get_status(lab_id: str) -> dict[str, Any]:
         base["container"]    = await container_state(lab.container_name)
         return base
 
-    # Compose lab.
-    base["image_exists"] = await image_exists(lab.image_tag)
+    # Compose lab. Readiness = every image the compose file references is
+    # present locally (built or pulled). The single probe tag is unreliable
+    # for pull-only stacks, so we ask compose what images it needs.
+    base["image_exists"] = await compose_images_present(lab)
     comp = await compose_status(lab)
     base["compose"] = comp
     # Surface a single ``container`` field too so the UI can use the same
@@ -1060,16 +1089,22 @@ async def start_lab(lab_id: str) -> dict[str, Any]:
     if not await docker_running():
         return {"status": "error", "error": "Docker daemon is not running"}
 
-    if not await image_exists(lab.image_tag):
-        return {"status": "error", "error": "Image not built — build the lab first"}
-
     if lab.kind == "compose":
+        # Compose stacks fetch their own images on `up -d`. We must NOT gate on
+        # ``image_exists(lab.image_tag)`` here: pull-only labs (webgoat, crapi)
+        # reference upstream ``image:`` refs and never produce the local probe
+        # tag, so the old guard rejected every start with "Image not built".
+        # ``up -d`` pulls/builds anything missing — give it a long timeout so a
+        # cold pull of a multi-service stack (crapi) doesn't get killed.
         cmd = ["docker", "compose", "-p", lab.compose_project,
                "-f", str(lab.compose_file), "up", "-d"]
-        rc, out, err = await _run(cmd, timeout=120)
+        rc, out, err = await _run(cmd, timeout=600)
         if rc != 0:
             return {"status": "error", "error": (err or out).strip()[:500]}
         return {"status": "running"}
+
+    if not await image_exists(lab.image_tag):
+        return {"status": "error", "error": "Image not built — build the lab first"}
 
     # Idempotent: if the container is already up, hand back the same shape we
     # return on a fresh start. Only wipe a stopped/dead container — never the
@@ -1115,6 +1150,84 @@ async def stop_lab(lab_id: str) -> dict[str, Any]:
     if rc != 0:
         return {"status": "error", "error": err.strip()[:500]}
     return {"status": "stopped"}
+
+
+async def _image_size(image_tag: str) -> int:
+    """Bytes on disk for ``image_tag`` (0 if missing/unknown)."""
+    rc, out, _ = await _run(
+        ["docker", "image", "inspect", "--format", "{{.Size}}", image_tag], timeout=5,
+    )
+    if rc != 0:
+        return 0
+    try:
+        return int(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return 0
+
+
+async def remove_lab(lab_id: str, purge_image: bool = True) -> dict[str, Any]:
+    """Tear a lab down completely: stop + remove containers, and (by default)
+    delete its image(s) to reclaim disk.
+
+    Returns ``{status: "removed", purged, bytes_freed, images_removed}``.
+    ``bytes_freed`` is best-effort — it sums the sizes of the images we knew
+    about before deletion. The in-memory build state is reset so the UI flips
+    back to "NOT BUILT".
+    """
+    lab = LABS[lab_id]
+    if not await docker_running():
+        return {"status": "error", "error": "Docker daemon is not running"}
+
+    images_removed: list[str] = []
+    bytes_freed = 0
+
+    if lab.kind == "compose":
+        # Measure the stack's images before tearing down so we can report the
+        # space reclaimed. `down --rmi all` removes every image the services
+        # reference (built + pulled), `-v` drops named volumes.
+        rc, out, _ = await _run(
+            ["docker", "compose", "-p", lab.compose_project,
+             "-f", str(lab.compose_file), "config", "--images"], timeout=10,
+        )
+        imgs = [ln.strip() for ln in (out or "").splitlines() if ln.strip()] if rc == 0 else []
+        if purge_image:
+            for img in imgs:
+                sz = await _image_size(img)
+                if sz:
+                    bytes_freed += sz
+                    images_removed.append(img)
+        down = ["docker", "compose", "-p", lab.compose_project,
+                "-f", str(lab.compose_file), "down", "-v", "--remove-orphans"]
+        if purge_image:
+            down += ["--rmi", "all"]
+        rc, _, err = await _run(down, timeout=180)
+        if rc != 0:
+            return {"status": "error", "error": err.strip()[:500]}
+        _compose_status_cache.pop(lab.id, None)
+    else:
+        # Remove the container (ignore "no such container").
+        await _run(["docker", "rm", "-f", lab.container_name], timeout=30)
+        if purge_image and await image_exists(lab.image_tag):
+            sz = await _image_size(lab.image_tag)
+            rc, _, err = await _run(["docker", "rmi", "-f", lab.image_tag], timeout=60)
+            if rc != 0:
+                return {"status": "error", "error": err.strip()[:500]}
+            bytes_freed += sz
+            images_removed.append(lab.image_tag)
+
+    # Reset build state so the card stops claiming the image is built.
+    bs = _build_state(lab_id)
+    bs.status = "idle"
+    bs.error = None
+    bs.started_at = bs.finished_at = None
+    bs.log.clear()
+
+    return {
+        "status":         "removed",
+        "purged":         purge_image,
+        "bytes_freed":    bytes_freed,
+        "images_removed": images_removed,
+    }
 
 
 # ── Sidecar exec ─────────────────────────────────────────────────────────────
@@ -1223,25 +1336,36 @@ async def _run_build(lab_id: str) -> None:
         return
 
     if lab.kind == "compose":
-        cmd = ["docker", "compose", "-p", lab.compose_project,
-               "-f", str(lab.compose_file), "build"]
+        # Two passes: `build` materializes any service with a `build:` section
+        # (vulhub-net); `pull --ignore-buildable` fetches upstream `image:`
+        # services (webgoat, crapi) while skipping the ones we just built — so
+        # it never errors trying to pull a local-only tag off a registry.
+        base_cmd = ["docker", "compose", "-p", lab.compose_project,
+                    "-f", str(lab.compose_file)]
+        cmds = [base_cmd + ["build"], base_cmd + ["pull", "--ignore-buildable"]]
     else:
-        cmd = ["docker", "build", "-t", lab.image_tag, str(build_path)]
+        cmds = [["docker", "build", "-t", lab.image_tag, str(build_path)]]
+
+    rc = 0
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        assert proc.stdout is not None
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
+        for cmd in cmds:
+            bs.log.append(f"$ {' '.join(cmd)}")
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            assert proc.stdout is not None
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", "replace").rstrip()
+                if text:
+                    bs.log.append(text)
+            rc = await proc.wait()
+            if rc != 0:
                 break
-            text = line.decode("utf-8", "replace").rstrip()
-            if text:
-                bs.log.append(text)
-        rc = await proc.wait()
     except Exception as e:
         bs.status = "error"
         bs.error = f"build failed: {e}"

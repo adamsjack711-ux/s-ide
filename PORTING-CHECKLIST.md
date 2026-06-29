@@ -1,9 +1,9 @@
-# s-ide — Porting Checklist (from HackingPal)
+# s-ide — Tool Checklist
 
 > **Re-scope (2026-06-28):** the product thesis moves from *"slim, zero-setup only"*
 > to an **open security-testing sandbox** — "as open and secure as we can." This
 > intentionally reverses the earlier locks (Tier-1-only gate, fuzzers deferred):
-> we now expose the full HackingPal arsenal, but each capability is made safe by
+> we now expose the full tool arsenal, but each capability is made safe by
 > the security model in §1 rather than by hiding it.
 >
 > Backend is already vendored (all 88 routers present); porting = (a) widening the
@@ -127,7 +127,7 @@ The breadth is only acceptable if these stay load-bearing. Build/confirm these f
 - [ ] **Processes** (`processes`) · T1 list / T2 kill · default (kill = enable) — **mode-aware**: engagement = local host audit; lab = scope to lab-container PIDs; killing gated + audited
 
 ### 8 — Terminal  (larger milestone — see §7)
-- [ ] **Terminal** (`term`) · T2 · its own milestone — HackingPal ships one-shot exec; we want a real PTY. `@xterm/xterm` already a dep.
+- [ ] **Terminal** (`term`) · T2 · its own milestone — one-shot exec ships today; we want a real PTY. `@xterm/xterm` already a dep.
 
 ---
 

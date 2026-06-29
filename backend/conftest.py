@@ -3,7 +3,7 @@
 The two big concerns are:
 
   1. The engagement / audit-log SQLite DB defaults to the user's real
-     `~/Library/Application Support/HackingPal/engagements.db`. Tests
+     `~/Library/Application Support/s-ide/engagements.db`. Tests
      must never touch it. The `temp_db` fixture redirects writes into
      `tmp_path` for the duration of one test and resets the cached
      connection between tests.

@@ -41,7 +41,7 @@ _MAX_EMAIL_LEN = 254  # RFC 5321 max local+domain
 
 HIBP_BASE = "https://haveibeenpwned.com/api/v3"
 PWND_PWD_BASE = "https://api.pwnedpasswords.com"
-UA = "HackingPal/0.1 breach-lookup"
+UA = "s-ide/0.1 breach-lookup"
 
 
 class PasswordCheck(BaseModel):

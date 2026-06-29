@@ -1,325 +1,191 @@
 /**
- * GraphView — the asset / finding relationship graph.
+ * GraphView — the open engagement's codebase, mapped.
  *
- * Self-contained SVG node-edge graph (no npm deps, no force sim). Replicates
- * the GRAPH section of the S-IDE design mock: severity-colored node pills with
- * a mono label + dot, severity-tinted edges, a legend, and a severity donut.
+ * No path input: the codebase comes from the ACTIVE ENGAGEMENT's `source_root`
+ * (set once, here or at engagement creation). When an engagement with a
+ * codebase is open, this view auto-scans it (POST /codescan) and renders:
  *
- * Data sources (both keyed off the active engagement):
- *   - listFindings(eid)        → Finding[]  { severity, title, target, tool }
- *   - GET /method/assets/eng:<eid> → { assets: [{ kind, key, props }] }
- *
- * Build rule: hosts are roots; their services / endpoints hang off them as
- * leaves; findings attach to whichever asset node best matches their `target`
- * (else to a synthetic "unassigned findings" hub off the engagement root). A
- * node carrying findings is colored by its worst severity.
- *
- * Interactions: hover a node → highlight it + its incident edges; click a node
- * that carries findings → emit("focusFinding", { findingId }) for its worst.
+ *   1. Architecture graph — a visual frontend → backend map. Frontend modules
+ *      on the left, the backend areas/tools they call on the right, edges drawn
+ *      between them (WS/streaming tools styled distinctly). Hover to trace.
+ *   2. Asset tiles — clickable categories (Languages, Frameworks, Routes, …).
+ *   3. Code review — the SAST findings with a severity donut + filters.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { authFetch } from "../api";
 import {
+  updateEngagement,
   useActiveEngagementId,
-  listFindings,
-  type Finding,
-  type FindingSeverity,
+  type Engagement,
 } from "../lib/engagement";
-import { emit } from "../shell/bus";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Asset = {
-  kind: string; // host | service | endpoint | cert | tech | ...
-  key: string;
-  props?: Record<string, unknown>;
+type Severity = "critical" | "high" | "medium" | "low" | "info";
+
+type AssetItem = { name: string; detail?: string; file?: string; line?: number };
+type AssetCategory = { id: string; label: string; count: number; items: AssetItem[] };
+
+type Finding = {
+  severity: Severity;
+  title: string;
+  type: string;
+  file: string;
+  line: number;
+  snippet?: string;
 };
 
 type GNode = {
   id: string;
   label: string;
-  kind: string;
-  x: number;
-  y: number;
-  root: boolean;
-  sev: FindingSeverity | null; // worst severity of attached findings
-  findingCount: number;
-  worstFindingId: string | null;
+  layer: "frontend" | "backend";
+  kind?: "route" | "ws";
+  defined?: boolean;
+  routes?: number;
+  calls?: number;
+};
+type GEdge = { from: string; to: string; kind: "api" | "ws"; count: number };
+type ConnGraph = {
+  nodes: GNode[];
+  edges: GEdge[];
+  frontend_count: number;
+  backend_count: number;
+  unwired_backend_groups: number;
 };
 
-type GEdge = { from: string; to: string };
-
-// ── Severity palette (mirrors index.css tokens) ──────────────────────────────
-
-const SEV_COLOR: Record<FindingSeverity, string> = {
-  critical: "#ff5d6c",
-  high: "#ff9340",
-  medium: "#ffc043",
-  low: "#4d9fff",
-  info: "#586173",
+type ScanResult = {
+  root: string;
+  scanned_files: number;
+  findings: Finding[];
+  assets: AssetCategory[];
+  graph: ConnGraph;
 };
 
-const SEV_RANK: Record<FindingSeverity, number> = {
-  critical: 4,
-  high: 3,
-  medium: 2,
-  low: 1,
-  info: 0,
+// ── Palette ──────────────────────────────────────────────────────────────────
+
+const SEV_COLOR: Record<Severity, string> = {
+  critical: "#ff5d6c", high: "#ff9340", medium: "#ffc043", low: "#4d9fff", info: "#586173",
+};
+const SEV_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
+const SEV_LABEL: Record<Severity, string> = {
+  critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info",
 };
 
-const SEV_ORDER: FindingSeverity[] = ["critical", "high", "medium", "low", "info"];
-const SEV_LABEL: Record<FindingSeverity, string> = {
-  critical: "Critical",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-  info: "Info",
+const CAT_COLOR: Record<string, string> = {
+  languages: "#39d98a", frameworks: "#4d9fff", entrypoints: "#a78bfa",
+  routes: "#22d3ee", dependencies: "#ffc043", configs: "#fb923c", findings: "#ff5d6c",
 };
-
+const CAT_GLYPH: Record<string, string> = {
+  languages: "◇", frameworks: "⬡", entrypoints: "▶", routes: "⇄",
+  dependencies: "⬢", configs: "⚙", findings: "⚠",
+};
 const ACCENT = "#39d98a";
+const FE_COLOR = "#4d9fff"; // frontend nodes
+const BE_COLOR = "#a78bfa"; // backend route nodes
+const TOOL_COLOR = "#22d3ee"; // backend ws/streaming "tools"
 const FAINT = "#586173";
 
-// hex (#rrggbb) → rgba string
 function hexA(hex: string, a: number): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-}
-
-// ── Layout geometry ──────────────────────────────────────────────────────────
-
-const NW = 138; // node pill width
-const NH = 38; // node pill height (without CVE line)
-const COL_GAP = 230; // horizontal gap between depth columns
-const ROW_GAP = 60; // vertical gap between siblings
-const PAD_X = 40;
-const PAD_Y = 30;
-
-/**
- * Assemble the graph model from raw assets + findings.
- *
- * Columns by depth:  [root] → [hosts] → [services/endpoints] → [unmatched/tech]
- * A radial-ish grid: each column is laid out vertically and centered.
- */
-function buildGraph(
-  eid: string,
-  assets: Asset[],
-  findings: Finding[],
-): { nodes: GNode[]; edges: GEdge[]; width: number; height: number } {
-  const edges: GEdge[] = [];
-
-  // Worst-finding accumulator per node id.
-  const attach = new Map<
-    string,
-    { count: number; worst: FindingSeverity; worstId: string }
-  >();
-  const addFinding = (nodeId: string, f: Finding) => {
-    const sev = (f.severity ?? "info") as FindingSeverity;
-    const cur = attach.get(nodeId);
-    if (!cur) {
-      attach.set(nodeId, { count: 1, worst: sev, worstId: f.id });
-    } else {
-      cur.count += 1;
-      if (SEV_RANK[sev] > SEV_RANK[cur.worst]) {
-        cur.worst = sev;
-        cur.worstId = f.id;
-      }
-    }
-  };
-
-  // Asset buckets.
-  const hosts = assets.filter((a) => a.kind === "host");
-  const leaves = assets.filter(
-    (a) => a.kind === "service" || a.kind === "endpoint",
-  );
-  const techs = assets.filter(
-    (a) => a.kind !== "host" && a.kind !== "service" && a.kind !== "endpoint",
-  );
-
-  const nodeKey = (a: Asset) => `${a.kind}:${a.key}`;
-
-  // Match a finding target to the best asset key (exact, then containment).
-  const allAssetNodes = [...hosts, ...leaves, ...techs];
-  function matchNode(target: string): string | null {
-    if (!target) return null;
-    const t = target.trim();
-    // exact key
-    let hit = allAssetNodes.find((a) => a.key === t);
-    if (hit) return nodeKey(hit);
-    // target contains the asset key, or asset key contains the target —
-    // longest matching key wins so "host:port/path" beats "host".
-    let best: { id: string; len: number } | null = null;
-    for (const a of allAssetNodes) {
-      if (!a.key) continue;
-      if (t.includes(a.key) || a.key.includes(t)) {
-        if (!best || a.key.length > best.len) best = { id: nodeKey(a), len: a.key.length };
-      }
-    }
-    return best?.id ?? null;
-  }
-
-  const ROOT = "root";
-  const UNASSIGNED = "unassigned";
-  let hasUnassigned = false;
-
-  for (const f of findings) {
-    const id = matchNode(f.target);
-    if (id) addFinding(id, f);
-    else {
-      hasUnassigned = true;
-      addFinding(UNASSIGNED, f);
-    }
-  }
-
-  // Map each leaf to a parent host. A service/endpoint key usually starts with
-  // or contains its host key; fall back to round-robin so nothing floats.
-  const leafParent = new Map<string, string>();
-  for (const l of leaves) {
-    const host = hosts.find((h) => h.key && l.key.includes(h.key));
-    leafParent.set(nodeKey(l), host ? nodeKey(host) : ROOT);
-  }
-
-  // ── Place nodes column by column ──────────────────────────────────────────
-  const nodes: GNode[] = [];
-  const place = (
-    id: string,
-    label: string,
-    kind: string,
-    col: number,
-    rowIdx: number,
-    rowCount: number,
-    root: boolean,
-  ) => {
-    const colHeight = Math.max(rowCount - 1, 0) * ROW_GAP;
-    const yStart = PAD_Y + 200 - colHeight / 2; // vertically center the column
-    const a = attach.get(id);
-    nodes.push({
-      id,
-      label,
-      kind,
-      x: PAD_X + col * COL_GAP,
-      y: Math.max(PAD_Y, yStart + rowIdx * ROW_GAP),
-      root,
-      sev: a ? a.worst : null,
-      findingCount: a ? a.count : 0,
-      worstFindingId: a ? a.worstId : null,
-    });
-  };
-
-  // Column 0: engagement root.
-  place(ROOT, eid, "root", 0, 0, 1, true);
-
-  // Column 1: hosts (+ unassigned hub if needed).
-  const col1: { id: string; label: string; kind: string }[] = hosts.map((h) => ({
-    id: nodeKey(h),
-    label: h.key,
-    kind: "host",
-  }));
-  if (hasUnassigned) {
-    col1.push({ id: UNASSIGNED, label: "unassigned", kind: "host" });
-  }
-  col1.forEach((c, i) => {
-    place(c.id, c.label, c.kind, 1, i, col1.length, false);
-    edges.push({ from: ROOT, to: c.id });
-  });
-
-  // Column 2: services + endpoints, grouped under their host.
-  const col2 = leaves.map((l) => ({ id: nodeKey(l), label: l.key, kind: l.kind }));
-  col2.forEach((c, i) => {
-    place(c.id, c.label, c.kind, 2, i, Math.max(col2.length, 1), false);
-    edges.push({ from: leafParent.get(c.id) ?? ROOT, to: c.id });
-  });
-
-  // Column 3: tech / cert / other — hung off the root for context.
-  const col3 = techs.map((t) => ({ id: nodeKey(t), label: t.key, kind: t.kind }));
-  col3.forEach((c, i) => {
-    place(c.id, c.label, c.kind, 3, i, Math.max(col3.length, 1), false);
-    edges.push({ from: ROOT, to: c.id });
-  });
-
-  const maxCol = 3;
-  const width = PAD_X + maxCol * COL_GAP + NW + PAD_X;
-  const maxY = nodes.reduce((m, n) => Math.max(m, n.y), 0);
-  const height = Math.max(460, maxY + NH + PAD_Y);
-
-  return { nodes, edges, width, height };
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function GraphView() {
   const eid = useActiveEngagementId();
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [engagement, setEngagement] = useState<Engagement | null>(null);
+  const [engLoading, setEngLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hover, setHover] = useState<string | null>(null);
+  const [selectedCat, setSelectedCat] = useState<string | null>(null);
+  const [sevFilter, setSevFilter] = useState<Severity | null>(null);
 
+  const codebase = engagement?.source_root?.trim() || "";
+  const canBrowse = typeof (window as any).nt?.pickDirectory === "function";
+
+  // Load the active engagement (for its source_root).
   useEffect(() => {
     if (!eid) {
-      setFindings([]);
-      setAssets([]);
-      setLoading(false);
+      setEngagement(null);
+      setResult(null);
       return;
     }
     let alive = true;
-    setLoading(true);
-    setError(null);
-
-    const fp = listFindings(eid).catch(() => [] as Finding[]);
-    const ap = authFetch(`/method/assets/eng:${eid}`)
-      .then((r) => (r.ok ? r.json() : { assets: [] }))
-      .then((b: { assets?: Asset[] }) => b.assets ?? [])
-      .catch(() => [] as Asset[]);
-
-    Promise.all([fp, ap])
-      .then(([f, a]) => {
-        if (!alive) return;
-        setFindings(f);
-        setAssets(a);
-      })
-      .catch((e) => {
-        if (alive) setError(String(e));
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-
+    setEngLoading(true);
+    authFetch(`/engagements/${eid}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((e: Engagement | null) => alive && setEngagement(e))
+      .catch(() => alive && setEngagement(null))
+      .finally(() => alive && setEngLoading(false));
     return () => {
       alive = false;
     };
   }, [eid]);
 
-  // Severity counts for the donut + legend.
-  const counts = useMemo(() => {
-    const c: Record<FindingSeverity, number> = {
-      critical: 0,
-      high: 0,
-      medium: 0,
-      low: 0,
-      info: 0,
-    };
-    for (const f of findings) {
-      const s = (f.severity ?? "info") as FindingSeverity;
-      c[s] = (c[s] ?? 0) + 1;
+  const scan = useCallback(async (path: string) => {
+    if (!path) return;
+    setScanning(true);
+    setError(null);
+    try {
+      const res = await authFetch("/codescan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const b = await res.json();
+          msg = b.detail || b.error || msg;
+        } catch {
+          /* keep */
+        }
+        setError(msg);
+        setResult(null);
+        return;
+      }
+      const data = (await res.json()) as ScanResult;
+      setResult(data);
+      setSelectedCat(data.assets.find((c) => c.count > 0)?.id ?? null);
+      setSevFilter(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setResult(null);
+    } finally {
+      setScanning(false);
     }
+  }, []);
+
+  // Auto-scan whenever the engagement's codebase is known/changes.
+  useEffect(() => {
+    if (codebase) void scan(codebase);
+    else setResult(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codebase]);
+
+  // Pick / change the engagement's codebase folder (persists to the engagement).
+  async function pickCodebase() {
+    if (!eid) return;
+    try {
+      const picked = await (window as any).nt?.pickDirectory?.();
+      if (!picked) return;
+      const updated = await updateEngagement(eid, { source_root: picked });
+      setEngagement(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // Severity counts + donut.
+  const counts = useMemo(() => {
+    const c: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    for (const f of result?.findings ?? []) c[f.severity] = (c[f.severity] ?? 0) + 1;
     return c;
-  }, [findings]);
-
-  const total = findings.length;
-
-  const graph = useMemo(
-    () => (eid ? buildGraph(eid, assets, findings) : null),
-    [eid, assets, findings],
-  );
-
-  const nodeMap = useMemo(() => {
-    const m = new Map<string, GNode>();
-    graph?.nodes.forEach((n) => m.set(n.id, n));
-    return m;
-  }, [graph]);
-
-  // Conic-gradient donut.
+  }, [result]);
+  const total = result?.findings.length ?? 0;
   const donutBg = useMemo(() => {
     if (total === 0) return `conic-gradient(${hexA(FAINT, 0.25)} 0 100%)`;
     let acc = 0;
@@ -329,281 +195,439 @@ export default function GraphView() {
       if (n === 0) continue;
       const from = (acc / total) * 100;
       acc += n;
-      const to = (acc / total) * 100;
-      stops.push(`${SEV_COLOR[s]} ${from}% ${to}%`);
+      stops.push(`${SEV_COLOR[s]} ${from}% ${(acc / total) * 100}%`);
     }
     return `conic-gradient(${stops.join(", ")})`;
   }, [counts, total]);
 
-  const vulnNodes = useMemo(
-    () =>
-      (graph?.nodes ?? [])
-        .filter((n) => n.findingCount > 0)
-        .sort(
-          (a, b) =>
-            SEV_RANK[(b.sev ?? "info")] - SEV_RANK[(a.sev ?? "info")] ||
-            b.findingCount - a.findingCount,
-        ),
-    [graph],
+  const selected = result?.assets.find((c) => c.id === selectedCat) ?? null;
+  const visibleFindings = useMemo(
+    () => (result?.findings ?? []).filter((f) => !sevFilter || f.severity === sevFilter),
+    [result, sevFilter],
   );
 
-  // ── Render guards ──────────────────────────────────────────────────────────
-
+  // ── Render guards ─────────────────────────────────────────────────────────
   if (!eid) {
+    return <Empty title="No active engagement" sub="Open an engagement to map its codebase." />;
+  }
+  if (engLoading && !engagement) {
+    return <Empty title="Loading engagement…" sub="" />;
+  }
+  if (!codebase) {
     return (
-      <Empty title="No active engagement" sub="Select an engagement to view its asset graph." />
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-bg-base px-8 text-center">
+        <Glyph />
+        <div>
+          <div className="text-[15px] font-semibold text-ink-primary">No codebase set for this engagement</div>
+          <div className="mt-1.5 max-w-[420px] text-[12.5px] text-ink-dim">
+            Point this engagement at its source folder once — the graph then scans it
+            automatically every time you open it.
+          </div>
+        </div>
+        {canBrowse ? (
+          <button
+            onClick={pickCodebase}
+            className="rounded-md bg-accent px-4 py-2 text-[12.5px] font-bold text-bg-base"
+            style={{ boxShadow: `0 4px 16px ${hexA(ACCENT, 0.3)}` }}
+          >
+            Set codebase folder…
+          </button>
+        ) : (
+          <div className="text-[12px] text-ink-dim">
+            Set this engagement's source folder from the desktop app.
+          </div>
+        )}
+        {error && <div className="text-[12px] text-danger">{error}</div>}
+      </div>
     );
   }
-  if (loading) {
-    return <Empty title="Loading graph…" sub="" />;
-  }
-  if (error) {
-    return <Empty title="Couldn't load the graph" sub={error} />;
-  }
-  if (!graph || (assets.length === 0 && findings.length === 0)) {
-    return (
-      <Empty
-        title="No assets yet"
-        sub="Run tools to populate the asset graph — discovered hosts, services and findings will appear here."
-      />
-    );
-  }
-
-  const nodeIsHi = (id: string): boolean => {
-    if (!hover) return true;
-    if (hover === id) return true;
-    // a node is "lit" if it shares an edge with the hovered node
-    return (graph.edges ?? []).some(
-      (e) =>
-        (e.from === hover && e.to === id) || (e.to === hover && e.from === id),
-    );
-  };
 
   return (
-    <div className="flex h-full flex-col overflow-auto bg-bg-base px-7 pb-10 pt-6 text-ink-primary">
+    <div className="flex h-full flex-col overflow-auto bg-bg-base px-7 pb-12 pt-6 text-ink-primary">
       {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[20px] font-bold text-ink-primary">Asset Graph</div>
+          <div className="text-[20px] font-bold text-ink-primary">Codebase Map</div>
           <div className="mt-1 text-[12.5px] text-ink-dim">
-            <span className="data">{eid}</span> · {assets.length} asset
-            {assets.length === 1 ? "" : "s"} · {total} finding
-            {total === 1 ? "" : "s"}
-            {counts.critical > 0 && (
+            <span className="data">{codebase}</span>
+            {result && (
               <>
                 {" "}
-                · <span style={{ color: SEV_COLOR.critical }}>{counts.critical} critical</span>
+                · {result.scanned_files} files · {result.graph.frontend_count}→
+                {result.graph.backend_count} wired · {total} finding{total === 1 ? "" : "s"}
               </>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3.5">
-          {SEV_ORDER.filter((s) => s !== "info" || counts.info > 0).map((s) => (
-            <div
-              key={s}
-              className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-dim"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void scan(codebase)}
+            disabled={scanning}
+            className="rounded-md bg-accent px-3.5 py-1.5 text-[12px] font-bold text-bg-base disabled:opacity-50"
+          >
+            {scanning ? "Scanning…" : "Rescan"}
+          </button>
+          {canBrowse && (
+            <button
+              onClick={pickCodebase}
+              className="rounded-md border border-divider px-3 py-1.5 text-[12px] text-ink-muted hover:border-accent hover:text-accent"
             >
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: SEV_COLOR[s] }}
-              />
-              {SEV_LABEL[s]}
-            </div>
-          ))}
+              Change folder…
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid gap-3.5" style={{ gridTemplateColumns: "1fr 268px" }}>
-        {/* ── Graph canvas ── */}
-        <div className="relative h-[480px] overflow-auto rounded-[13px] border border-divider bg-bg-card">
-          <div
-            className="relative"
-            style={{ width: graph.width, height: graph.height }}
-          >
-            <svg
-              width={graph.width}
-              height={graph.height}
-              className="absolute inset-0"
-            >
-              {graph.edges.map((e, i) => {
-                const A = nodeMap.get(e.from);
-                const B = nodeMap.get(e.to);
-                if (!A || !B) return null;
-                const tgtSev = B.sev;
-                const lit = hover ? hover === e.from || hover === e.to : true;
-                const color = tgtSev
-                  ? hexA(SEV_COLOR[tgtSev], lit ? 0.7 : 0.4)
-                  : hexA(FAINT, lit ? 0.6 : 0.3);
-                return (
-                  <line
-                    key={i}
-                    x1={A.x + NW / 2}
-                    y1={A.y + NH / 2}
-                    x2={B.x + NW / 2}
-                    y2={B.y + NH / 2}
-                    stroke={color}
-                    strokeWidth={tgtSev ? 1.6 : 1}
-                  />
-                );
-              })}
-            </svg>
+      {error && (
+        <div className="mb-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger">
+          {error}
+        </div>
+      )}
 
-            {graph.nodes.map((n) => {
-              const sevColor = n.sev ? SEV_COLOR[n.sev] : null;
-              const dot = sevColor ?? (n.root ? ACCENT : FAINT);
-              const lit = nodeIsHi(n.id);
-              const border = sevColor ?? (n.root ? hexA(ACCENT, 0.4) : "var(--border)");
-              const clickable = n.findingCount > 0 && n.worstFindingId;
+      {scanning && !result && <Empty title="Scanning the codebase…" sub="Walking files, mapping calls, running SAST." />}
+
+      {result && (
+        <>
+          {/* ── Architecture graph ── */}
+          <SectionLabel>Architecture · frontend → backend</SectionLabel>
+          <ConnectionGraph graph={result.graph} />
+
+          {/* ── Asset tiles ── */}
+          <SectionLabel className="mt-6">Application Assets</SectionLabel>
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            {result.assets.map((cat) => {
+              const color = CAT_COLOR[cat.id] ?? ACCENT;
+              const on = selectedCat === cat.id;
+              const empty = cat.count === 0;
               return (
-                <div
-                  key={n.id}
-                  onMouseEnter={() => setHover(n.id)}
-                  onMouseLeave={() => setHover(null)}
-                  onClick={() => {
-                    if (clickable && n.worstFindingId) {
-                      emit("focusFinding", { findingId: n.worstFindingId });
-                    }
-                  }}
-                  title={`${n.kind} · ${n.label}${
-                    n.findingCount ? ` · ${n.findingCount} finding(s)` : ""
-                  }`}
-                  className="absolute z-[2] rounded-[9px] px-3 py-2 transition-[filter,opacity]"
+                <button
+                  key={cat.id}
+                  disabled={empty}
+                  onClick={() => setSelectedCat(cat.id)}
+                  className="flex flex-col items-start gap-1.5 rounded-[12px] border bg-bg-card p-3.5 text-left transition disabled:opacity-40"
                   style={{
-                    left: n.x,
-                    top: n.y,
-                    width: NW,
-                    cursor: clickable ? "pointer" : "default",
-                    opacity: lit ? 1 : 0.4,
-                    filter: hover === n.id ? "brightness(1.14)" : "none",
-                    background: n.root ? hexA(ACCENT, 0.13) : "var(--bg-panel, #11161f)",
-                    border: `1px solid ${border}`,
-                    boxShadow: sevColor
-                      ? `0 0 0 1px ${sevColor}, 0 8px 22px ${hexA(sevColor, 0.22)}`
-                      : "0 2px 8px rgba(0,0,0,.28)",
+                    borderColor: on ? color : "var(--divider)",
+                    boxShadow: on ? `0 0 0 1px ${color}, 0 8px 22px ${hexA(color, 0.18)}` : "none",
+                    cursor: empty ? "default" : "pointer",
                   }}
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex w-full items-center gap-2">
                     <span
-                      className="h-[7px] w-[7px] flex-[0_0_7px] rounded-full"
-                      style={{ background: dot }}
-                    />
-                    <span
-                      className="data flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px] font-medium text-ink-primary"
+                      className="flex h-7 w-7 items-center justify-center rounded-md text-[14px]"
+                      style={{ background: hexA(color, 0.14), color }}
                     >
-                      {n.label}
+                      {CAT_GLYPH[cat.id] ?? "•"}
+                    </span>
+                    <span className="data text-[22px] font-bold leading-none" style={{ color }}>
+                      {cat.count}
                     </span>
                   </div>
-                  {n.findingCount > 0 && (
-                    <div
-                      className="data mt-1 text-[9.5px]"
-                      style={{ color: dot }}
-                    >
-                      {n.findingCount} finding{n.findingCount === 1 ? "" : "s"}
-                    </div>
-                  )}
-                </div>
+                  <span className="text-[12.5px] font-semibold text-ink-primary">{cat.label}</span>
+                </button>
               );
             })}
           </div>
-        </div>
 
-        {/* ── Sidebar: donut + vulnerable assets ── */}
-        <div className="flex flex-col gap-3">
-          {/* Donut */}
-          <div className="rounded-[13px] border border-divider bg-bg-card p-4">
-            <div className="mb-3 text-[12px] font-semibold text-ink-primary">
-              Severity Breakdown
-            </div>
-            <div className="flex items-center gap-4">
-              <div
-                className="relative h-[88px] w-[88px] flex-[0_0_88px] rounded-full"
-                style={{ background: donutBg }}
-              >
-                <div className="absolute inset-[14px] flex flex-col items-center justify-center rounded-full bg-bg-card">
-                  <div className="data text-[20px] font-bold leading-none text-ink-primary">
-                    {total}
+          {/* ── Selected category items + donut ── */}
+          <div className="grid gap-3.5" style={{ gridTemplateColumns: "1fr 268px" }}>
+            <div className="min-h-[200px] rounded-[13px] border border-divider bg-bg-card p-4">
+              {selected ? (
+                <>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-[12px]"
+                      style={{
+                        background: hexA(CAT_COLOR[selected.id] ?? ACCENT, 0.14),
+                        color: CAT_COLOR[selected.id] ?? ACCENT,
+                      }}
+                    >
+                      {CAT_GLYPH[selected.id] ?? "•"}
+                    </span>
+                    <span className="text-[13px] font-semibold text-ink-primary">{selected.label}</span>
+                    <span className="data text-[11.5px] text-ink-dim">{selected.count}</span>
                   </div>
-                  <div className="mt-0.5 text-[9px] uppercase tracking-wide text-ink-dim">
-                    findings
+                  {selected.items.length === 0 ? (
+                    <div className="text-[12px] text-ink-dim">None found.</div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {selected.items.map((it, i) => (
+                        <div
+                          key={`${it.name}-${i}`}
+                          className="flex items-baseline gap-3 border-b border-divider/60 py-1.5 last:border-b-0"
+                        >
+                          <span className="data flex-1 truncate text-[12.5px] text-ink-primary">{it.name}</span>
+                          {it.detail && <span className="data shrink-0 text-[11px] text-ink-dim">{it.detail}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-[12px] text-ink-dim">Select an asset tile to list its members.</div>
+              )}
+            </div>
+
+            <div className="rounded-[13px] border border-divider bg-bg-card p-4">
+              <div className="mb-3 text-[12px] font-semibold text-ink-primary">Severity Breakdown</div>
+              <div className="flex items-center gap-4">
+                <div className="relative h-[88px] w-[88px] flex-[0_0_88px] rounded-full" style={{ background: donutBg }}>
+                  <div className="absolute inset-[14px] flex flex-col items-center justify-center rounded-full bg-bg-card">
+                    <div className="data text-[20px] font-bold leading-none text-ink-primary">{total}</div>
+                    <div className="mt-0.5 text-[9px] uppercase tracking-wide text-ink-dim">findings</div>
                   </div>
                 </div>
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5">
-                {SEV_ORDER.filter((s) => counts[s] > 0).map((s) => (
-                  <div key={s} className="flex items-center gap-2 text-[11.5px]">
-                    <span
-                      className="h-[7px] w-[7px] rounded-full"
-                      style={{ background: SEV_COLOR[s] }}
-                    />
-                    <span className="flex-1 text-ink-muted">{SEV_LABEL[s]}</span>
-                    <span className="data text-ink-primary">{counts[s]}</span>
-                  </div>
-                ))}
-                {total === 0 && (
-                  <div className="text-[11.5px] text-ink-dim">No findings</div>
-                )}
+                <div className="flex flex-1 flex-col gap-1.5">
+                  {SEV_ORDER.filter((s) => counts[s] > 0).map((s) => (
+                    <div key={s} className="flex items-center gap-2 text-[11.5px]">
+                      <span className="h-[7px] w-[7px] rounded-full" style={{ background: SEV_COLOR[s] }} />
+                      <span className="flex-1 text-ink-muted">{SEV_LABEL[s]}</span>
+                      <span className="data text-ink-primary">{counts[s]}</span>
+                    </div>
+                  ))}
+                  {total === 0 && <div className="text-[11.5px] text-ink-dim">No findings 🎉</div>}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Vulnerable assets list */}
-          <div className="rounded-[13px] border border-divider bg-bg-card p-[15px]">
-            <div className="mb-3 text-[12px] font-semibold text-ink-primary">
-              Vulnerable Assets
-            </div>
-            {vulnNodes.length === 0 && (
-              <div className="text-[11.5px] text-ink-dim">
-                No findings attached to assets yet.
+          {/* ── Code review ── */}
+          <div className="mt-6">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-semibold uppercase tracking-widest text-ink-dim">Code Review</span>
+              <span className="data text-[11.5px] text-ink-dim">{visibleFindings.length}/{total}</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <Chip on={sevFilter === null} onClick={() => setSevFilter(null)} color={FAINT}>All</Chip>
+                {SEV_ORDER.filter((s) => counts[s] > 0).map((s) => (
+                  <Chip key={s} on={sevFilter === s} onClick={() => setSevFilter(sevFilter === s ? null : s)} color={SEV_COLOR[s]}>
+                    {SEV_LABEL[s]} {counts[s]}
+                  </Chip>
+                ))}
               </div>
-            )}
-            {vulnNodes.map((n) => (
+            </div>
+            <div className="overflow-hidden rounded-[13px] border border-divider bg-bg-card">
+              {visibleFindings.length === 0 ? (
+                <div className="p-6 text-center text-[12.5px] text-ink-dim">
+                  {total === 0 ? "No code findings — clean scan." : "No findings at this severity."}
+                </div>
+              ) : (
+                visibleFindings.map((f, i) => (
+                  <div key={i} className="flex items-start gap-3 border-b border-divider/60 px-4 py-2.5 last:border-b-0">
+                    <span className="mt-1 h-[8px] w-[8px] shrink-0 rounded-full" style={{ background: SEV_COLOR[f.severity] }} title={SEV_LABEL[f.severity]} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[12.5px] font-semibold text-ink-primary">{f.title}</span>
+                        <span
+                          className="rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                          style={{ color: SEV_COLOR[f.severity], borderColor: hexA(SEV_COLOR[f.severity], 0.4), background: hexA(SEV_COLOR[f.severity], 0.1) }}
+                        >
+                          {f.type}
+                        </span>
+                        <span className="data text-[11px] text-ink-dim">{f.file}:{f.line}</span>
+                      </div>
+                      {f.snippet && (
+                        <pre className="data mt-1 overflow-x-auto rounded bg-bg-base px-2 py-1 text-[11px] text-ink-muted">{f.snippet}</pre>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Architecture graph (SVG, 2 columns: frontend | backend) ──────────────────
+
+const NW = 168;
+const NH = 26;
+const ROW = 34;
+const PADY = 18;
+const CANVAS_W = 760;
+const LEFT_X = 18;
+const RIGHT_X = CANVAS_W - NW - 18;
+
+function ConnectionGraph({ graph }: { graph: ConnGraph }) {
+  const [hover, setHover] = useState<string | null>(null);
+
+  const { fe, be, pos, height } = useMemo(() => {
+    const fe = graph.nodes
+      .filter((n) => n.layer === "frontend")
+      .sort((a, b) => (b.calls ?? 0) - (a.calls ?? 0) || a.label.localeCompare(b.label));
+    // tools (ws) first, then routes; each alphabetical
+    const be = graph.nodes
+      .filter((n) => n.layer === "backend")
+      .sort(
+        (a, b) =>
+          Number(b.kind === "ws") - Number(a.kind === "ws") || a.label.localeCompare(b.label),
+      );
+    const pos = new Map<string, { x: number; y: number }>();
+    fe.forEach((n, i) => pos.set(n.id, { x: LEFT_X, y: PADY + i * ROW }));
+    be.forEach((n, i) => pos.set(n.id, { x: RIGHT_X, y: PADY + i * ROW }));
+    const height = Math.max(fe.length, be.length) * ROW + PADY * 2;
+    return { fe, be, pos, height };
+  }, [graph]);
+
+  if (graph.edges.length === 0 && graph.nodes.length === 0) {
+    return (
+      <div className="mb-2 rounded-[13px] border border-divider bg-bg-card p-6 text-center text-[12.5px] text-ink-dim">
+        No frontend→backend calls detected in this codebase.
+      </div>
+    );
+  }
+
+  const lit = (id: string): boolean => {
+    if (!hover) return true;
+    if (hover === id) return true;
+    return graph.edges.some(
+      (e) => (e.from === hover && e.to === id) || (e.to === hover && e.from === id),
+    );
+  };
+
+  const colorOf = (n: GNode) =>
+    n.layer === "frontend" ? FE_COLOR : n.kind === "ws" ? TOOL_COLOR : BE_COLOR;
+
+  return (
+    <div className="mb-2">
+      <div className="relative overflow-auto rounded-[13px] border border-divider bg-bg-card">
+        <div className="relative" style={{ width: CANVAS_W, height: Math.max(height, 160) }}>
+          {/* Column captions */}
+          <div className="absolute left-[18px] top-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: FE_COLOR }}>
+            Frontend ({fe.length})
+          </div>
+          <div className="absolute top-1 text-[10px] font-bold uppercase tracking-widest" style={{ left: RIGHT_X, color: BE_COLOR }}>
+            Backend ({be.length})
+          </div>
+
+          <svg width={CANVAS_W} height={Math.max(height, 160)} className="absolute inset-0">
+            {graph.edges.map((e, i) => {
+              const A = pos.get(e.from);
+              const B = pos.get(e.to);
+              if (!A || !B) return null;
+              const ax = A.x + NW;
+              const ay = A.y + NH / 2;
+              const bx = B.x;
+              const by = B.y + NH / 2;
+              const mid = (ax + bx) / 2;
+              const on = !hover || hover === e.from || hover === e.to;
+              const c = e.kind === "ws" ? TOOL_COLOR : FE_COLOR;
+              return (
+                <path
+                  key={i}
+                  d={`M ${ax} ${ay} C ${mid} ${ay}, ${mid} ${by}, ${bx} ${by}`}
+                  fill="none"
+                  stroke={hexA(c, on ? 0.55 : 0.12)}
+                  strokeWidth={on ? Math.min(1 + e.count * 0.3, 3) : 1}
+                  strokeDasharray={e.kind === "ws" ? "4 3" : undefined}
+                />
+              );
+            })}
+          </svg>
+
+          {[...fe, ...be].map((n) => {
+            const p = pos.get(n.id)!;
+            const color = colorOf(n);
+            const on = lit(n.id);
+            const detail =
+              n.layer === "frontend"
+                ? `${n.calls} call${n.calls === 1 ? "" : "s"}`
+                : n.kind === "ws"
+                  ? "tool · ws"
+                  : n.defined
+                    ? `${n.routes} route${n.routes === 1 ? "" : "s"}`
+                    : "endpoint";
+            return (
               <div
                 key={n.id}
-                onClick={() => {
-                  if (n.worstFindingId)
-                    emit("focusFinding", { findingId: n.worstFindingId });
-                }}
                 onMouseEnter={() => setHover(n.id)}
                 onMouseLeave={() => setHover(null)}
-                className="cursor-pointer border-b border-divider py-2.5 last:border-b-0 hover:opacity-80"
+                title={`${n.label} · ${detail}`}
+                className="absolute z-[2] flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 transition-[opacity,filter]"
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  width: NW,
+                  height: NH,
+                  opacity: on ? 1 : 0.28,
+                  background: "var(--bg-panel, #11161f)",
+                  border: `1px solid ${hexA(color, hover === n.id ? 0.9 : 0.45)}`,
+                  boxShadow: hover === n.id ? `0 0 0 1px ${color}, 0 6px 16px ${hexA(color, 0.25)}` : "none",
+                }}
               >
-                <div className="mb-1 flex items-center gap-2">
-                  <span
-                    className="h-[7px] w-[7px] rounded-full"
-                    style={{ background: n.sev ? SEV_COLOR[n.sev] : FAINT }}
-                  />
-                  <span className="data flex-1 truncate text-[12.5px] font-medium text-ink-primary">
-                    {n.label}
-                  </span>
-                </div>
-                <div className="data pl-[15px] text-[11px] text-ink-dim">
-                  {n.findingCount} finding{n.findingCount === 1 ? "" : "s"} ·{" "}
-                  {n.sev ? SEV_LABEL[n.sev] : "—"} · {n.kind}
-                </div>
+                <span className="h-[7px] w-[7px] flex-[0_0_7px] rounded-full" style={{ background: color }} />
+                <span className="data flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px] font-medium text-ink-primary">
+                  {n.label}
+                </span>
+                <span className="data shrink-0 text-[9px] text-ink-dim">{detail}</span>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-ink-dim">
+        <Legend color={FE_COLOR} label="Frontend module" />
+        <Legend color={BE_COLOR} label="Backend route" />
+        <Legend color={TOOL_COLOR} label="Tool (WS/stream)" />
+        {graph.unwired_backend_groups > 0 && (
+          <span>· {graph.unwired_backend_groups} more backend areas not called from the UI</span>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Empty / status state ─────────────────────────────────────────────────────
+// ── Bits ─────────────────────────────────────────────────────────────────────
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="h-[8px] w-[8px] rounded-full" style={{ background: color }} />
+      {label}
+    </span>
+  );
+}
+
+function SectionLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`mb-2 text-[12px] font-semibold uppercase tracking-widest text-ink-dim ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function Chip({ on, onClick, color, children }: { on: boolean; onClick: () => void; color: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-full border px-2.5 py-1 text-[11px] font-medium transition"
+      style={{ color: on ? "#0a0e15" : color, background: on ? color : "transparent", borderColor: hexA(color, 0.5) }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Glyph() {
+  return (
+    <div className="flex h-12 w-12 items-center justify-center rounded-full border border-divider text-ink-dim">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="6" cy="6" r="2.5" />
+        <circle cx="18" cy="6" r="2.5" />
+        <circle cx="12" cy="18" r="2.5" />
+        <line x1="7.6" y1="7.6" x2="11" y2="16" />
+        <line x1="16.4" y1="7.6" x2="13" y2="16" />
+      </svg>
+    </div>
+  );
+}
 
 function Empty({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center bg-bg-base px-8 text-center">
-      <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full border border-divider text-ink-dim">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <circle cx="6" cy="6" r="2.5" />
-          <circle cx="18" cy="6" r="2.5" />
-          <circle cx="12" cy="18" r="2.5" />
-          <line x1="7.6" y1="7.6" x2="11" y2="16" />
-          <line x1="16.4" y1="7.6" x2="13" y2="16" />
-        </svg>
-      </div>
-      <div className="text-[15px] font-semibold text-ink-primary">{title}</div>
+      <Glyph />
+      <div className="mt-2 text-[15px] font-semibold text-ink-primary">{title}</div>
       {sub && <div className="mt-1.5 max-w-[360px] text-[12.5px] text-ink-dim">{sub}</div>}
     </div>
   );

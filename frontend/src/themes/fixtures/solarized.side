@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "kind": "theme",
+  "name": "Solarized",
+  "author": "builtin",
+  "theme": {
+    "--bg-base": "#002b36",
+    "--bg-surface": "#04222b",
+    "--bg-elevated": "#073642",
+    "--bg-hover": "#0a4250",
+    "--bg-active": "#0e4b5a",
+    "--text-primary": "#eee8d5",
+    "--text-secondary": "#93a1a1",
+    "--text-muted": "#839496",
+    "--border": "#0e4b5a",
+    "--border-bright": "#586e75",
+    "--accent": "#268bd2",
+    "--critical": "#e84740",
+    "--high": "#dd5a1e",
+    "--medium": "#b58900",
+    "--low": "#268bd2",
+    "--success": "#859900",
+    "--font-sans": "Inter",
+    "--font-mono": "JetBrains Mono"
+  }
+}

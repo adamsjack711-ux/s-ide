@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/osint", tags=["urlscan"],
                    dependencies=[Depends(require_local_auth)])
 
-UA = "HackingPal/0.1 urlscan"
+UA = "s-ide/0.1 urlscan"
 TIMEOUT = 15.0
 
 

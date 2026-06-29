@@ -8,7 +8,7 @@ you still see RSSI / channel / security type, just not which network it is.
 
 Grant the running app Location access in:
   System Settings → Privacy & Security → Location Services → enable for
-  Terminal / HackingPal / whatever spawned the backend.
+  Terminal / s-ide / whatever spawned the backend.
 
 `/wifi/scan` returns a `permission_hint` field set to "location-required" when
 we detect all SSIDs as null — the UI uses that to show the fix-it instructions.

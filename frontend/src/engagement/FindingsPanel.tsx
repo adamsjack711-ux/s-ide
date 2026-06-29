@@ -27,12 +27,15 @@ export default function FindingsPanel({
   onSelect,
   sevFilter,
   onSevFilter,
+  onKeyNav,
 }: {
   findings: Finding[];
   selectedId: string | null;
   onSelect: (f: Finding) => void;
   sevFilter: SevFilter;
   onSevFilter: (s: SevFilter) => void;
+  /** Up/Down arrow navigation handler, owned by the parent (FindingsView). */
+  onKeyNav?: (e: React.KeyboardEvent) => void;
 }) {
   const counts = useMemo(() => {
     const c: Record<FindingSeverity, number> = {
@@ -137,10 +140,16 @@ export default function FindingsPanel({
         </div>
 
         {/* rows */}
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div
+          className="min-h-0 flex-1 overflow-auto outline-none"
+          role="listbox"
+          aria-label="Findings"
+          tabIndex={0}
+          onKeyDown={onKeyNav}
+        >
           {shown.length === 0 ? (
             <div className="p-4 text-sm text-ink-dim">
-              No findings yet — promote a tool result.
+              No findings yet.
             </div>
           ) : (
             shown.map((f) => {
@@ -148,6 +157,8 @@ export default function FindingsPanel({
               return (
                 <button
                   key={f.id}
+                  role="option"
+                  aria-selected={active}
                   onClick={() => onSelect(f)}
                   className={`flex w-full items-center gap-3 border-b border-divider px-4 py-3 text-left transition-colors ${
                     active ? "bg-bg-nav-active" : "hover:bg-bg-hover"

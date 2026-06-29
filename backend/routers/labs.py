@@ -160,6 +160,49 @@ async def lab_stop(lab_id: str) -> dict[str, Any]:
     return result
 
 
+class LabRemoveBody(BaseModel):
+    """Remove a lab. ``purge_image`` (default True) also deletes the image(s)."""
+    purge_image: bool = Field(default=True)
+
+
+@router.post("/labs/{lab_id}/remove")
+async def lab_remove(lab_id: str, body: LabRemoveBody | None = None) -> dict[str, Any]:
+    """Tear a lab down: stop + remove containers, and (default) delete images.
+
+    This is the "make removing easy" path — Stop only removes the container and
+    leaves the multi-GB image on disk; Remove reclaims it. Idempotent: removing
+    an already-gone lab is a 200 with ``bytes_freed=0``.
+    """
+    _require_lab(lab_id)
+    purge = body.purge_image if body is not None else True
+    result = await labs_lib.remove_lab(lab_id, purge_image=purge)
+    if result.get("status") == "error":
+        raise MhpError(result.get("error") or "lab failed to remove",
+                       code=ErrorCode.TOOL_FAILED, status_code=503)
+    targets_lib.hide_lab_targets(lab_id)
+    return result
+
+
+@router.post("/labs/cleanup")
+async def labs_cleanup(body: LabRemoveBody | None = None) -> dict[str, Any]:
+    """Stop + remove every lab in one shot, reclaiming all lab disk.
+
+    Walks the full catalog and removes each lab (best-effort — one lab's
+    failure doesn't abort the rest). Returns a per-lab result list plus the
+    total bytes freed.
+    """
+    purge = body.purge_image if body is not None else True
+    results: list[dict[str, Any]] = []
+    total_freed = 0
+    for lab_id in labs_lib.LABS:
+        res = await labs_lib.remove_lab(lab_id, purge_image=purge)
+        if res.get("status") == "removed":
+            total_freed += int(res.get("bytes_freed") or 0)
+            targets_lib.hide_lab_targets(lab_id)
+        results.append({"id": lab_id, **res})
+    return {"status": "ok", "total_bytes_freed": total_freed, "results": results}
+
+
 class LabAttachBody(BaseModel):
     """Attach a running lab to an engagement.
 

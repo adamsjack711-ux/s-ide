@@ -199,23 +199,6 @@ export default function ReportsView() {
     });
   }
 
-  // Donut: cumulative arc segments over the four primary severities (+info).
-  const donutSegments = useMemo(() => {
-    const order: FindingSeverity[] = ["critical", "high", "medium", "low", "info"];
-    const circ = 2 * Math.PI * 54; // r = 54
-    let offset = 0;
-    const segs: { color: string; dash: number; gap: number; off: number }[] = [];
-    for (const sev of order) {
-      const n = counts[sev];
-      if (n === 0) continue;
-      const frac = total > 0 ? n / total : 0;
-      const dash = frac * circ;
-      segs.push({ color: SEV_COLOR[sev], dash, gap: circ - dash, off: -offset });
-      offset += dash;
-    }
-    return { segs, circ };
-  }, [counts, total]);
-
   const OUTLINE = ["Description", "Data Flow", "Vulnerable Code", "Remediation", "History"];
 
   if (!eid) {
@@ -227,15 +210,10 @@ export default function ReportsView() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-auto bg-bg-sidebar text-sm">
-      {/* ── Dashboard ──────────────────────────────────────────────────────── */}
-      <div className="flex items-end justify-between px-6 pb-4 pt-6">
-        <div>
-          <div className="text-[22px] font-bold tracking-tight text-ink-primary">Reporting</div>
-          <div className="mt-1 text-[13px] text-ink-muted">
-            Aggregated findings, severity mix &amp; tools used for this engagement
-          </div>
-        </div>
+    <div className="flex h-full flex-col overflow-auto bg-bg-base text-sm">
+      {/* ── Report document ─────────────────────────────────────────────────── */}
+      <div className="mx-auto flex w-full max-w-4xl items-end justify-between px-6 pb-3 pt-6">
+        <div className="text-[22px] font-bold tracking-tight text-ink-primary">Reporting</div>
         <button
           onClick={() => open(requestReportLink(eid, "html"))}
           className="flex h-8 items-center rounded-lg border border-divider bg-bg-card px-3 text-xs font-medium text-ink-muted hover:border-borderBright hover:text-ink-primary"
@@ -244,125 +222,36 @@ export default function ReportsView() {
         </button>
       </div>
 
-      {/* metric cards */}
-      <div
-        className="grid gap-3.5 px-6 pb-3.5"
-        style={{ gridTemplateColumns: `repeat(${Math.max(metrics.length, 1)}, 1fr)` }}
-      >
-        {metrics.map((m) => (
-          <div key={m.label} className="rounded-[13px] border border-divider bg-bg-card p-4">
-            <div className="mb-3 text-[11.5px] font-medium text-ink-muted">{m.label}</div>
-            <div className="data leading-none" style={{ fontSize: 30, fontWeight: 700, color: m.color }}>
-              {m.value}
-            </div>
-            {m.delta && (
-              <div className="mt-2 text-[11.5px] font-medium" style={{ color: m.color === "var(--critical)" ? "var(--critical)" : "var(--text-muted)" }}>
-                {m.delta}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* donut + tools used */}
-      <div className="grid gap-3.5 px-6 pb-3.5" style={{ gridTemplateColumns: "1fr 1.25fr" }}>
-        {/* Findings by Severity */}
-        <div className="rounded-[13px] border border-divider bg-bg-card p-[18px]">
-          <div className="mb-4 text-[13px] font-semibold text-ink-primary">Findings by Severity</div>
-          <div className="flex items-center gap-[22px]">
-            <div className="relative" style={{ width: 128, height: 128, flex: "0 0 128px" }}>
-              <svg width={128} height={128} viewBox="0 0 128 128">
-                {/* track */}
-                <circle
-                  cx={64} cy={64} r={54} fill="none"
-                  stroke="var(--bg-base)" strokeWidth={17}
-                />
-                {total > 0 ? (
-                  donutSegments.segs.map((s, i) => (
-                    <circle
-                      key={i}
-                      cx={64} cy={64} r={54} fill="none"
-                      stroke={s.color}
-                      strokeWidth={17}
-                      strokeDasharray={`${s.dash} ${s.gap}`}
-                      strokeDashoffset={s.off}
-                      transform="rotate(-90 64 64)"
-                    />
-                  ))
-                ) : null}
-              </svg>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <div className="data" style={{ fontSize: 26, fontWeight: 700, color: "var(--text-primary)" }}>
-                  {openFindings}
-                </div>
-                <div className="text-[10px] font-medium tracking-wider text-ink-dim">OPEN</div>
-              </div>
-            </div>
-            <div className="flex flex-1 flex-col gap-[9px]">
-              {FINDING_SEVERITIES.map((sev) => (
-                <div key={sev} className="flex items-center gap-[9px] text-[12.5px]">
-                  <span
-                    className="h-[9px] w-[9px] rounded-[3px]"
-                    style={{ background: SEV_COLOR[sev] }}
-                  />
-                  <span className="flex-1 text-ink-muted">{SEV_LABEL[sev]}</span>
-                  <span className="data font-semibold text-ink-primary">{counts[sev]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Tools Used */}
-        <div className="rounded-[13px] border border-divider bg-bg-card p-[18px]">
-          <div className="mb-4 text-[13px] font-semibold text-ink-primary">Tools Used</div>
-          {toolsUsed.length === 0 ? (
-            <div className="text-xs text-ink-dim">No tool activity recorded yet.</div>
-          ) : (
-            toolsUsed.map((t) => {
-              const findColor =
-                t.findings >= 3 ? "var(--critical)" : t.findings >= 1 ? "var(--high)" : "var(--text-muted)";
-              return (
-                <div key={t.name} className="mb-[13px]">
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <span className="flex-1 truncate text-[12.5px] font-medium text-ink-primary">{t.name}</span>
-                    <span className="text-[11px] text-ink-dim">{t.runs} {t.runs === 1 ? "day" : "days"}</span>
-                    <span className="data w-[64px] text-right font-semibold" style={{ color: findColor, fontSize: "11.5px" }}>
-                      {t.findings} {t.findings === 1 ? "find" : "finds"}
-                    </span>
-                  </div>
-                  <div className="h-[7px] overflow-hidden rounded bg-bg-base">
-                    <div
-                      className="h-full rounded"
-                      style={{
-                        width: `${Math.round((t.findings / maxToolFindings) * 100)}%`,
-                        background: "var(--accent-dim)",
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })
-          )}
+      {/* summary strip — a slim inline line, not KPI dashboard cards */}
+      <div className="mx-auto w-full max-w-4xl border-b border-divider px-6 pb-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
+          {metrics.map((m) => (
+            <span key={m.label} className="flex items-baseline gap-1.5 text-[12.5px]">
+              <span className="text-ink-muted">{m.label}</span>
+              <span className="data font-semibold" style={{ color: m.color }}>{m.value}</span>
+              {m.delta && <span className="text-[11px] text-ink-dim">({m.delta})</span>}
+            </span>
+          ))}
         </div>
       </div>
 
-      {/* report outline + coverage areas */}
-      <div className="grid gap-3.5 px-6 pb-5" style={{ gridTemplateColumns: "1fr 1.4fr" }}>
-        <div className="rounded-[13px] border border-divider bg-bg-card p-[18px]">
-          <div className="mb-3 text-[13px] font-semibold text-ink-primary">Report Outline</div>
-          <div className="flex flex-col gap-1">
+      {/* Document body — stacked sections, read top-to-bottom like a report. */}
+      <div className="mx-auto w-full max-w-4xl space-y-7 px-6 py-6">
+        {/* Report outline — the document's table of contents (primary). */}
+        <section>
+          <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">Report Outline</h2>
+          <div className="flex flex-col">
             {OUTLINE.map((label) => {
               const active = label === activeSection;
               return (
                 <div
                   key={label}
                   onClick={() => setActiveSection(label)}
-                  className="cursor-pointer rounded-[7px] px-2.5 py-[7px] text-[12.5px]"
+                  className="cursor-pointer border-l-2 px-3 py-2 text-[13.5px]"
                   style={{
                     color: active ? "var(--text-primary)" : "var(--text-secondary)",
                     background: active ? "var(--accent-dim)" : "transparent",
-                    borderLeft: `2px solid ${active ? "var(--accent)" : "transparent"}`,
+                    borderColor: active ? "var(--accent)" : "var(--border)",
                   }}
                 >
                   {label}
@@ -370,15 +259,29 @@ export default function ReportsView() {
               );
             })}
           </div>
-        </div>
+        </section>
 
-        <div className="rounded-[13px] border border-divider bg-bg-card p-[18px]">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-[13px] font-semibold text-ink-primary">Coverage Areas</div>
-            {coveragePct != null && (
-              <div className="data text-[11px] text-ink-muted">{coveragePct}% covered</div>
-            )}
+        {/* Findings by severity — compact inline breakdown (no chart). */}
+        <section>
+          <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">Findings by Severity</h2>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            {FINDING_SEVERITIES.map((sev) => (
+              <span key={sev} className="flex items-center gap-2 text-[13px]">
+                <span className="h-[10px] w-[10px] rounded-[3px]" style={{ background: SEV_COLOR[sev] }} />
+                <span className="text-ink-muted">{SEV_LABEL[sev]}</span>
+                <span className="data font-semibold text-ink-primary">{counts[sev]}</span>
+              </span>
+            ))}
+            <span className="text-[12px] text-ink-dim">· {openFindings} open</span>
           </div>
+        </section>
+
+        {/* Coverage. */}
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">
+            Coverage
+            {coveragePct != null && <span className="data normal-case text-ink-muted">· {coveragePct}%</span>}
+          </h2>
           {coverage == null ? (
             <div className="text-xs text-ink-dim">Coverage data unavailable.</div>
           ) : (
@@ -394,20 +297,43 @@ export default function ReportsView() {
                     background: a.covered ? "var(--accent-dim)" : "transparent",
                   }}
                 >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ background: a.covered ? "var(--accent)" : "var(--text-muted)" }}
-                  />
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: a.covered ? "var(--accent)" : "var(--text-muted)" }} />
                   {a.label}
                 </span>
               ))}
             </div>
           )}
-        </div>
+        </section>
+
+        {/* Tools used — compact ranked list. */}
+        <section>
+          <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">Tools Used</h2>
+          {toolsUsed.length === 0 ? (
+            <div className="text-xs text-ink-dim">No tool activity recorded yet.</div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {toolsUsed.map((t) => {
+                const findColor =
+                  t.findings >= 3 ? "var(--critical)" : t.findings >= 1 ? "var(--high)" : "var(--text-muted)";
+                return (
+                  <div key={t.name} className="flex items-center gap-3 text-[12.5px]">
+                    <span className="w-40 truncate font-medium text-ink-primary">{t.name}</span>
+                    <div className="h-[6px] flex-1 overflow-hidden rounded bg-bg-surface">
+                      <div className="h-full rounded" style={{ width: `${Math.round((t.findings / maxToolFindings) * 100)}%`, background: "var(--accent-dim)" }} />
+                    </div>
+                    <span className="data w-16 text-right font-semibold" style={{ color: findColor }}>
+                      {t.findings} {t.findings === 1 ? "find" : "finds"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
 
       {/* ── Export / snapshots (existing wiring) ───────────────────────────── */}
-      <div className="flex flex-col gap-2 border-t border-divider px-6 py-3">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 border-t border-divider px-6 py-3">
         <div className="text-xs uppercase tracking-wide text-ink-dim">Live report</div>
         <div className="flex gap-2">
           <button onClick={() => open(requestReportLink(eid, "md"))} className="rounded bg-bg-card px-2 py-1 text-xs ring-1 ring-divider hover:bg-bg-hover">Markdown ↗</button>
@@ -419,12 +345,12 @@ export default function ReportsView() {
         {err && <div className="text-xs text-danger">{err}</div>}
       </div>
 
-      <div className="px-6 py-2 text-xs uppercase tracking-wide text-ink-dim">Snapshots</div>
+      <div className="mx-auto w-full max-w-4xl px-6 py-2 text-xs uppercase tracking-wide text-ink-dim">Snapshots</div>
       {snaps.length === 0 ? (
-        <div className="px-6 pb-4 text-xs text-ink-dim">No snapshots yet.</div>
+        <div className="mx-auto w-full max-w-4xl px-6 pb-4 text-xs text-ink-dim">No snapshots yet.</div>
       ) : (
         snaps.map((s) => (
-          <div key={s.id} className="border-b border-divider px-6 py-2">
+          <div key={s.id} className="mx-auto w-full max-w-4xl border-b border-divider px-6 py-2">
             <div className="text-xs text-ink-muted">{new Date(s.ts).toLocaleString()}</div>
             <div className="mt-0.5 line-clamp-2 text-xs text-ink-dim">{s.rollup_preview}</div>
             <div className="mt-1 flex gap-2">

@@ -18,6 +18,14 @@ const P: Record<string, El[]> = {
   book: [["path", { d: "M4 5 a2 2 0 0 1 2-2 h13 v16 H6 a2 2 0 0 0-2 2 Z" }], ["line", { x1: 4, y1: 19, x2: 19, y2: 19 }]],
   gear: [["circle", { cx: 12, cy: 12, r: 3 }], ["path", { d: "M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 13H4a2 2 0 0 1 0-4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1A2 2 0 1 1 8.1 3.2l.1.1A1.7 1.7 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 19.4 11H20a2 2 0 0 1 0 4Z" }]],
   box: [["path", { d: "M3 7 L12 2 L21 7 V17 L12 22 L3 17 Z" }], ["line", { x1: 3, y1: 7, x2: 12, y2: 12 }], ["line", { x1: 21, y1: 7, x2: 12, y2: 12 }], ["line", { x1: 12, y1: 12, x2: 12, y2: 22 }]],
+  // Wrench/tool — the Workbench (tools + playbooks) rail item.
+  wrench: [["path", { d: "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" }]],
+  // Node-edge graph — the Asset Graph (distinct from `share`/`gear`).
+  nodes: [["line", { x1: 7.5, y1: 7, x2: 16.5, y2: 8 }], ["line", { x1: 6.8, y1: 8.2, x2: 10.2, y2: 15.8 }], ["line", { x1: 16.6, y1: 9.6, x2: 12.4, y2: 16 }], ["circle", { cx: 6, cy: 6, r: 2.5 }], ["circle", { cx: 18, cy: 8, r: 2.5 }], ["circle", { cx: 11, cy: 18, r: 2.5 }]],
+  // Flag — Findings (was reading as the filter icon).
+  flag: [["line", { x1: 5, y1: 21, x2: 5, y2: 3 }], ["path", { d: "M5 4 H17 L14 8 L17 12 H5" }]],
+  // Erlenmeyer flask — Labs (box read like a package).
+  flask: [["path", { d: "M9 3 h6" }], ["path", { d: "M10 3 v5.5 L4.8 18 a1.6 1.6 0 0 0 1.4 2.4 h11.6 a1.6 1.6 0 0 0 1.4-2.4 L14 8.5 V3" }], ["line", { x1: 7.2, y1: 14, x2: 16.8, y2: 14 }]],
   "chevron-down": [["polyline", { points: "6 9 12 15 18 9" }]],
 };
 
