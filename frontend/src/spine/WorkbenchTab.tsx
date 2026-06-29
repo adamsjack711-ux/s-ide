@@ -8,7 +8,7 @@
 // A confirmed run can be promoted into a finding, which is born tagged with the
 // engagement × sub-target pairing.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Sparkle, StatusDot } from "performative-ui";
+import { Button, EyebrowPill, Sparkle, StatusDot } from "performative-ui";
 import Icon from "../shell/Icon";
 import { isApiError } from "../api";
 import { failStamp, inkConfirm, radarSweep } from "../lib/dopamine";
@@ -95,7 +95,7 @@ export default function WorkbenchTab({
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {allSubs.length === 0 && (
-            <div className="p-4 text-[12px] text-ink-dim">
+            <div className="p-4 text-[12.5px] leading-relaxed text-ink-muted">
               No sub-targets. Declare some in Targets, then arm them.
             </div>
           )}
@@ -111,10 +111,10 @@ export default function WorkbenchTab({
               >
                 <div className="flex items-center gap-2">
                   <Icon name={s.armed ? "shield" : "box"} size={13} />
-                  <span className="truncate font-mono text-[12px] text-ink-primary">{s.address}</span>
+                  <span className="data truncate text-ink-primary">{s.address}</span>
                 </div>
-                <span className="text-[11px] text-ink-dim">
-                  {s.targetName} · {s.armed ? <span className="text-accent">armed</span> : "un-armed"}
+                <span className="text-[11.5px] text-ink-muted">
+                  {s.targetName} · {s.armed ? <span className="font-medium text-accent">armed</span> : <span className="italic text-ink-dim">un-armed</span>}
                 </span>
               </button>
             );
@@ -129,24 +129,24 @@ export default function WorkbenchTab({
         ) : (
           <>
             <div className="shrink-0 border-b border-divider p-4">
-              <div className="flex items-center gap-2">
-                <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[10px] text-ink-muted ring-1 ring-divider">
+              <div className="flex items-center gap-2.5">
+                <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-muted ring-1 ring-divider">
                   {sel.type}
                 </span>
-                <span className="font-mono text-[13px] text-ink-primary">{sel.address}</span>
+                <span className="data text-[13px] text-ink-primary">{sel.address}</span>
                 {sel.armed ? (
-                  <span className="flex items-center gap-1.5 text-[11px] text-accent">
+                  <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-accent">
                     <StatusDot color="var(--accent)" /> armed by {sel.arming?.engagement_name ?? "engagement"}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-high">un-armed — running will be refused</span>
+                  <span className="text-[11.5px] font-medium text-high">un-armed — running will be refused</span>
                 )}
               </div>
               <div className="mt-3 flex items-center gap-2">
                 <input
                   value={tool}
                   onChange={(e) => setTool(e.target.value)}
-                  className="w-40 rounded-md border border-divider bg-bg-base px-2 py-1.5 text-[12px] text-ink-primary outline-none focus:border-accent/50"
+                  className="data w-40 rounded-md border border-divider bg-bg-base px-2.5 py-1.5 text-ink-primary outline-none focus:border-accent/50"
                 />
                 <Button ref={runBtn} variant="solid" size="sm" onClick={onRun} disabled={running}>
                   <Icon name="terminal" size={13} /> {running ? "Running…" : "Run"}
@@ -155,9 +155,9 @@ export default function WorkbenchTab({
             </div>
 
             {/* Console */}
-            <div className="min-h-0 flex-1 overflow-auto bg-bg-base p-4 font-mono text-[12px] leading-relaxed">
+            <div className="data min-h-0 flex-1 overflow-auto bg-bg-base p-4 leading-relaxed">
               {lines.length === 0 ? (
-                <div className="text-ink-dim">No output yet — run the pairing.</div>
+                <div className="font-sans text-[12.5px] italic text-ink-dim">No output yet — run the pairing.</div>
               ) : (
                 lines.map((l, i) => (
                   <div
@@ -230,8 +230,9 @@ function PromoteFinding({
 
   return (
     <div className="shrink-0 border-t border-divider bg-bg-surface p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-ink-dim">
-        <Icon name="flag" size={13} /> Promote to finding
+      <div className="mb-2 flex items-center gap-1.5">
+        <Icon name="flag" size={13} />
+        <EyebrowPill className="mhp-eyebrow">Promote to finding</EyebrowPill>
       </div>
       <div className="flex items-center gap-2">
         <input

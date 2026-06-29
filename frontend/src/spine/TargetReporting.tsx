@@ -5,7 +5,7 @@
 // reports are engagement-scoped; this is the Target-level view the IA now nests
 // inside each Target.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { GlassCard, GradientText, Sparkle, StatCounter } from "performative-ui";
+import { EyebrowPill, GlassCard, GradientText, Sparkle, StatCounter } from "performative-ui";
 import { useBus } from "../shell/bus";
 import { SEV_PILL, SEV_LABEL } from "../engagement/findings/style";
 import type { Engagement, FindingSeverity } from "../lib/engagement";
@@ -69,8 +69,8 @@ export default function TargetReporting({
           <GradientText>Report — {target.name}</GradientText>
           <Sparkle />
         </h3>
-        <p className="text-[12px] text-ink-dim">
-          Union of findings across this target's sub-targets ({findings.length} total).
+        <p className="text-[12.5px] leading-relaxed text-ink-muted">
+          Union of findings across this target's sub-targets (<span className="data">{findings.length}</span> total).
         </p>
       </div>
 
@@ -79,16 +79,16 @@ export default function TargetReporting({
         {SEV_ORDER.map((s) => (
           <GlassCard
             key={s}
-            className={`flex items-center gap-2 px-3 py-2 ${(bySev[s] ?? 0) === 0 ? "opacity-50" : ""}`}
+            className={`flex items-center gap-2.5 px-3 py-2 ${(bySev[s] ?? 0) === 0 ? "opacity-50" : ""}`}
           >
-            <span className={`rounded px-1.5 py-0.5 text-[10px] ${SEV_PILL[s]}`}>{SEV_LABEL[s]}</span>
-            <StatCounter className="font-mono text-[16px] text-ink-primary" target={bySev[s] ?? 0} />
+            <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${SEV_PILL[s]}`}>{SEV_LABEL[s]}</span>
+            <StatCounter className="data text-[18px] font-bold leading-none text-ink-primary" target={bySev[s] ?? 0} />
           </GlassCard>
         ))}
       </div>
 
       {findings.length === 0 ? (
-        <div className="text-[12px] text-ink-dim">
+        <div className="text-[12.5px] leading-relaxed text-ink-muted">
           No findings yet. Run an armed pairing in this target's Workbench and promote it.
         </div>
       ) : (
@@ -111,21 +111,21 @@ export default function TargetReporting({
       {/* Finding list */}
       {findings.length > 0 && (
         <div className="mt-6">
-          <div className="mb-2 text-[11px] uppercase tracking-wide text-ink-dim">Findings</div>
+          <div className="mb-2.5"><EyebrowPill className="mhp-eyebrow">Findings</EyebrowPill></div>
           <div className="space-y-1.5">
             {findings.map((f) => (
-              <div
+              <GlassCard
                 key={f.id}
-                className="flex flex-wrap items-center gap-3 rounded-lg border border-divider bg-bg-surface px-3 py-2"
+                className="flex flex-wrap items-center gap-3 px-3 py-2"
               >
-                <span className={`rounded px-1.5 py-0.5 text-[10px] ${SEV_PILL[f.severity as FindingSeverity]}`}>
+                <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${SEV_PILL[f.severity as FindingSeverity]}`}>
                   {SEV_LABEL[f.severity as FindingSeverity]}
                 </span>
-                <span className="text-[13px] text-ink-primary">{f.title}</span>
+                <span className="text-[13px] font-medium text-ink-primary">{f.title}</span>
                 <div className="flex-1" />
-                <span className="font-mono text-[11px] text-ink-dim">{subAddr(f.sub_target_id)}</span>
-                <span className="text-[11px] text-accent">{engName(f.engagement_id)}</span>
-              </div>
+                <span className="data text-ink-muted">{subAddr(f.sub_target_id)}</span>
+                <span className="text-[11.5px] font-medium text-accent">{engName(f.engagement_id)}</span>
+              </GlassCard>
             ))}
           </div>
         </div>
@@ -136,10 +136,10 @@ export default function TargetReporting({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-divider bg-bg-surface p-3">
-      <div className="mb-2 text-[11px] uppercase tracking-wide text-ink-dim">{title}</div>
-      <div className="space-y-1.5">{children}</div>
-    </div>
+    <GlassCard className="p-3">
+      <div className="mb-2.5"><EyebrowPill className="mhp-eyebrow">{title}</EyebrowPill></div>
+      <div className="space-y-2">{children}</div>
+    </GlassCard>
   );
 }
 
@@ -147,9 +147,9 @@ function Bar({ label, n, total, mono }: { label: string; n: number; total: numbe
   const pct = total > 0 ? Math.round((n / total) * 100) : 0;
   return (
     <div>
-      <div className="flex items-center justify-between text-[11px]">
-        <span className={`${mono ? "font-mono" : ""} truncate text-ink-primary`}>{label}</span>
-        <span className="text-ink-dim">{n}</span>
+      <div className="flex items-center justify-between text-[11.5px]">
+        <span className={`${mono ? "data" : ""} truncate text-ink-primary`}>{label}</span>
+        <span className="data text-ink-muted">{n}</span>
       </div>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-bg-hover">
         <div className="h-full rounded bg-accent" style={{ width: `${pct}%` }} />

@@ -4,7 +4,7 @@
 // drills into this workspace, where its Engagements, Workbench, Findings and
 // Reporting are all scoped to that one Target.
 import { useState } from "react";
-import { Button, EyebrowPill, GradientText } from "performative-ui";
+import { Button, GradientText } from "performative-ui";
 import Icon from "../shell/Icon";
 import type { Engagement } from "../lib/engagement";
 import type { Target } from "../lib/spine";
@@ -21,6 +21,12 @@ const TABS: { id: Inner; icon: string; label: string }[] = [
   { id: "findings", icon: "flag", label: "Findings" },
   { id: "reporting", icon: "chart", label: "Reporting" },
 ];
+
+const PROV_PILL: Record<string, string> = {
+  lab: "bg-accent/[0.13] text-accent ring-1 ring-accent/30",
+  owned: "bg-low/[0.13] text-low ring-1 ring-low/30",
+  external: "bg-high/[0.13] text-high ring-1 ring-high/30",
+};
 
 export default function TargetWorkspace({
   target,
@@ -46,13 +52,13 @@ export default function TargetWorkspace({
           ← Targets
         </Button>
         <Icon name="box" size={16} />
-        <h2 className="text-[16px] font-bold tracking-tight">
+        <h2 className="text-[17px] font-bold tracking-tight leading-none">
           <GradientText>{target.name}</GradientText>
         </h2>
-        <EyebrowPill icon={false} className="text-[10px]">
+        <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${PROV_PILL[target.provenance] ?? ""}`}>
           {target.provenance}
-        </EyebrowPill>
-        <span className="text-[11px] text-ink-dim">{subCount} sub-target{subCount === 1 ? "" : "s"}</span>
+        </span>
+        <span className="text-[11.5px] text-ink-muted"><span className="data">{subCount}</span> sub-target{subCount === 1 ? "" : "s"}</span>
       </div>
 
       {/* Inner tabs */}
@@ -63,8 +69,8 @@ export default function TargetWorkspace({
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-[12px] transition-colors ${
-                active ? "border-accent text-ink-primary" : "border-transparent text-ink-dim hover:text-ink-primary"
+              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-[12.5px] font-medium transition-colors ${
+                active ? "border-accent text-ink-primary" : "border-transparent text-ink-muted hover:text-ink-primary"
               }`}
             >
               <Icon name={t.icon} size={15} />

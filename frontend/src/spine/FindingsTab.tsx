@@ -113,23 +113,23 @@ export default function FindingsTab({
           Roll up by Target
         </label>
         <div className="flex-1" />
-        <span className="text-[11px] text-ink-dim">{filtered.length} finding{filtered.length === 1 ? "" : "s"}</span>
+        <span className="text-[11.5px] text-ink-muted"><span className="data">{filtered.length}</span> finding{filtered.length === 1 ? "" : "s"}</span>
       </div>
 
       {/* List */}
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {filtered.length === 0 ? (
-          <div className="text-[12px] text-ink-dim">
-            No findings. Promote a Workbench run against an armed pairing into a finding.
+          <div className="text-[12.5px] leading-relaxed text-ink-muted">
+            No findings yet. Promote a Workbench run against an armed pairing into a finding.
           </div>
         ) : rollup ? (
           <div className="space-y-5">
             {grouped.map(([tid, fs]) => (
               <div key={tid}>
-                <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-ink-primary">
+                <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold tracking-tight text-ink-primary">
                   {targetName(tid)}
-                  <span className="text-[11px] font-normal text-ink-dim">
-                    {fs.length} finding{fs.length === 1 ? "" : "s"} across sub-targets
+                  <span className="text-[11.5px] font-normal text-ink-muted">
+                    <span className="data">{fs.length}</span> finding{fs.length === 1 ? "" : "s"} across sub-targets
                   </span>
                 </div>
                 <div className="space-y-1.5">
@@ -167,19 +167,19 @@ function Row({
 }) {
   return (
     <GlassCard className="flex flex-wrap items-center gap-3 px-3 py-2.5" glowOnHover>
-      <span className={`rounded px-1.5 py-0.5 text-[10px] ${SEV_PILL[f.severity as FindingSeverity]}`}>
+      <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${SEV_PILL[f.severity as FindingSeverity]}`}>
         {SEV_LABEL[f.severity as FindingSeverity]}
       </span>
-      <span className="text-[13px] text-ink-primary">{f.title}</span>
+      <span className="text-[13px] font-medium text-ink-primary">{f.title}</span>
       <div className="flex-1" />
-      <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-dim">
+      <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-ink-muted">
         {showTarget && targetName && (
           <span className="rounded bg-bg-hover px-1.5 py-0.5 ring-1 ring-divider">
             {targetName(f.target_id)}
           </span>
         )}
-        <span className="font-mono">{subAddr(f.sub_target_id)}</span>
-        <span className="text-accent">{engName(f.engagement_id)}</span>
+        <span className="data">{subAddr(f.sub_target_id)}</span>
+        <span className="font-medium text-accent">{engName(f.engagement_id)}</span>
       </div>
     </GlassCard>
   );

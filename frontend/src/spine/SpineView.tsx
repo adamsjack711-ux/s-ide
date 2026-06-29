@@ -64,14 +64,12 @@ export default function SpineView() {
       {/* Header — Targets is the top of the spine. */}
       {!openTarget && (
         <div className="flex shrink-0 items-center gap-3 border-b border-divider bg-bg-sidebar px-4 py-3">
-          <EyebrowPill icon={false} className="text-[10px]">
-            ENGAGEMENT SPINE
-          </EyebrowPill>
-          <h1 className="flex items-center gap-2 text-[19px] font-bold tracking-tight">
+          <EyebrowPill className="mhp-eyebrow">Engagement Spine</EyebrowPill>
+          <h1 className="flex items-center gap-2 text-[20px] font-bold tracking-tight leading-none">
             <GradientText>Targets</GradientText>
             <Sparkle />
           </h1>
-          <span className="hidden text-[11px] text-ink-dim md:inline">
+          <span className="hidden text-[12px] text-ink-muted md:inline">
             declare a system, then open it for its engagements, workbench, findings &amp; reporting
           </span>
           <div className="flex-1" />
