@@ -3,6 +3,8 @@ type El = [string, Record<string, unknown>];
 
 const P: Record<string, El[]> = {
   grid: [["rect", { x: 3, y: 3, width: 7, height: 7, rx: 1.5 }], ["rect", { x: 14, y: 3, width: 7, height: 7, rx: 1.5 }], ["rect", { x: 14, y: 14, width: 7, height: 7, rx: 1.5 }], ["rect", { x: 3, y: 14, width: 7, height: 7, rx: 1.5 }]],
+  // List rows — the grid/list view-mode toggle.
+  list: [["line", { x1: 8, y1: 6, x2: 21, y2: 6 }], ["line", { x1: 8, y1: 12, x2: 21, y2: 12 }], ["line", { x1: 8, y1: 18, x2: 21, y2: 18 }], ["line", { x1: 3, y1: 6, x2: 3.01, y2: 6 }], ["line", { x1: 3, y1: 12, x2: 3.01, y2: 12 }], ["line", { x1: 3, y1: 18, x2: 3.01, y2: 18 }]],
   code: [["polyline", { points: "16 18 22 12 16 6" }], ["polyline", { points: "8 6 2 12 8 18" }]],
   filter: [["polygon", { points: "21 4 3 4 10 12.4 10 19 14 21 14 12.4 21 4" }]],
   search: [["circle", { cx: 11, cy: 11, r: 7 }], ["line", { x1: 21, y1: 21, x2: 16.65, y2: 16.65 }]],
