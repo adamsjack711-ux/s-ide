@@ -49,6 +49,8 @@ TIER1: frozenset[str] = frozenset(
         "method", "isolation", "labfs", "playbook_run",
         # Safety layer — provenance + authorization attestations + audit.
         "safety",
+        # Theme distribution — fetch/validate/cache .side themes (Tier 1).
+        "themes",
     }
 )
 

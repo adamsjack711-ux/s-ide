@@ -44,7 +44,7 @@ from routers import (
     persistence, ping, playbook_suggest, port_scanner, presets, processes,
     profile_finder, reports, reverse_ip, reverse_shell, s3_scanner, safety, scope, settings,
     shodan_censys, smb_enum, sqli, ssrf, stego, subdomain_enum, suggest_checks, summarize,
-    system_info, takeover, targets, tcpdump, terminal, tls_audit,
+    system_info, takeover, targets, tcpdump, terminal, themes, tls_audit,
     tool_requirements, triage, urlscan, wayback, whois, wifi, wifi_scan,
     windows_posture,
     wpa_capture, xss, systemd_units, firewall_rules, users_audit,
@@ -244,6 +244,7 @@ _inc("tool_requirements", tool_requirements.router, _PRIVILEGED)
 _inc("method", method.router, _PRIVILEGED)
 _inc("codescan", codescan.router, _PRIVILEGED)
 _inc("safety", safety.router, _PRIVILEGED)
+_inc("themes", themes.router, _PRIVILEGED)
 _inc("isolation", isolation.router, _PRIVILEGED)
 _inc("labfs", labfs.router, _PRIVILEGED)
 _inc("playbook_run", playbook_run.router, _PRIVILEGED)
