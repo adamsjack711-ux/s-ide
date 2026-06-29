@@ -42,7 +42,7 @@ DISCLAIMER = (
 )
 
 METHODOLOGY = (
-    "Findings were captured via the HackingPal evidence layer: every "
+    "Findings were captured via the s-ide evidence layer: every "
     "result row from a tool was promoted into a tracked finding on the "
     "active engagement and scored against CVSS v3.1 where applicable. "
     "Each finding carries an evidence timeline of one or more discrete "

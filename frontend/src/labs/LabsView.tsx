@@ -19,11 +19,12 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, EyebrowPill, GlassCard, StatusDot } from "performative-ui";
-import { authFetch } from "../api";
-import { emit } from "../shell/bus";
+import { authFetch, openWs } from "../api";
 import ViewModeToggle from "../shell/ViewModeToggle";
 import { useViewMode } from "../lib/viewMode";
-import { openLabTab } from "../lib/labTabs";
+import { armAndAim, openLabTab } from "../lib/labTabs";
+import { notify } from "../shell/toast";
+import { registerCommand } from "../shell/commands";
 import {
   createEngagement,
   getActiveEngagementId,
@@ -90,6 +91,8 @@ type LabStatus = {
   container: { state: ContainerState; status?: string };
   build_status?: "idle" | "building" | "built" | "error";
   build_error?: string | null;
+  /** Rolling tail of build (and compose-pull) log lines from get_status. */
+  build_log_tail?: string[];
 };
 
 type ApiError = { error?: string; code?: string; detail?: string };
@@ -133,6 +136,27 @@ function errString(e: unknown): string {
 
 function isLive(state: ContainerState | undefined): boolean {
   return state === "running" || state === "partial" || state === "starting";
+}
+
+/** Fire a lab lifecycle action (build/start/stop) from a ⌘K command, with
+ * toast feedback. Returns nothing — the grid's status poll reflects the result. */
+async function runLabLifecycle(
+  labId: string,
+  labName: string,
+  action: "build" | "start" | "stop",
+): Promise<void> {
+  const verb = action === "build" ? "Building" : action === "start" ? "Starting" : "Stopping";
+  notify({ kind: "info", message: `${verb} ${labName}…`, duration: 2500 });
+  try {
+    const res = await authFetch(`/labs/${labId}/${action}`, { method: "POST" });
+    if (!res.ok) {
+      notify({ kind: "error", message: `${labName}: ${await readError(res)}` });
+      return;
+    }
+    if (action === "stop") notify({ kind: "success", message: `${labName} stopped.` });
+  } catch (e) {
+    notify({ kind: "error", message: `${labName}: ${errString(e)}` });
+  }
 }
 
 function dotColor(status: LabStatus | undefined): string {
@@ -254,6 +278,61 @@ export default function LabsView() {
   }, [labs, refreshStatus]);
 
   const runtimeOk = runtime?.state === "ok";
+
+  // ── ⌘K lab-lifecycle commands ──────────────────────────────────────────────
+  // Register Build / Start / Stop / Arm & aim for every lab in the grid so the
+  // palette can drive a lab without touching the page. Re-registers when the
+  // grid changes; auto-unregisters on unmount.
+  useEffect(() => {
+    const grid = labs.filter((l) => l.enabled !== false);
+    const offs: Array<() => void> = [];
+    for (const lab of grid) {
+      const address =
+        lab.primary_url.replace(/^https?:\/\//, "") ||
+        Object.values(lab.port_map).map((p) => `127.0.0.1:${p}`)[0] ||
+        "";
+      const armInfo = {
+        id: lab.id,
+        name: lab.name,
+        primaryUrl: lab.primary_url,
+        address,
+      };
+      // Default aim tool: first known suggested step, else fingerprint.
+      const aimTool =
+        lab.suggested_steps.map((s) => ROUTE_TO_TOOL[s.route]).find(Boolean) ?? "fingerprint";
+      offs.push(
+        registerCommand({
+          id: `lab-build:${lab.id}`,
+          title: `Labs: Build ${lab.name}`,
+          context: "Labs",
+          keywords: ["lab", "build", "docker", lab.category],
+          run: () => void runLabLifecycle(lab.id, lab.name, "build"),
+        }),
+        registerCommand({
+          id: `lab-start:${lab.id}`,
+          title: `Labs: Start ${lab.name}`,
+          context: "Labs",
+          keywords: ["lab", "start", "run", lab.category],
+          run: () => void runLabLifecycle(lab.id, lab.name, "start"),
+        }),
+        registerCommand({
+          id: `lab-stop:${lab.id}`,
+          title: `Labs: Stop ${lab.name}`,
+          context: "Labs",
+          keywords: ["lab", "stop", lab.category],
+          run: () => void runLabLifecycle(lab.id, lab.name, "stop"),
+        }),
+        registerCommand({
+          id: `lab-arm:${lab.id}`,
+          title: `Labs: Arm & aim a tool at ${lab.name}`,
+          context: "Labs",
+          keywords: ["lab", "arm", "aim", "target", aimTool],
+          run: () => armAndAim(armInfo, aimTool),
+        }),
+      );
+    }
+    return () => offs.forEach((off) => off());
+  }, [labs]);
 
   // Split the catalog into the working grid (enabled) and the "+ Add lab"
   // drawer (everything else). `enabled` is undefined on older payloads — treat
@@ -471,6 +550,15 @@ function CleanupAllButton({ onDone, disabled }: { onDone: () => void; disabled?:
 
 // ── Runtime banner ───────────────────────────────────────────────────────────
 
+// Install-WS frame shapes (mirror /ws/labs/runtime/install in labs.py:499).
+type InstallFrame =
+  | { type: "started"; steps: string[]; brew_path?: string }
+  | { type: "log"; stream: "stdout" | "stderr"; line: string }
+  | { type: "error"; code: string; message: string; install_command?: string; url?: string }
+  | { type: "done"; state: string; ok: boolean; stopped: boolean };
+
+type InstallPhase = "idle" | "running" | "done";
+
 function RuntimeBanner({
   runtime,
   onRecheck,
@@ -478,6 +566,94 @@ function RuntimeBanner({
   runtime: RuntimeStatus | null;
   onRecheck: () => void;
 }) {
+  // ── One-click installer state ──────────────────────────────────────────────
+  const [phase, setPhase] = useState<InstallPhase>("idle");
+  const [lines, setLines] = useState<string[]>([]);
+  const [steps, setSteps] = useState<string[]>([]);
+  const [brewMissing, setBrewMissing] = useState<{ message: string; command: string } | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(
+    () => () => {
+      try { wsRef.current?.close(); } catch { /* ignore */ }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (lines.length) logEndRef.current?.scrollIntoView({ block: "end" });
+  }, [lines]);
+
+  const appendLine = useCallback((line: string) => {
+    setLines((prev) => [...prev.slice(-400), line]);
+  }, []);
+
+  const startInstall = useCallback(() => {
+    if (phase === "running") return;
+    setPhase("running");
+    setLines([]);
+    setSteps([]);
+    setBrewMissing(null);
+    let ws: WebSocket;
+    try {
+      ws = openWs("/ws/labs/runtime/install");
+    } catch (e) {
+      appendLine(`Couldn't open installer connection — ${errString(e)}`);
+      setPhase("done");
+      return;
+    }
+    wsRef.current = ws;
+    ws.onmessage = (ev) => {
+      let frame: InstallFrame;
+      try {
+        frame = JSON.parse(ev.data as string) as InstallFrame;
+      } catch {
+        return;
+      }
+      switch (frame.type) {
+        case "started":
+          setSteps(frame.steps);
+          appendLine(`Starting: ${frame.steps.join(" · ")}`);
+          break;
+        case "log":
+          appendLine(frame.line);
+          break;
+        case "error":
+          if (frame.code === "BREW_MISSING" && frame.install_command) {
+            setBrewMissing({ message: frame.message, command: frame.install_command });
+          }
+          appendLine(frame.message);
+          break;
+        case "done":
+          appendLine(
+            frame.stopped
+              ? "Cancelled."
+              : frame.ok
+                ? "Runtime is up — labs can build and start now."
+                : `Finished without a healthy runtime (state: ${frame.state}).`,
+          );
+          setPhase("done");
+          if (frame.ok) notify({ kind: "success", message: "Container runtime is ready." });
+          else if (!frame.stopped)
+            notify({ kind: "error", message: "Runtime install didn't complete — see the log." });
+          onRecheck();
+          break;
+      }
+    };
+    ws.onerror = () => {
+      appendLine("Installer connection error.");
+    };
+    ws.onclose = () => {
+      setPhase((p) => (p === "running" ? "done" : p));
+      wsRef.current = null;
+    };
+  }, [phase, appendLine, onRecheck]);
+
+  const stopInstall = useCallback(() => {
+    try { wsRef.current?.send(JSON.stringify({ action: "stop" })); } catch { /* ignore */ }
+  }, []);
+
   if (runtime?.state === "ok") {
     return (
       <div className="flex items-center gap-2.5 rounded border border-accent/40 bg-accent/10 px-3 py-2 text-[12px]">
@@ -497,6 +673,7 @@ function RuntimeBanner({
     "Labs can't build or start until the container runtime is up.";
   const command =
     runtime?.command ?? (runtime?.state ? "colima start" : null);
+  const installing = phase === "running";
 
   return (
     <div className="rounded border border-amber/40 bg-amber/10 px-3 py-2.5 text-[12px]">
@@ -504,15 +681,53 @@ function RuntimeBanner({
         <StatusDot color="var(--amber, #ffc043)" static={false} />
         <span className="font-semibold text-amber">{headline}</span>
         <div className="flex-1" />
-        <Button variant="ghost" size="sm" onClick={onRecheck}>
+        {installing ? (
+          <Button variant="ghost" size="sm" onClick={stopInstall}>
+            Cancel
+          </Button>
+        ) : (
+          <Button variant="glow" size="sm" onClick={startInstall}>
+            Install &amp; start runtime
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" disabled={installing} onClick={onRecheck}>
           Re-check
         </Button>
       </div>
       <p className="mt-1.5 pl-[18px] text-ink-muted">{hint}</p>
-      {command && (
+
+      {/* Live installer log. */}
+      {(installing || lines.length > 0) && (
+        <div className="mt-2 pl-[18px]">
+          <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-widest text-ink-dim">
+            <span>Installer</span>
+            {installing && <StatusDot color="var(--amber, #ffc043)" static={false} />}
+            {steps.length > 0 && <span className="font-mono normal-case text-ink-dim">{steps.join(" → ")}</span>}
+          </div>
+          <pre className="max-h-44 overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-primary">
+            {lines.length ? lines.join("\n") : "Connecting…"}
+            <div ref={logEndRef} />
+          </pre>
+        </div>
+      )}
+
+      {/* Homebrew bootstrap fallback — the installer refuses to install brew itself. */}
+      {brewMissing && (
         <div className="mt-2 pl-[18px]">
           <div className="mb-1 text-[10px] uppercase tracking-widest text-ink-dim">
-            Run this in a terminal
+            Homebrew required — run this first, then click Install again
+          </div>
+          <pre className="select-all overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[12px] text-ink-primary">
+            {brewMissing.command}
+          </pre>
+        </div>
+      )}
+
+      {/* Copy-paste fallback (kept) — for operators who'd rather use a terminal. */}
+      {command && !brewMissing && (
+        <div className="mt-2 pl-[18px]">
+          <div className="mb-1 text-[10px] uppercase tracking-widest text-ink-dim">
+            Or run this in a terminal
           </div>
           <pre className="select-all overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[12px] text-ink-primary">
             {command}
@@ -649,6 +864,11 @@ function LabCard({
       if (!engagementId) {
         const fresh = await createEngagement({
           name: `Lab: ${lab.name}`,
+          // Labs are sandbox targets — provenance lab so the safety mode runs
+          // in full (no attestation gate). The lab attach flow registers the
+          // lab's targets, so we leave type generic and don't re-validate the
+          // lab URL through the web-app path.
+          provenance: "lab",
           scope: lab.primary_url ? [lab.primary_url] : [],
           exclusions: [],
           notes: "Auto-created when attaching a lab.",
@@ -666,11 +886,26 @@ function LabCard({
         setActionError(await readError(res));
         return;
       }
-      flash(
-        created
-          ? `Created engagement “Lab: ${lab.name}” and attached.`
-          : "Attached to the active engagement.",
-      );
+      const body = (await res.json()) as {
+        targets_added?: number;
+        scope_entries_added?: number;
+        scope_entry?: string;
+      };
+      // Surface WHAT changed — counts from the attach response — via a toast.
+      const added = body.targets_added ?? 0;
+      const scoped = body.scope_entries_added ?? 0;
+      const changed =
+        added || scoped
+          ? `${added} target${added === 1 ? "" : "s"}, ${scoped} scope ${
+              scoped === 1 ? "entry" : "entries"
+            } added`
+          : "already in scope — nothing new added";
+      notify({
+        kind: "success",
+        message: created
+          ? `Created engagement “Lab: ${lab.name}” and attached — ${changed}.`
+          : `Attached to the active engagement — ${changed}.`,
+      });
     } catch (e) {
       setActionError(errString(e));
     } finally {
@@ -682,11 +917,28 @@ function LabCard({
     if (lab.primary_url) window.open(lab.primary_url, "_blank", "noopener");
   }
 
-  // Map a suggested step's route → tool id and hand it to the shell.
+  // The bare host:port (or first published port) used when there's no URL —
+  // mirrors what openLabTab/LabTabView use so every arm path agrees.
+  const labAddress =
+    lab.primary_url.replace(/^https?:\/\//, "") ||
+    Object.values(lab.port_map).map((p) => `127.0.0.1:${p}`)[0] ||
+    "";
+
+  // Unified "Arm & aim": attach the target + write a consistent intent +
+  // open the tool. Identical path to the LabTabView "aim" buttons so the
+  // ToolPanel lane always reads the same intent + active-target snapshot.
+  function armAim(toolId: string) {
+    armAndAim(
+      { id: lab.id, name: lab.name, primaryUrl: lab.primary_url, address: labAddress },
+      toolId,
+    );
+  }
+
+  // Map a suggested step's route → tool id and arm+aim it.
   function runStep(step: SuggestedStep) {
     const toolId = ROUTE_TO_TOOL[step.route];
     if (!toolId) return; // unknown route — chip is rendered disabled, but guard anyway
-    emit("openTool", { toolId });
+    armAim(toolId);
   }
 
   const steps = lab.suggested_steps.filter((s) => ROUTE_TO_TOOL[s.route]);
@@ -901,6 +1153,15 @@ function LabCard({
         />
       )}
 
+      {/* Live build / start progress — friction #8: a multi-GB pull was a
+          frozen spinner with no log. Show the rolling build_log_tail while
+          building, and a progress strip while a (blocking) start is in flight. */}
+      <BuildProgress
+        building={building}
+        starting={pending === "start"}
+        logTail={status?.build_log_tail}
+      />
+
       {/* Suggested steps */}
       {steps.length > 0 && (
         <div className="border-t border-divider pt-3">
@@ -932,6 +1193,49 @@ function LabCard({
         </div>
       )}
     </GlassCard>
+  );
+}
+
+// ── Build / start progress ───────────────────────────────────────────────────
+// Renders the live build log tail (polled from get_status) while a lab is
+// building, and an indeterminate progress strip while a blocking start is in
+// flight — so a cold multi-GB pull never looks frozen.
+
+function BuildProgress({
+  building,
+  starting,
+  logTail,
+}: {
+  building: boolean;
+  starting: boolean;
+  logTail?: string[];
+}) {
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const tail = logTail ?? [];
+  useEffect(() => {
+    if (building && tail.length) endRef.current?.scrollIntoView({ block: "end" });
+  }, [building, tail.length]);
+
+  if (!building && !starting) return null;
+
+  return (
+    <div className="rounded border border-amber/40 bg-amber/10 px-3 py-2">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-amber">
+        <StatusDot color="var(--amber, #ffc043)" static={false} />
+        {building ? "Building image…" : "Starting — pulling images may take several minutes"}
+      </div>
+      {building && tail.length > 0 && (
+        <pre className="mt-2 max-h-40 overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-primary">
+          {tail.join("\n")}
+          <div ref={endRef} />
+        </pre>
+      )}
+      {!building && starting && (
+        <p className="mt-1.5 text-[11px] text-ink-muted">
+          The runtime is fetching and launching containers. This stays responsive — leave it running.
+        </p>
+      )}
+    </div>
   );
 }
 

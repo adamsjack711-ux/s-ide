@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "kind": "theme",
+  "name": "Terminal Green",
+  "author": "builtin",
+  "theme": {
+    "--bg-base": "#001100",
+    "--bg-surface": "#021a02",
+    "--bg-elevated": "#032203",
+    "--bg-hover": "#053005",
+    "--bg-active": "#073d07",
+    "--text-primary": "#b6ffb6",
+    "--text-secondary": "#79d479",
+    "--text-muted": "#4f9a4f",
+    "--border": "#0a3d0a",
+    "--border-bright": "#126612",
+    "--accent": "#39ff14",
+    "--critical": "#ff5555",
+    "--high": "#ffae42",
+    "--medium": "#ffe84a",
+    "--low": "#57c7ff",
+    "--success": "#39ff14",
+    "--font-sans": "Inter",
+    "--font-mono": "JetBrains Mono"
+  }
+}

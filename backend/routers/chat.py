@@ -1,4 +1,4 @@
-"""Claude-powered chat that explains HackingPal tool output to the user.
+"""Claude-powered chat that explains s-ide tool output to the user.
 
 Streams responses via SSE. The system prompt (large, stable) is prompt-cached;
 per-turn user messages carry a snapshot of recent tool results from the
@@ -111,7 +111,7 @@ def resolve_system_prompt() -> str:
     if loaded is not None:
         return loaded
     # Last-ditch fallback so the chat never crashes if the file goes missing.
-    return "You are the in-app assistant for HackingPal."
+    return "You are the in-app assistant for s-ide."
 
 
 # Provider selection.

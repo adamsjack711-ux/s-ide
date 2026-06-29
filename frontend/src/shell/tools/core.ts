@@ -1,6 +1,6 @@
 /**
- * Core tools — the originally-wired Tier-1 set, now grouped to match the
- * HackingPal nav (Discovery / Recon). New tools live in sibling group files.
+ * Core tools — the originally-wired Tier-1 set, grouped by domain
+ * (Discovery / Recon). New tools live in sibling group files.
  */
 import { fetchWhois, fetchIpReport, fetchTlsAudit } from "../../api";
 import { fmt, type HttpDescriptor, type ResultRow, type WsDescriptor } from "./types";

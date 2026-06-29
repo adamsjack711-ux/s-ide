@@ -1,6 +1,6 @@
 // SettingsView — the s-ide settings surface.
 //
-// Ported from HackingPal's Settings page, leaning hard on performative-ui:
+// Leans hard on performative-ui:
 //   GlassCard for every section, GradientText + EyebrowPill for headers,
 //   Button for actions, StatusDot for live status, Sparkle for accents.
 //
@@ -16,7 +16,7 @@
 // updateChatSettings / fetchApiKeyStatus / setApiKey / deleteApiKey). Theme,
 // dopamine, and capability state all come from their lib modules.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Button,
@@ -28,8 +28,10 @@ import {
   WibblingSpinner,
 } from "performative-ui";
 
-import { useTheme, type ThemeChoice } from "../lib/theme";
+import { useTheme, clearSideTheme, type ThemeChoice } from "../lib/theme";
 import { ACCENTS, useAccent } from "../lib/accent";
+import { useScale, SCALE_MIN, SCALE_MAX } from "../lib/density";
+import ThemeMarket from "./ThemeMarket";
 import {
   fetchChatConfig,
   fetchChatSettings,
@@ -58,6 +60,27 @@ import {
   type EffectName,
 } from "../lib/dopamine";
 import CapabilitiesPanel from "../shell/CapabilitiesPanel";
+import { registerCommand } from "../shell/commands";
+import { emit } from "../shell/bus";
+
+// ── ⌘K: "Browse themes" — open Settings, then reveal the Themes section.
+// Registered at module scope so it's available globally (SettingsView is
+// statically imported by the shell, so this runs at app boot). Foundation owns
+// the keymap; this is binding-less (palette-only).
+registerCommand({
+  id: "browse-themes",
+  title: "Browse themes",
+  context: "Appearance",
+  keywords: ["theme", "themes", "appearance", "side", "custom", "palette", "color"],
+  run: () => {
+    emit("openView", { view: "settings" });
+    // Let the view mount before asking it to scroll/reveal the section.
+    window.setTimeout(
+      () => window.dispatchEvent(new CustomEvent("s-ide:settings-section", { detail: { section: "themes" } })),
+      60,
+    );
+  },
+});
 
 // CSS-var colors used by StatusDot (live, animated pulse).
 const C_SUCCESS = "rgb(var(--success-rgb))";
@@ -67,8 +90,27 @@ const C_DIM = "rgb(var(--ink-dim-rgb))";
 const C_ACCENT = "rgb(var(--accent-rgb))";
 
 export default function SettingsView() {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const themesRef = useRef<HTMLDivElement>(null);
+  const [highlightThemes, setHighlightThemes] = useState(false);
+
+  // Deep-link: the "Browse themes" ⌘K command navigates here then asks us to
+  // reveal the Themes section (it's no longer scroll-hunted, but a jump still
+  // helps when arriving from the palette).
+  useEffect(() => {
+    function onSection(e: Event) {
+      const section = (e as CustomEvent<{ section?: string }>).detail?.section;
+      if (section !== "themes") return;
+      themesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setHighlightThemes(true);
+      window.setTimeout(() => setHighlightThemes(false), 1600);
+    }
+    window.addEventListener("s-ide:settings-section", onSection);
+    return () => window.removeEventListener("s-ide:settings-section", onSection);
+  }, []);
+
   return (
-    <div className="h-full overflow-y-auto bg-bg-base">
+    <div ref={scrollRef} className="h-full overflow-y-auto bg-bg-base">
       <header className="border-b border-divider px-6 pt-5 pb-4">
         <EyebrowPill icon={false} className="text-[10px]">
           s-ide
@@ -77,14 +119,19 @@ export default function SettingsView() {
           <GradientText>Settings</GradientText>
           <Sparkle />
         </h1>
-        <p className="mt-1 max-w-2xl text-[12px] text-ink-muted">
-          Appearance, the AI copilot, visual effects, and tool capabilities.
-          Keys live in the OS keychain — never written to disk.
-        </p>
       </header>
 
       <div className="mx-auto max-w-3xl space-y-5 p-6">
         <AppearanceSection />
+        <div
+          ref={themesRef}
+          className={
+            "scroll-mt-6 rounded-xl transition-shadow " +
+            (highlightThemes ? "ring-2 ring-accent/60" : "ring-0")
+          }
+        >
+          <ThemesSection />
+        </div>
         <CopilotSection />
         <EffectsSection />
         <CapabilitiesSection />
@@ -132,12 +179,17 @@ function Section({
 function AppearanceSection() {
   const theme = useTheme();
   const [accent, setAccent] = useAccent();
-  const choices: { id: ThemeChoice; label: string; hint: string }[] = [
-    { id: "midnight", label: "Midnight", hint: "the default" },
-    { id: "graphite", label: "Graphite", hint: "" },
-    { id: "light", label: "Light", hint: "" },
+  // Top control = base appearance mode. Dark maps to the default dark palette;
+  // the specific palettes (Midnight, Graphite, …) live in the themes gallery.
+  const modes: { id: ThemeChoice; label: string; hint?: string }[] = [
+    { id: "light", label: "Light" },
+    { id: "midnight", label: "Dark" },
     { id: "system", label: "System", hint: `now ${theme.resolved}` },
   ];
+  function pickMode(id: ThemeChoice) {
+    clearSideTheme(); // drop any custom .side theme so the base mode shows
+    theme.setChoice(id);
+  }
 
   return (
     <Section
@@ -152,14 +204,14 @@ function AppearanceSection() {
       }
     >
       <div className="flex flex-wrap gap-2">
-        {choices.map((c) => {
-          const active = theme.choice === c.id;
+        {modes.map((c) => {
+          const active = theme.choice === c.id || (c.id === "midnight" && theme.choice === "graphite");
           return (
             <Button
               key={c.id}
               variant={active ? "solid" : "ghost"}
               size="sm"
-              onClick={() => theme.setChoice(c.id)}
+              onClick={() => pickMode(c.id)}
             >
               {c.label}
               {c.hint && <span className="ml-1.5 text-[10px] opacity-70">{c.hint}</span>}
@@ -188,7 +240,82 @@ function AppearanceSection() {
           </span>
         </div>
       </div>
+
+      <div className="mt-5 border-t border-divider pt-4">
+        <CardSizeControl />
+      </div>
     </Section>
+  );
+}
+
+// ── 1b. Themes (custom .side gallery) — its own section so it isn't buried at
+// the bottom of a long Appearance scroll. ────────────────────────────────────
+
+function ThemesSection() {
+  return (
+    <Section
+      eyebrow="Themes"
+      title="Custom themes"
+      hint="Install decentralized .side themes by source URL or local file. Verified on fetch (hash-locked, immutable by version) and re-validated on apply."
+    >
+      <ThemeMarket />
+    </Section>
+  );
+}
+
+// Card / list size — a slider driving --ui-scale (lib/density), with a live
+// preview built from the same CSS vars so it scales as you drag.
+function CardSizeControl() {
+  const [scale, setScale] = useScale();
+  const pct = Math.round(scale * 100);
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-mono text-[10.5px] uppercase tracking-wider text-ink-dim">Card &amp; list size</span>
+        <span className="data text-[11px] text-ink-muted">{pct}%</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-[10px] text-ink-dim">A</span>
+        <input
+          type="range"
+          min={Math.round(SCALE_MIN * 100)}
+          max={Math.round(SCALE_MAX * 100)}
+          value={pct}
+          onChange={(e) => setScale(Number(e.target.value) / 100)}
+          className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-bg-base accent-accent"
+        />
+        <span className="text-[16px] text-ink-dim">A</span>
+        <button
+          onClick={() => setScale(1)}
+          className="rounded-md px-2 py-1 text-[11px] text-ink-muted hover:text-ink-primary"
+        >
+          Reset
+        </button>
+      </div>
+
+      {/* live preview — driven by the same card/row CSS vars */}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-divider bg-bg-card p-[var(--card-pad)]">
+          <div className="mb-2 truncate text-[length:var(--card-name)] font-bold text-ink-primary">Sample tile</div>
+          <div className="mb-2 h-[4px] overflow-hidden rounded-full bg-bg-base">
+            <div className="h-full w-2/3 rounded-full bg-accent" />
+          </div>
+          <div className="flex gap-1">
+            {["--critical", "--high", "--medium", "--low", "--success"].map((s) => (
+              <span key={s} className="h-2 w-2 rounded-full" style={{ background: `var(${s})` }} />
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          {["Sample row", "Another row"].map((r) => (
+            <div key={r} className="flex items-center gap-2 rounded-lg border border-divider bg-bg-card px-[var(--row-px)] py-[var(--row-py)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              <span className="truncate text-[length:var(--row-name)] font-semibold text-ink-primary">{r}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -402,8 +529,7 @@ function CopilotSection() {
             </div>
           )}
           <p className="mt-1.5 text-[10px] text-ink-dim">
-            Stored in the OS keychain via <code>/settings/api-key</code>. Paste
-            your own key here.
+            Stored in the OS keychain.
           </p>
         </div>
 

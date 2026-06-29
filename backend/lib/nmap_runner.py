@@ -458,7 +458,7 @@ def build_argv(opts: NmapOptions, nmap_bin: str, xml_path: str) -> list[str]:
         if s and re.fullmatch(r"[A-Za-z0-9_\-*?,./]+", s):
             scripts.append(s)
 
-    # Auto-include the HackingPal Node/Express/Juice Shop fingerprint NSE
+    # Auto-include the s-ide Node/Express/Juice Shop fingerprint NSE
     # whenever the caller asked for service+version detection. Plugs the gap
     # where stock nmap returns `us-srv?` for Node app servers (see GH #7).
     if opts.service_version:

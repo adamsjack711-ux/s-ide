@@ -184,7 +184,7 @@ async def _probe_http(host: str, scheme: str | None, port: int | None) -> dict[s
         timeout=HTTP_TIMEOUT,
         follow_redirects=False,
         verify=False,  # we audit TLS separately; let weak/self-signed certs through here
-        headers={"User-Agent": "HackingPal-Triage/0.1"},
+        headers={"User-Agent": "s-ide-Triage/0.1"},
     ) as client:
         for url in candidates:
             try:
@@ -326,7 +326,7 @@ def _resolve_system_prompt() -> str:
     if text:
         return text
     # Last-ditch fallback so a missing prompt file doesn't break triage.
-    return ("You are the target triage copilot for HackingPal. "
+    return ("You are the target triage copilot for s-ide. "
             "Return a JSON object with keys: narrative, severity_guess, "
             "severity_reason, playbook. Use only tools from available_tools.")
 

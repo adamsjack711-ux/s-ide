@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["idor"])
 
-UA = "HackingPal/0.1 idor"
+UA = "s-ide/0.1 idor"
 
 
 async def fire(client: httpx.AsyncClient, tmpl: web_fuzz.FuzzTemplate,

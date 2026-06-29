@@ -70,7 +70,7 @@ _NMAP_DENY_FLAGS = ("-iL", "-oN", "-oG", "-oA", "--datadir", "--interactive")
 def _build_sudoers_content(user: str, binary: str) -> str:
     """Build the argv-restricted sudoers entry. See module docstring."""
     lines = [
-        f"# HackingPal nmap sudoers — {SUDOERS_VERSION}",
+        f"# s-ide nmap sudoers — {SUDOERS_VERSION}",
         f"# Allows {binary} with the flag set the app builds, including",
         f"# `--script <curated>` and `-oX <tmpfile>` (both used by the runner).",
         f"# Denies {', '.join(_NMAP_DENY_FLAGS)} (flags the app never uses).",

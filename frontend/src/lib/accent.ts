@@ -13,13 +13,13 @@ export const ACCENTS: { name: string; hex: string }[] = [
 const KEY = "s-ide:accent";
 const DEFAULT = "#39d98a";
 
-function hexToRgb(hex: string): string {
+export function hexToRgb(hex: string): string {
   const h = hex.replace("#", "");
   const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-  const n = parseInt(full, 16);
+  const n = parseInt(full.slice(0, 6), 16);
   return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
 }
-function lighten(hex: string, amt = 0.18): string {
+export function lighten(hex: string, amt = 0.18): string {
   const n = parseInt(hex.replace("#", ""), 16);
   const ch = (shift: number) => {
     const v = (n >> shift) & 255;

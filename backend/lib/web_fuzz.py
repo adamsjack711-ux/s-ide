@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 import httpx
 
 DEFAULT_MARKER = "FUZZ"
-DEFAULT_UA = "HackingPal/0.1 (web-fuzz)"
+DEFAULT_UA = "s-ide/0.1 (web-fuzz)"
 
 # ── Scope guard ──────────────────────────────────────────────────────────────
 

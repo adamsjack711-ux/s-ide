@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/people", tags=["people-enum"])
 
-UA = "Mozilla/5.0 (Macintosh) HackingPal/0.1"
+UA = "Mozilla/5.0 (Macintosh) s-ide/0.1"
 
 EMAIL_RE = re.compile(r"\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b")
 

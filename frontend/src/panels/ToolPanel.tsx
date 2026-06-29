@@ -1,10 +1,18 @@
 import { useRef, useState } from "react";
 import { StatCounter, WibblingSpinner } from "performative-ui";
 import { authFetch, openWs, watchWsLiveness } from "../api";
-import { getActiveEngagementId, recordResultIfActive } from "../lib/engagement";
+import {
+  getActiveEngagementId,
+  recordResultIfActive,
+  useActiveEngagementId,
+} from "../lib/engagement";
+import { useLabIntent } from "../lib/labIntent";
+import { useMode } from "../lib/mode";
 import { record as recordSession } from "../lib/sessionLog";
 import { pulse, failStamp } from "../lib/dopamine";
-import { emit } from "../shell/bus";
+import { emit, useBus } from "../shell/bus";
+import { useRegisterCommand } from "../shell/commands";
+import { notify } from "../shell/toast";
 import type { ResultRow, ToolDescriptor } from "../shell/tools";
 import SectionLabel from "../shell/SectionLabel";
 
@@ -13,13 +21,22 @@ type RunState = "idle" | "running" | "done" | "error";
 /**
  * The generic, descriptor-driven tool surface — one component for every Tier-1
  * tool, WS-streaming or one-shot HTTP. Form header on top, live result table
- * below. Replaces HackingPal's 79 bespoke page components.
+ * below. One surface replaces dozens of bespoke per-tool page components.
  */
 export default function ToolPanel({ tool }: { tool: ToolDescriptor }) {
-  const initialForm: Record<string, string> = {};
-  for (const f of tool.fields) initialForm[f.name] = f.default ?? "";
+  // Friction #3: don't make the operator retype the target every scan. The
+  // lab "intent" (one-shot, from a suggested-step button) or the active-target
+  // snapshot pre-fills the *first* field (the target) — falling back to the
+  // descriptor's own default when neither is present.
+  const intent = useLabIntent(tool.id);
 
-  const [form, setForm] = useState<Record<string, string>>(initialForm);
+  const [form, setForm] = useState<Record<string, string>>(() => {
+    const seed: Record<string, string> = {};
+    for (const f of tool.fields) seed[f.name] = f.default ?? "";
+    const targetField = tool.fields[0];
+    if (targetField && intent?.target) seed[targetField.name] = intent.target;
+    return seed;
+  });
   const [state, setState] = useState<RunState>("idle");
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -28,7 +45,29 @@ export default function ToolPanel({ tool }: { tool: ToolDescriptor }) {
   const watchRef = useRef<ReturnType<typeof watchWsLiveness> | null>(null);
   const runBtn = useRef<HTMLButtonElement | null>(null);
 
+  const mode = useMode();
+  const activeEid = useActiveEngagementId();
+  // Friction #7: in engagement mode with nothing pinned, results are silently
+  // dropped. Surface that as a non-blocking inline banner (not a hard block).
+  const noEngagementWarning = mode === "engagement" && !activeEid;
+
   const target = String(Object.values(form)[0] ?? "");
+
+  // Contextual ⌘K command: run the focused tool. Display-only binding (Enter)
+  // — Foundation owns the central keymap. Also honour a bus-dispatched run.
+  useRegisterCommand({
+    id: "run-tool",
+    title: `Run ${tool.label}`,
+    keywords: ["run", "scan", "execute", tool.group, tool.id],
+    binding: "Enter",
+    context: tool.group,
+    run: () => {
+      if (state !== "running") run();
+    },
+  });
+  useBus("command:run", ({ commandId }) => {
+    if (commandId === "run-tool" && state !== "running") run();
+  });
 
   function cleanup() {
     watchRef.current?.stop();
@@ -50,7 +89,38 @@ export default function ToolPanel({ tool }: { tool: ToolDescriptor }) {
     setStatus(summary);
     void pulse(runBtn.current ?? undefined);
     recordSession(tool.id, `${target}: ${summary}`);
-    void recordResultIfActive(tool.id, target, summary, raw);
+    void recordResult(summary, raw);
+  }
+
+  /**
+   * Auto-record the result to the active engagement, surfacing any failure
+   * (previously swallowed inside recordResultIfActive) as a one-line error
+   * toast. When a record is actually attempted (engagement mode + a pinned
+   * engagement) we POST directly so the network/4xx/5xx failure is catchable;
+   * otherwise we fall back to the shared helper, which is a deliberate no-op
+   * for lab mode / no-engagement and owns the skip-list policy.
+   */
+  async function recordResult(summary: string, raw: unknown) {
+    const eid = getActiveEngagementId();
+    if (mode !== "engagement" || !eid) {
+      void recordResultIfActive(tool.id, target, summary, raw);
+      return;
+    }
+    try {
+      const r = await authFetch(`/engagements/${eid}/results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tool: tool.id,
+          target: target.slice(0, 500),
+          summary: summary.slice(0, 4000),
+          raw,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch {
+      notify({ kind: "error", message: "Result not saved to engagement (auto-record failed)." });
+    }
   }
 
   function finishErr(detail: string) {
@@ -77,7 +147,11 @@ export default function ToolPanel({ tool }: { tool: ToolDescriptor }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scope_key: scopeKey, source_tool: tool.id, assets }),
-      }).catch(() => {});
+      }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      }).catch(() => {
+        notify({ kind: "error", message: "Discovered assets not saved to engagement." });
+      });
     }
   }
 
@@ -229,6 +303,12 @@ export default function ToolPanel({ tool }: { tool: ToolDescriptor }) {
           )}
         </div>
       </div>
+
+      {noEngagementWarning && (
+        <div className="flex items-center gap-2 border-b border-amber/30 bg-amber/10 px-4 py-1.5 text-xs text-amber">
+          <span>No engagement pinned — results won't be saved.</span>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 px-4 py-1.5 text-xs text-ink-muted">
         {state === "running" && <WibblingSpinner />}

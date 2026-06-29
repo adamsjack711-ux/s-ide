@@ -66,7 +66,7 @@ def _system_prompt() -> str:
         f"  - {c['id']}: {c['label']}" for c in suggested_checks.catalog_for_prompt()
     )
     return (
-        "You are the HackingPal security copilot. Based on the conversation, "
+        "You are the s-ide security copilot. Based on the conversation, "
         "propose 2-5 concrete next checks the operator could run. You PROPOSE "
         "only — you never run anything; the operator approves each card.\n\n"
         "Choose only from this catalog (use the exact `id`):\n"

@@ -1,13 +1,13 @@
 # CLAUDE.md — s-ide
 
-s-ide (working name) is an **IDE for security engagements**, built FROM HackingPal
-(`~/network_tools/`, untouched). Full plan: `~/security-engagement-ide-PLAN.md`.
+s-ide (working name) is an **IDE for security engagements**.
+Full plan: `~/security-engagement-ide-PLAN.md`.
 
 ## Architecture
 
-- **backend/** — vendored wholesale from HackingPal @ `60a38c4` (see `backend/UPSTREAM.md`).
-  Do **not** hand-edit vendored routers; re-sync from upstream instead. The one local
-  change is `lib/exposure.py` + the `_inc()` gate in `main.py`.
+- **backend/** — FastAPI + SQLite. Treat the routers as a vendored snapshot:
+  prefer adding new local modules over hand-editing them. The capability gate
+  lives in `lib/exposure.py` + the `_inc()` gate in `main.py`.
 - **Capability gate** (`backend/lib/exposure.py`): only Tier-1 (zero-setup) routers are
   registered. Tier 2/3 ship but 404 unless `RAMPART_EXPOSE_ALL=1`. To expose a tool,
   add its module key to `TIER1`. Web-exploit fuzzers are in `DEFERRED_TIER1` (held from v1).
@@ -15,8 +15,8 @@ s-ide (working name) is an **IDE for security engagements**, built FROM HackingP
   - `src/shell/tools.ts` — the tool registry. Add a `ToolDescriptor` (ws or http) to wire a tool.
   - `src/shell/bus.ts` — in-process pub/sub (openTool / output / promote / findingsChanged).
   - `src/panels/ToolPanel.tsx` — the ONE generic tool surface (replaces per-tool pages).
-  - `src/lib/*` — ported from HackingPal; keeps the `X-MHP-*` token/header contract in
-    sync with the vendored backend. Don't rename headers without changing the backend.
+  - `src/lib/*` — keeps the `X-MHP-*` token/header contract in sync with the
+    backend. Don't rename headers without changing the backend.
 
 ## Conventions
 

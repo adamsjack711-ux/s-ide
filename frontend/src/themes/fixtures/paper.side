@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "kind": "theme",
+  "name": "Paper",
+  "author": "builtin",
+  "theme": {
+    "--bg-base": "#f6f7f9",
+    "--bg-surface": "#ffffff",
+    "--bg-elevated": "#eef0f3",
+    "--bg-hover": "#e4e7ec",
+    "--bg-active": "#d8dce3",
+    "--text-primary": "#1b2330",
+    "--text-secondary": "#44506a",
+    "--text-muted": "#6b7280",
+    "--border": "#d6dbe2",
+    "--border-bright": "#b9c1cd",
+    "--accent": "#b5651d",
+    "--critical": "#d12d2d",
+    "--high": "#c2410c",
+    "--medium": "#a16207",
+    "--low": "#1d6fd0",
+    "--success": "#2f7d32",
+    "--font-sans": "Inter",
+    "--font-mono": "JetBrains Mono"
+  }
+}

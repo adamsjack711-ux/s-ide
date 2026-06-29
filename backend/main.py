@@ -43,15 +43,15 @@ from routers import (
     nmap, people_enum, playbook_run,
     persistence, ping, playbook_suggest, port_scanner, presets, processes,
     profile_finder, reports, reverse_ip, reverse_shell, s3_scanner, safety, scope, settings,
-    shodan_censys, smb_enum, sqli, ssrf, stego, subdomain_enum, suggest_checks, summarize,
-    system_info, takeover, targets, tcpdump, terminal, tls_audit,
+    shodan_censys, smb_enum, spine, sqli, ssrf, stego, subdomain_enum, suggest_checks, summarize,
+    system_info, takeover, targets, tcpdump, terminal, themes, tls_audit,
     tool_requirements, triage, urlscan, wayback, whois, wifi, wifi_scan,
     windows_posture,
     wpa_capture, xss, systemd_units, firewall_rules, users_audit,
 )
 
 logging_setup.configure()
-logger = logging.getLogger("hackingpal")
+logger = logging.getLogger("s-ide")
 
 # ── PATH augmentation for GUI-launched sidecars ─────────────────────────────
 # macOS launchd hands GUI apps a minimal PATH like ``/usr/bin:/bin:/usr/sbin:
@@ -74,35 +74,30 @@ if sys.platform == "darwin":
 # bail out hard before FastAPI ever binds a socket.
 #
 # Escape hatch for the Docker deployment (see SECURITY.md "Threat Model"):
-# set HACKINGPAL_ALLOW_PUBLIC_HOST=1 to acknowledge that you are lifting
+# set SIDE_ALLOW_PUBLIC_HOST=1 to acknowledge that you are lifting
 # the loopback restriction deliberately. Required because the container's
 # `ports: 8765:8765` mapping in docker-compose.yml needs the app to bind
 # the container's external interface.
-# Legacy name MYHACKINGPAL_ALLOW_PUBLIC_HOST is still honored as a
-# pre-rebrand fallback.
 _FORBIDDEN_HOSTS = {"0.0.0.0", "::", "*"}
-_ALLOW_PUBLIC = (
-    os.environ.get("HACKINGPAL_ALLOW_PUBLIC_HOST", "").strip() == "1"
-    or os.environ.get("MYHACKINGPAL_ALLOW_PUBLIC_HOST", "").strip() == "1"
-)
+_ALLOW_PUBLIC = os.environ.get("SIDE_ALLOW_PUBLIC_HOST", "").strip() == "1"
 for _var in ("NT_BACKEND_HOST", "HOST"):
     _val = os.environ.get(_var, "").strip()
     if _val in _FORBIDDEN_HOSTS and not _ALLOW_PUBLIC:
         sys.stderr.write(
-            f"[hackingpal] {_var}={_val!r}: "
-            "HackingPal backend must not be exposed to the network. "
+            f"[s-ide] {_var}={_val!r}: "
+            "the backend must not be exposed to the network. "
             "Refusing to start.\n"
-            "(Docker deployments: set HACKINGPAL_ALLOW_PUBLIC_HOST=1 to opt in.)\n"
+            "(Docker deployments: set SIDE_ALLOW_PUBLIC_HOST=1 to opt in.)\n"
         )
         raise SystemExit(2)
 if _ALLOW_PUBLIC:
     sys.stderr.write(
-        "[hackingpal] HACKINGPAL_ALLOW_PUBLIC_HOST=1 — startup guard bypassed. "
+        "[s-ide] SIDE_ALLOW_PUBLIC_HOST=1 — startup guard bypassed. "
         "Backend will accept non-loopback connections. The per-launch auth token "
         "is now the only thing protecting privileged endpoints.\n"
     )
 
-app = FastAPI(title="HackingPal", version="1.0.0")
+app = FastAPI(title="s-ide", version="1.0.0")
 
 # Global error envelope + handlers. Every uncaught exception becomes
 # {"error": "...", "code": "..."} with the stack trace logged server-side
@@ -244,6 +239,8 @@ _inc("tool_requirements", tool_requirements.router, _PRIVILEGED)
 _inc("method", method.router, _PRIVILEGED)
 _inc("codescan", codescan.router, _PRIVILEGED)
 _inc("safety", safety.router, _PRIVILEGED)
+_inc("spine", spine.router, _PRIVILEGED)
+_inc("themes", themes.router, _PRIVILEGED)
 _inc("isolation", isolation.router, _PRIVILEGED)
 _inc("labfs", labfs.router, _PRIVILEGED)
 _inc("playbook_run", playbook_run.router, _PRIVILEGED)
@@ -257,6 +254,20 @@ def health() -> dict[str, str]:
 @app.get("/version")
 def version() -> dict[str, str]:
     return {"version": app.version}
+
+
+@app.get("/system/tools")
+def system_tools() -> dict[str, object]:
+    """Registered route paths (HTTP + WebSocket) — the truthful source for the
+    Workbench's per-tool live/offline status.
+
+    A tool whose backend route is absent here was gated off server-side (Tier
+    2/3 not exposed, or the capability gate hasn't opted it in) and will 404 if
+    called. The frontend matches each tool's route prefix against this set to
+    render a live / gated / offline dot. Loopback-only by binding; the paths are
+    route templates, not data, so no auth is required (matching /health)."""
+    paths = sorted({getattr(r, "path", "") for r in app.routes} - {""})
+    return {"routes": paths, "exposeAll": exposure.expose_all()}
 
 
 @app.get(

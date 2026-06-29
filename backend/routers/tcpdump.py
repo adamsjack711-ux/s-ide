@@ -121,7 +121,7 @@ _TCPDUMP_DENY_FLAGS = ("-z", "-w", "-r", "-W", "-G", "-Z",
 def _build_sudoers_content(user: str, binary: str) -> str:
     """Build the argv-restricted sudoers entry. See module docstring."""
     lines = [
-        f"# HackingPal tcpdump sudoers — {SUDOERS_VERSION}",
+        f"# s-ide tcpdump sudoers — {SUDOERS_VERSION}",
         f"# Allows {binary} with the flags the app uses (-l -n -v -c -i + BPF)",
         f"# and denies {', '.join(_TCPDUMP_DENY_FLAGS)} (root code-exec vectors).",
         f"# Re-run the Install Permission button from the UI to upgrade an",

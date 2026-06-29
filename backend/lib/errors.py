@@ -26,7 +26,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-logger = logging.getLogger("hackingpal.errors")
+logger = logging.getLogger("s-ide.errors")
 
 
 class ErrorCode(str, Enum):

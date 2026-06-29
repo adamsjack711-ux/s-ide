@@ -70,7 +70,7 @@ PERMUTATIONS = [
     "{t}logs",            "{t}data",
 ]
 
-UA = "HackingPal/0.1 s3-scanner"
+UA = "s-ide/0.1 s3-scanner"
 
 
 def generate_names(target: str, extra_keywords: list[str]) -> list[str]:
