@@ -39,13 +39,17 @@ export default function MatrixRain({ className }: { className?: string }) {
     let cssW = 0;
     let cssH = 0;
 
-    function accent(alpha: number): string {
+    function cssVar(name: string, fallback: string, alpha: number): string {
       const rgb =
         getComputedStyle(document.documentElement)
-          .getPropertyValue("--accent-rgb")
-          .trim() || "57 217 138";
+          .getPropertyValue(name)
+          .trim() || fallback;
       return `rgba(${rgb.replace(/\s+/g, ",")}, ${alpha})`;
     }
+    const accent = (alpha: number) => cssVar("--accent-rgb", "57 217 138", alpha);
+    // Trail fade is painted in the theme's base colour so the rain dissolves
+    // into the background instead of building a dark haze on light themes.
+    const bgFade = (alpha: number) => cssVar("--bg-base-rgb", "10 14 21", alpha);
 
     function resize() {
       const parent = canvas.parentElement;
@@ -70,7 +74,7 @@ export default function MatrixRain({ className }: { className?: string }) {
 
     function draw() {
       // Translucent fill paints the fading trail over the previous frame.
-      ctx.fillStyle = "rgba(10, 14, 21, 0.10)";
+      ctx.fillStyle = bgFade(0.1);
       ctx.fillRect(0, 0, cssW, cssH);
 
       for (let i = 0; i < cols; i++) {
@@ -99,7 +103,7 @@ export default function MatrixRain({ className }: { className?: string }) {
 
     if (reduceMotion) {
       // One static frame — no animation loop.
-      ctx.fillStyle = "rgba(10, 14, 21, 1)";
+      ctx.fillStyle = bgFade(1);
       ctx.fillRect(0, 0, cssW, cssH);
       draw();
       return;
