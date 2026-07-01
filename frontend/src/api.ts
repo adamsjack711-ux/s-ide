@@ -317,6 +317,21 @@ export const setApiKey = (api_key: string) =>
 export const deleteApiKey = () =>
   api<ApiKeyStatus>("/settings/api-key", { method: "DELETE" });
 
+// ── Capabilities (server-side enablement gate) ───────────────────────────────
+// Mirror of lib/capability.py: the backend refuses gated routers until their
+// group is enabled here, so the UI toggle must push to the server (authoritative)
+// rather than living only in localStorage.
+export type CapabilityState = { group: string; enabled: boolean; routers: string[] };
+
+export const fetchCapabilities = () => api<CapabilityState[]>("/capabilities");
+
+export const setServerCapability = (group: string, enabled: boolean) =>
+  api<CapabilityState>(`/capabilities/${encodeURIComponent(group)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+
 // Named external-service keys (SecurityTrails, VirusTotal, Shodan, HIBP,
 // GitHub, Google CSE, Censys, Hunter). The Anthropic key has its own
 // /settings/api-key endpoints above — these wrap /settings/keys/*.
