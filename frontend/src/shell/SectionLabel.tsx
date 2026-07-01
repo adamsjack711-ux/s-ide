@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 export default function SectionLabel({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-dim">{children}</span>
+      <span className="text-[calc(10px_*_var(--text-scale))] font-semibold uppercase tracking-[0.12em] text-ink-dim">{children}</span>
       {right}
     </div>
   );

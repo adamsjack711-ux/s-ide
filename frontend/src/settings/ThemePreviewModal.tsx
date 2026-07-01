@@ -102,17 +102,17 @@ export default function ThemePreviewModal({
         {/* Header + trust line. */}
         <div className="border-b border-divider px-5 py-3.5">
           <div className="flex items-center gap-2">
-            <span className="text-[15px] font-bold text-ink-primary">{theme.name}</span>
-            <span className="text-[11px] text-ink-dim">v{theme.version}</span>
+            <span className="text-[calc(15px_*_var(--text-scale))] font-bold text-ink-primary">{theme.name}</span>
+            <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">v{theme.version}</span>
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+              className={`rounded-full px-2 py-0.5 text-[calc(10px_*_var(--text-scale))] font-semibold uppercase ${
                 meta.official ? "bg-accent/15 text-accent" : "bg-bg-base text-ink-muted ring-1 ring-divider"
               }`}
             >
               {meta.official ? "official" : "community"}
             </span>
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              className={`rounded-full px-2 py-0.5 text-[calc(10px_*_var(--text-scale))] font-medium ${
                 meta.verified ? "bg-success/15 text-success" : "bg-medium/15 text-medium"
               }`}
               title={meta.source === "tofu" ? "First fetch — hash pinned now (trust on first use)" : "Hash matches the pinned/curated value"}
@@ -120,39 +120,39 @@ export default function ThemePreviewModal({
               {meta.verified ? "verified" : "first-use (TOFU)"}
             </span>
           </div>
-          <div className="mt-1 truncate font-mono text-[11px] text-ink-dim" title={meta.url}>{meta.url}</div>
-          <div className="mt-0.5 font-mono text-[10px] text-ink-dim">{meta.hash}</div>
+          <div className="mt-1 truncate font-mono text-[calc(11px_*_var(--text-scale))] text-ink-dim" title={meta.url}>{meta.url}</div>
+          <div className="mt-0.5 font-mono text-[calc(10px_*_var(--text-scale))] text-ink-dim">{meta.hash}</div>
         </div>
 
         {/* Validator warnings (a fetched-from-cache file shouldn't fail, but be loud if it does). */}
         {!validation.ok && (
-          <div className="border-b border-divider bg-danger/10 px-5 py-2 text-[11px] text-danger">
+          <div className="border-b border-divider bg-danger/10 px-5 py-2 text-[calc(11px_*_var(--text-scale))] text-danger">
             {validation.errors.map((e, i) => <div key={i}>⚠ {e}</div>)}
           </div>
         )}
 
         {/* Token diff + swatches. */}
         <div className="min-h-0 flex-1 overflow-auto px-5 py-3">
-          <div className="mb-2 text-[10px] uppercase tracking-wide text-ink-dim">Token changes</div>
+          <div className="mb-2 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Token changes</div>
           <div className="flex flex-col gap-1">
             {rows.map(([token, next]) => {
               const cur = current(token);
               const changed = cur && cur.toLowerCase() !== next.toLowerCase();
               const isHex = /^#/.test(next);
               return (
-                <div key={token} className="flex items-center gap-2 text-[11.5px]">
+                <div key={token} className="flex items-center gap-2 text-[calc(11.5px_*_var(--text-scale))]">
                   {protectedSet.has(token) && <span className="h-1.5 w-1.5 rounded-full bg-accent" title="protected semantic token" />}
                   <span className={`font-mono ${protectedSet.has(token) ? "text-ink-primary" : "text-ink-muted"}`}>{token}</span>
                   <span className="ml-auto flex items-center gap-1.5">
                     {cur && (
                       <>
                         <span className="inline-block h-3.5 w-3.5 rounded-sm border border-divider" style={{ background: cur }} />
-                        <span className="font-mono text-[10px] text-ink-dim">{cur || "—"}</span>
+                        <span className="font-mono text-[calc(10px_*_var(--text-scale))] text-ink-dim">{cur || "—"}</span>
                         <span className="text-ink-dim">→</span>
                       </>
                     )}
                     {isHex && <span className="inline-block h-3.5 w-3.5 rounded-sm border border-divider" style={{ background: next }} />}
-                    <span className={`font-mono text-[10px] ${changed ? "text-accent" : "text-ink-muted"}`}>{next}</span>
+                    <span className={`font-mono text-[calc(10px_*_var(--text-scale))] ${changed ? "text-accent" : "text-ink-muted"}`}>{next}</span>
                   </span>
                 </div>
               );
@@ -161,19 +161,19 @@ export default function ThemePreviewModal({
         </div>
 
         {err.length > 0 && (
-          <div className="border-t border-divider bg-danger/10 px-5 py-2 text-[11px] text-danger">
+          <div className="border-t border-divider bg-danger/10 px-5 py-2 text-[calc(11px_*_var(--text-scale))] text-danger">
             {err.map((e, i) => <div key={i}>⚠ {e}</div>)}
           </div>
         )}
 
         {/* Actions. */}
         <div className="flex items-center justify-end gap-2 border-t border-divider px-5 py-3">
-          <button onClick={onClose} className="rounded-md px-3 py-1.5 text-[12px] text-ink-muted hover:text-ink-primary">Cancel</button>
+          <button onClick={onClose} className="rounded-md px-3 py-1.5 text-[calc(12px_*_var(--text-scale))] text-ink-muted hover:text-ink-primary">Cancel</button>
           <button
             ref={applyRef}
             onClick={apply}
             disabled={!validation.ok}
-            className="rounded-md bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-bg-base hover:brightness-110 disabled:opacity-40"
+            className="rounded-md bg-accent px-3.5 py-1.5 text-[calc(12px_*_var(--text-scale))] font-semibold text-bg-base hover:brightness-110 disabled:opacity-40"
           >
             Apply theme
           </button>

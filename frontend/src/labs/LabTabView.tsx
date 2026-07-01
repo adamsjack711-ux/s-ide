@@ -76,12 +76,12 @@ export default function LabTabView({ labId }: { labId: string }) {
         <div className="flex items-center gap-2.5">
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: dotColor(status) }} />
           <h1 className="text-lg font-bold text-ink-primary">{lab.name}</h1>
-          <span className="rounded-full border border-divider px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink-dim">
+          <span className="rounded-full border border-divider px-2 py-0.5 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">
             {status?.container.state ?? "…"}
           </span>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[12.5px]">
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[calc(12.5px_*_var(--text-scale))]">
           {lab.primary_url && (
             <span className="flex items-center gap-2">
               <span className="text-ink-dim">URL</span>
@@ -112,14 +112,14 @@ export default function LabTabView({ labId }: { labId: string }) {
 
         {/* Aim a tool at this lab. */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[11px] uppercase tracking-wide text-ink-dim">Aim a tool here</span>
+          <span className="mr-1 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Aim a tool here</span>
           {TARGET_TOOLS.filter((t) => toolById(t.id)).map((t) => (
             <button
               key={t.id}
               onClick={() => aim(t.id)}
               disabled={!live}
               title={live ? `Open ${t.label} targeting this lab` : "Start the lab first"}
-              className="rounded-md border border-divider bg-bg-surface px-2.5 py-1 text-[11.5px] text-ink-muted hover:border-accent hover:text-accent disabled:opacity-40"
+              className="rounded-md border border-divider bg-bg-surface px-2.5 py-1 text-[calc(11.5px_*_var(--text-scale))] text-ink-muted hover:border-accent hover:text-accent disabled:opacity-40"
             >
               {t.label}
             </button>
@@ -132,7 +132,7 @@ export default function LabTabView({ labId }: { labId: string }) {
         {lab.has_sidecar ? (
           <LabConsole lab={lab} />
         ) : (
-          <div className="flex h-full items-center justify-center text-center text-[12.5px] text-ink-dim">
+          <div className="flex h-full items-center justify-center text-center text-[calc(12.5px_*_var(--text-scale))] text-ink-dim">
             This lab has no scanner sidecar — use the tool launchers above to work against it.
           </div>
         )}

@@ -52,13 +52,13 @@ export default function TargetWorkspace({
           ← Targets
         </Button>
         <Icon name="box" size={16} />
-        <h2 className="text-[17px] font-bold tracking-tight leading-none">
+        <h2 className="text-[calc(17px_*_var(--text-scale))] font-bold tracking-tight leading-none">
           <GradientText>{target.name}</GradientText>
         </h2>
-        <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${PROV_PILL[target.provenance] ?? ""}`}>
+        <span className={`rounded px-1.5 py-0.5 text-[calc(9.5px_*_var(--text-scale))] font-semibold ${PROV_PILL[target.provenance] ?? ""}`}>
           {target.provenance}
         </span>
-        <span className="text-[11.5px] text-ink-muted"><span className="">{subCount}</span> sub-target{subCount === 1 ? "" : "s"}</span>
+        <span className="text-[calc(11.5px_*_var(--text-scale))] text-ink-muted"><span className="">{subCount}</span> sub-target{subCount === 1 ? "" : "s"}</span>
       </div>
 
       {/* Inner tabs */}
@@ -69,7 +69,7 @@ export default function TargetWorkspace({
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-[12.5px] font-medium transition-colors ${
+              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-[calc(12.5px_*_var(--text-scale))] font-medium transition-colors ${
                 active ? "border-accent text-ink-primary" : "border-transparent text-ink-muted hover:text-ink-primary"
               }`}
             >

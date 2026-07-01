@@ -70,10 +70,10 @@ export default function BuildPanel() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-sidebar text-sm">
       <header className="shrink-0 border-b border-divider px-3 pb-3 pt-3">
-        <EyebrowPill icon={false} className="text-[10px]">
+        <EyebrowPill icon={false} className="text-[calc(10px_*_var(--text-scale))]">
           s-ide
         </EyebrowPill>
-        <p className="mt-1.5 text-[11px] text-ink-muted">
+        <p className="mt-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-muted">
           Drag a tool into a playbook to add a step. Click a tool to open it.
         </p>
       </header>
@@ -85,7 +85,7 @@ export default function BuildPanel() {
         </div>
         {toolGroups().map(({ group, tools }) => (
           <div key={group} className="pb-2">
-            <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-ink-dim">{group}</div>
+            <div className="px-3 py-1 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">{group}</div>
             {tools.map((t) => {
               const active = toolMode(t) === "active";
               return (
@@ -103,7 +103,7 @@ export default function BuildPanel() {
                 >
                   <span className="truncate">{t.label}</span>
                   {active && (
-                    <span className="ml-auto shrink-0 rounded bg-amber/15 px-1 text-[9px] uppercase text-amber">
+                    <span className="ml-auto shrink-0 rounded bg-amber/15 px-1 text-[calc(9px_*_var(--text-scale))] uppercase text-amber">
                       active
                     </span>
                   )}
@@ -157,7 +157,7 @@ export default function BuildPanel() {
                 >
                   <StatusDot color={over ? C_ACCENT : C_DIM} static={!over} />
                   <span className="truncate text-ink-primary">{pb.name}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-ink-dim">
+                  <span className="ml-auto shrink-0 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
                     {pb.steps.length} {pb.steps.length === 1 ? "step" : "steps"}
                   </span>
                 </div>
@@ -165,7 +165,7 @@ export default function BuildPanel() {
             })
           )}
         </div>
-        <p className="shrink-0 px-3 pb-2 text-[10px] text-ink-dim">
+        <p className="shrink-0 px-3 pb-2 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
           Drop a tool here to append a step · click to edit
         </p>
       </div>

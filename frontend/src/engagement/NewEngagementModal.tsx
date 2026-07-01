@@ -174,7 +174,7 @@ export default function NewEngagementModal({
             sub="A running site, optionally authenticated"
           />
         </div>
-        <div className="mb-4 text-[10px] text-ink-dim">
+        <div className="mb-4 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
           <span className="rounded border border-divider px-1.5 py-0.5 opacity-60">
             Host target — coming soon
           </span>
@@ -211,7 +211,7 @@ export default function NewEngagementModal({
             </button>
           ))}
         </div>
-        <p className="mb-4 text-[11px] text-ink-dim">{PROVENANCE_HINT[provenance]}</p>
+        <p className="mb-4 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{PROVENANCE_HINT[provenance]}</p>
 
         {/* ── Branch: local-app ─────────────────────────────────────── */}
         {type === "local-app" && (
@@ -268,7 +268,7 @@ export default function NewEngagementModal({
               ))}
               <button
                 onClick={() => setUrls((arr) => [...arr, ""])}
-                className="text-[11px] text-accent hover:underline"
+                className="text-[calc(11px_*_var(--text-scale))] text-accent hover:underline"
               >
                 + Add URL
               </button>
@@ -285,12 +285,12 @@ export default function NewEngagementModal({
                 <option key={k.value} value={k.value}>{k.label}</option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-ink-dim">
+            <p className="mt-1 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
               {AUTH_KINDS.find((k) => k.value === authKind)?.hint}
             </p>
 
             {authKind !== "none" && (
-              <p className="mt-1 text-[11px] text-amber">
+              <p className="mt-1 text-[calc(11px_*_var(--text-scale))] text-amber">
                 Stored encrypted and scoped to this engagement's target only. It is
                 never shown again — only a redacted reference.
               </p>
@@ -394,8 +394,8 @@ function TypeCard({
           : "border-divider bg-bg-base hover:border-accent/50")
       }
     >
-      <div className="text-[13px] font-semibold text-ink-primary">{title}</div>
-      <div className="mt-0.5 text-[11px] text-ink-dim">{sub}</div>
+      <div className="text-[calc(13px_*_var(--text-scale))] font-semibold text-ink-primary">{title}</div>
+      <div className="mt-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{sub}</div>
     </button>
   );
 }

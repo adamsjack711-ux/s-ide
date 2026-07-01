@@ -13,6 +13,7 @@ import CopilotRail from "./copilot/CopilotRail";
 import { emit, on } from "./shell/bus";
 import { BACKEND_URL } from "./api";
 import "./lib/theme"; // self-applies dark/light on import
+import "./lib/fonts"; // self-applies --app-zoom / --mono-font-px on import
 
 /**
  * The IDE shell. Title bar on top; a slim activity bar toggles the left side

@@ -25,6 +25,8 @@ export default function EngagementsTab({
   onError,
   onOpenWorkbench,
   restrictTargetId,
+  onSelect,
+  activeId,
 }: {
   targets: Target[];
   engagements: Engagement[];
@@ -33,8 +35,12 @@ export default function EngagementsTab({
   onOpenWorkbench: () => void;
   /** When set, the tab is scoped to one Target's sub-targets only. */
   restrictTargetId?: string;
+  /** Fired when an engagement is picked — the manager pins it active. */
+  onSelect?: (id: string) => void;
+  /** The window's active engagement id, for the "active" marker. */
+  activeId?: string | null;
 }) {
-  const [selId, setSelId] = useState<string | null>(engagements[0]?.id ?? null);
+  const [selId, setSelId] = useState<string | null>(activeId ?? engagements[0]?.id ?? null);
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
@@ -83,14 +89,14 @@ export default function EngagementsTab({
       {/* Left — engagement list */}
       <aside className="flex w-72 shrink-0 flex-col border-r border-divider">
         <div className="shrink-0 border-b border-divider px-3 py-2.5">
-          <div className="mb-2"><span className="text-[11px] text-ink-dim">Engagements</span></div>
+          <div className="mb-2"><span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">Engagements</span></div>
           <div className="flex gap-1.5">
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onCreate()}
               placeholder="New engagement name"
-              className="min-w-0 flex-1 rounded-md border border-divider bg-bg-base px-2 py-1 text-[12px] text-ink-primary outline-none focus:border-accent/50"
+              className="min-w-0 flex-1 rounded-md border border-divider bg-bg-base px-2 py-1 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent/50"
             />
             <Button variant="solid" size="sm" onClick={onCreate}>
               <Sparkle solid /> Create
@@ -99,7 +105,7 @@ export default function EngagementsTab({
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {engagements.length === 0 && (
-            <div className="p-4 text-[12.5px] leading-relaxed text-ink-muted">
+            <div className="p-4 text-[calc(12.5px_*_var(--text-scale))] leading-relaxed text-ink-muted">
               No engagements yet. Create one above, then attach it to sub-targets to arm them.
             </div>
           )}
@@ -109,18 +115,21 @@ export default function EngagementsTab({
             return (
               <button
                 key={e.id}
-                onClick={() => setSelId(e.id)}
+                onClick={() => { setSelId(e.id); onSelect?.(e.id); }}
                 className={`flex w-full flex-col gap-1 border-b border-divider/60 px-3 py-2.5 text-left ${
                   active ? "bg-bg-hover" : "hover:bg-bg-hover/50"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[13px] font-semibold tracking-tight text-ink-primary">{e.name}</span>
-                  <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {activeId === e.id && <span className="shrink-0 text-accent" title="active engagement">▸</span>}
+                    <span className="truncate text-[calc(13px_*_var(--text-scale))] font-semibold tracking-tight text-ink-primary">{e.name}</span>
+                  </span>
+                  <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[calc(9.5px_*_var(--text-scale))] font-semibold text-ink-muted ring-1 ring-divider">
                     {e.provenance}
                   </span>
                 </div>
-                <span className="text-[11.5px] text-ink-muted">
+                <span className="text-[calc(11.5px_*_var(--text-scale))] text-ink-muted">
                   {armed > 0 ? <span className="text-accent"><span className="">{armed}</span> sub-target{armed === 1 ? "" : "s"} armed</span> : <span className="text-ink-dim">arms nothing</span>}
                 </span>
               </button>
@@ -170,12 +179,12 @@ function EngagementDetail({
 
   return (
     <div className="p-5">
-      <h2 className="text-[18px] font-bold tracking-tight text-ink-primary">{engagement.name}</h2>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11.5px]">
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
+      <h2 className="text-[calc(18px_*_var(--text-scale))] font-bold tracking-tight text-ink-primary">{engagement.name}</h2>
+      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[calc(11.5px_*_var(--text-scale))]">
+        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[calc(9.5px_*_var(--text-scale))] font-semibold text-ink-muted ring-1 ring-divider">
           {engagement.provenance}
         </span>
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
+        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[calc(9.5px_*_var(--text-scale))] font-semibold text-ink-muted ring-1 ring-divider">
           {engagement.type}
         </span>
         <span className="text-ink-muted">
@@ -185,13 +194,13 @@ function EngagementDetail({
 
       {/* Attach a sub-target (arm) */}
       <div className="mt-4 rounded-lg border border-divider bg-bg-surface p-3">
-        <div className="mb-2.5"><span className="text-[11px] text-ink-dim">Arm a sub-target with this engagement</span></div>
+        <div className="mb-2.5"><span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">Arm a sub-target with this engagement</span></div>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={pick}
             onChange={(e) => setPick(e.target.value)}
             disabled={candidates.length === 0}
-            className="min-w-[260px] flex-1 rounded-md border border-divider bg-bg-base px-2 py-1.5 text-[12px] text-ink-primary outline-none focus:border-accent/50 disabled:opacity-50"
+            className="min-w-[260px] flex-1 rounded-md border border-divider bg-bg-base px-2 py-1.5 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent/50 disabled:opacity-50"
           >
             {candidates.length === 0 && <option value="">no un-armed sub-targets</option>}
             {candidates.map((s) => (
@@ -216,11 +225,11 @@ function EngagementDetail({
 
       {/* Armed sub-targets */}
       <div className="mt-5 flex items-center justify-between">
-        <span className="text-[11px] text-ink-dim">Sub-targets this engagement arms · {armed.length}</span>
+        <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">Sub-targets this engagement arms · {armed.length}</span>
         {armed.length > 0 && (
           <button
             onClick={onOpenWorkbench}
-            className="flex items-center gap-1.5 text-[11.5px] font-medium text-accent hover:underline"
+            className="flex items-center gap-1.5 text-[calc(11.5px_*_var(--text-scale))] font-medium text-accent hover:underline"
           >
             <Icon name="wrench" size={13} /> Run in Workbench
           </button>
@@ -228,7 +237,7 @@ function EngagementDetail({
       </div>
       <div className="mt-2.5 space-y-2">
         {armed.length === 0 && (
-          <div className="text-[12.5px] leading-relaxed text-ink-muted">
+          <div className="text-[calc(12.5px_*_var(--text-scale))] leading-relaxed text-ink-muted">
             This engagement arms nothing yet. Attaching it above brings a sub-target
             into its scope and unlocks it in the Workbench.
           </div>
@@ -238,8 +247,8 @@ function EngagementDetail({
             key={s.id}
             className="flex flex-wrap items-center gap-3 rounded-lg border border-accent/30 bg-accent/[0.05] px-3 py-2.5"
           >
-            <span className="text-[11.5px] text-ink-dim">{s.targetName} ›</span>
-            <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-muted ring-1 ring-divider">
+            <span className="text-[calc(11.5px_*_var(--text-scale))] text-ink-dim">{s.targetName} ›</span>
+            <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[calc(9.5px_*_var(--text-scale))] font-semibold text-ink-muted ring-1 ring-divider">
               {s.type}
             </span>
             <span className="text-ink-primary">{s.address}</span>

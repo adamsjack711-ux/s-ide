@@ -22,7 +22,7 @@ export default function OutputPanel() {
         <button
           onClick={() => emit("promoteSteps", {})}
           title="Promote a session-log subsequence into an ordered Step chain"
-          className="rounded px-2 py-0.5 text-[11px] text-accent ring-1 ring-accent/40 hover:bg-accent/10"
+          className="rounded px-2 py-0.5 text-[calc(11px_*_var(--text-scale))] text-accent ring-1 ring-accent/40 hover:bg-accent/10"
         >
           Promote → steps
         </button>

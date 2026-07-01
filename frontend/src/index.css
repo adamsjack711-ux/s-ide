@@ -54,6 +54,12 @@
 
   --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+  /* Editor/terminal monospace size (lib/fonts.ts), tunable independently. */
+  --mono-font-px: 11px;
+  /* UI text scale (lib/fonts.ts). EVERY UI font-size is text-[calc(Npx * this)],
+     so this resizes TEXT only — padding, icons and layout stay fixed (not a
+     zoom). Default < 1 because the old baseline read oversized. */
+  --text-scale: 0.9;
 
   /* ── RGB-triplet backing for Tailwind utilities (same colors as above) ── */
   --bg-base-rgb:        10 14 21;

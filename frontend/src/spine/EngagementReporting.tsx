@@ -1,53 +1,67 @@
-// Target Reporting — a report scoped to one Target.
+// Engagement Reporting — a report scoped to one Engagement.
 //
-// A Target's report is the roll-up across its sub-targets' pairings: findings by
-// severity, by sub-target, and by the engagement that produced them. Backend
-// reports are engagement-scoped; this is the Target-level view the IA now nests
-// inside each Target.
+// An engagement's report is the roll-up across every pairing it armed: findings
+// by severity, by the Target they landed on, and by the sub-target address. It's
+// the engagement-first mirror of TargetReporting — the IA now nests reporting
+// inside each Engagement (the engagement is the authority that produced them).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GlassCard, GradientText, Sparkle, StatCounter } from "performative-ui";
 import { useBus } from "../shell/bus";
 import { SEV_PILL, SEV_LABEL } from "../engagement/findings/style";
 import type { Engagement, FindingSeverity } from "../lib/engagement";
-import { listTargetFindings, type PairingFinding, type Target } from "../lib/spine";
+import { listAllPairingFindings, type PairingFinding, type Target } from "../lib/spine";
 
 const SEV_ORDER: FindingSeverity[] = ["critical", "high", "medium", "low", "info"];
 
-export default function TargetReporting({
-  target,
-  engagements,
+export default function EngagementReporting({
+  engagement,
+  targets,
 }: {
-  target: Target;
-  engagements: Engagement[];
+  engagement: Engagement;
+  targets: Target[];
 }) {
-  const [findings, setFindings] = useState<PairingFinding[]>([]);
+  const [all, setAll] = useState<PairingFinding[]>([]);
 
   const load = useCallback(async () => {
     try {
-      setFindings(await listTargetFindings(target.id));
+      setAll(await listAllPairingFindings());
     } catch {
       /* keep the panel responsive */
     }
-  }, [target.id]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
   useBus("findingCreated", () => void load());
 
-  const engName = useMemo(() => {
-    const m = new Map(engagements.map((e) => [e.id, e.name]));
+  // This engagement's findings only.
+  const findings = useMemo(
+    () => all.filter((f) => f.engagement_id === engagement.id),
+    [all, engagement.id],
+  );
+
+  const targetName = useMemo(() => {
+    const m = new Map(targets.map((t) => [t.id, t.name]));
     return (id: string) => m.get(id) ?? id.slice(0, 8);
-  }, [engagements]);
+  }, [targets]);
   const subAddr = useMemo(() => {
-    const m = new Map((target.sub_targets ?? []).map((s) => [s.id, s.address]));
+    const m = new Map<string, string>();
+    for (const t of targets)
+      for (const s of t.sub_targets ?? []) m.set(s.id, s.address);
     return (id: string) => m.get(id) ?? id.slice(0, 8);
-  }, [target]);
+  }, [targets]);
 
   const bySev = useMemo(() => {
     const c: Record<string, number> = {};
     for (const f of findings) c[f.severity] = (c[f.severity] ?? 0) + 1;
     return c;
+  }, [findings]);
+
+  const byTarget = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of findings) m.set(f.target_id, (m.get(f.target_id) ?? 0) + 1);
+    return [...m.entries()];
   }, [findings]);
 
   const bySub = useMemo(() => {
@@ -56,21 +70,15 @@ export default function TargetReporting({
     return [...m.entries()];
   }, [findings]);
 
-  const byEng = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const f of findings) m.set(f.engagement_id, (m.get(f.engagement_id) ?? 0) + 1);
-    return [...m.entries()];
-  }, [findings]);
-
   return (
     <div className="h-full overflow-auto p-5">
       <div className="mb-4">
         <h3 className="flex items-center gap-2 text-[calc(16px_*_var(--text-scale))] font-bold tracking-tight">
-          <GradientText>Report — {target.name}</GradientText>
+          <GradientText>Report — {engagement.name}</GradientText>
           <Sparkle />
         </h3>
         <p className="text-[calc(12.5px_*_var(--text-scale))] leading-relaxed text-ink-muted">
-          Union of findings across this target's sub-targets (<span className="">{findings.length}</span> total).
+          Union of findings across every pairing this engagement armed (<span className="">{findings.length}</span> total).
         </p>
       </div>
 
@@ -89,20 +97,20 @@ export default function TargetReporting({
 
       {findings.length === 0 ? (
         <div className="text-[calc(12.5px_*_var(--text-scale))] leading-relaxed text-ink-muted">
-          No findings yet. Run an armed pairing in this target's Workbench and promote it.
+          No findings yet. Run an armed pairing in this engagement's Workbench and promote it.
         </div>
       ) : (
         <div className="grid gap-5 md:grid-cols-2">
+          {/* By target */}
+          <Section title="By target">
+            {byTarget.map(([tid, n]) => (
+              <Bar key={tid} label={targetName(tid)} n={n} total={findings.length} />
+            ))}
+          </Section>
           {/* By sub-target */}
           <Section title="By sub-target">
             {bySub.map(([sid, n]) => (
-              <Bar key={sid} label={subAddr(sid)} n={n} total={findings.length} mono />
-            ))}
-          </Section>
-          {/* By engagement */}
-          <Section title="By engagement">
-            {byEng.map(([eid, n]) => (
-              <Bar key={eid} label={engName(eid)} n={n} total={findings.length} />
+              <Bar key={sid} label={subAddr(sid)} n={n} total={findings.length} />
             ))}
           </Section>
         </div>
@@ -123,8 +131,8 @@ export default function TargetReporting({
                 </span>
                 <span className="text-[calc(13px_*_var(--text-scale))] font-medium text-ink-primary">{f.title}</span>
                 <div className="flex-1" />
+                <span className="rounded bg-bg-hover px-1.5 py-0.5 text-[calc(11.5px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider">{targetName(f.target_id)}</span>
                 <span className="text-ink-muted">{subAddr(f.sub_target_id)}</span>
-                <span className="text-[calc(11.5px_*_var(--text-scale))] font-medium text-accent">{engName(f.engagement_id)}</span>
               </GlassCard>
             ))}
           </div>
@@ -143,7 +151,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Bar({ label, n, total }: { label: string; n: number; total: number; mono?: boolean }) {
+function Bar({ label, n, total }: { label: string; n: number; total: number }) {
   const pct = total > 0 ? Math.round((n / total) * 100) : 0;
   return (
     <div>

@@ -51,7 +51,7 @@ export default function EngagementWorkspace({
             <button
               key={t.id}
               onClick={() => setEngagementSubTab(engagementId, t.id)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[calc(12px_*_var(--text-scale))] transition-colors ${
                 on
                   ? "bg-accent/[0.12] text-accent"
                   : "text-ink-dim hover:bg-nav-hover hover:text-ink-primary"

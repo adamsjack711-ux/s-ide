@@ -210,7 +210,7 @@ export default function PlaybookEditor({
     <div className="h-full overflow-y-auto bg-bg-base">
       {/* Header */}
       <header className="border-b border-divider px-6 pb-4 pt-5">
-        <EyebrowPill icon={false} className="text-[10px]">
+        <EyebrowPill icon={false} className="text-[calc(10px_*_var(--text-scale))]">
           Playbook
         </EyebrowPill>
         <div className="mt-2 flex items-center gap-2">
@@ -224,12 +224,12 @@ export default function PlaybookEditor({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-[11px] text-ink-muted">
+          <label className="flex items-center gap-2 text-[calc(11px_*_var(--text-scale))] text-ink-muted">
             <span className="font-bold uppercase tracking-widest text-ink-dim">Target lab</span>
             <select
               value={labId ?? ""}
               onChange={(e) => mut(() => setLabId(e.target.value || null))}
-              className="rounded border border-divider bg-bg-card px-2 py-1 text-[12px] text-ink-primary outline-none focus:border-accent"
+              className="rounded border border-divider bg-bg-card px-2 py-1 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent"
             >
               <option value="">— unbound —</option>
               {labs.map((l) => (
@@ -264,22 +264,22 @@ export default function PlaybookEditor({
         </div>
 
         {hasActive && !isolationOk && (
-          <div className="mt-2 rounded bg-amber/10 px-2 py-1 text-[11px] text-amber ring-1 ring-amber/30">
+          <div className="mt-2 rounded bg-amber/10 px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-amber ring-1 ring-amber/30">
             This playbook includes active tools — Run is disabled until the isolation check passes.
           </div>
         )}
         {flash && (
-          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-success">
+          <div className="mt-2 flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] text-success">
             <Sparkle solid /> {flash}
           </div>
         )}
-        {error && <div className="mt-2 text-[11px] text-danger">⚠ {error}</div>}
-        {dirty && !flash && <div className="mt-2 text-[10px] text-ink-dim">Unsaved changes</div>}
+        {error && <div className="mt-2 text-[calc(11px_*_var(--text-scale))] text-danger">⚠ {error}</div>}
+        {dirty && !flash && <div className="mt-2 text-[calc(10px_*_var(--text-scale))] text-ink-dim">Unsaved changes</div>}
       </header>
 
       <div className="mx-auto max-w-3xl space-y-4 p-6">
         {cov && (
-          <GlassCard className="p-3 text-[12px]">
+          <GlassCard className="p-3 text-[calc(12px_*_var(--text-scale))]">
             <div className="flex items-center gap-2">
               <StatusDot color={cov.missing.length === 0 ? C_SUCCESS : C_ACCENT} static />
               <span className="font-bold text-ink-primary">
@@ -289,12 +289,12 @@ export default function PlaybookEditor({
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {cov.covered.map((m) => (
-                <span key={m} title={methodologyLabel(m)} className="rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                <span key={m} title={methodologyLabel(m)} className="rounded bg-success/15 px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-success">
                   {m}
                 </span>
               ))}
               {cov.missing.map((m) => (
-                <span key={m} title={methodologyLabel(m)} className="rounded bg-amber/15 px-1.5 py-0.5 text-[10px] text-amber">
+                <span key={m} title={methodologyLabel(m)} className="rounded bg-amber/15 px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-amber">
                   {m}
                 </span>
               ))}
@@ -327,7 +327,7 @@ export default function PlaybookEditor({
           }`}
         >
           {steps.length === 0 ? (
-            <div className="py-6 text-center text-[12px] text-ink-dim">
+            <div className="py-6 text-center text-[calc(12px_*_var(--text-scale))] text-ink-dim">
               Drag a tool from the Build palette here to add the first step.
             </div>
           ) : (
@@ -366,23 +366,23 @@ export default function PlaybookEditor({
                       <span className="cursor-grab text-ink-dim active:cursor-grabbing" title="Drag to reorder">
                         ⋮⋮
                       </span>
-                      <span className="text-[11px] text-ink-dim">{i + 1}.</span>
+                      <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">{i + 1}.</span>
                       <span className="truncate font-bold text-ink-primary">{tool?.label ?? s.tool_id}</span>
-                      {!tool && <span className="text-[10px] text-amber">unknown tool</span>}
+                      {!tool && <span className="text-[calc(10px_*_var(--text-scale))] text-amber">unknown tool</span>}
                       {active && (
-                        <span className="rounded bg-amber/15 px-1 text-[9px] uppercase text-amber">active</span>
+                        <span className="rounded bg-amber/15 px-1 text-[calc(9px_*_var(--text-scale))] uppercase text-amber">active</span>
                       )}
                       {running && (
                         <button
                           onClick={() => runStep(i)}
-                          className="ml-auto rounded bg-bg-base px-1.5 py-0.5 text-[11px] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
+                          className="ml-auto rounded bg-bg-base px-1.5 py-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
                         >
                           open
                         </button>
                       )}
                       <button
                         onClick={() => removeStep(i)}
-                        className={`${running ? "" : "ml-auto"} text-[11px] text-ink-dim hover:text-danger`}
+                        className={`${running ? "" : "ml-auto"} text-[calc(11px_*_var(--text-scale))] text-ink-dim hover:text-danger`}
                       >
                         remove
                       </button>
@@ -392,7 +392,7 @@ export default function PlaybookEditor({
                       value={s.expected ?? ""}
                       onChange={(e) => patchStep(i, { expected: e.target.value })}
                       placeholder="expected observation"
-                      className="mt-2 w-full rounded border border-divider bg-bg-base px-2 py-1 text-[12px] text-ink-primary outline-none focus:border-accent placeholder:text-ink-dim"
+                      className="mt-2 w-full rounded border border-divider bg-bg-base px-2 py-1 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent placeholder:text-ink-dim"
                     />
 
                     <MethodPicker
@@ -407,7 +407,7 @@ export default function PlaybookEditor({
         </div>
 
         {running && (
-          <div className="flex items-center gap-2 text-[11px] text-ink-dim">
+          <div className="flex items-center gap-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             <StatusDot color={C_ACCENT} static />
             <span>step {cursor + 1}/{steps.length}</span>
             {cursor < steps.length - 1 && (
@@ -436,14 +436,14 @@ function MethodPicker({ selected, onToggle }: { selected: string[]; onToggle: (i
             key={mid}
             onClick={() => onToggle(mid)}
             title={`${methodologyLabel(mid)} — click to remove`}
-            className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent ring-1 ring-accent/30 hover:bg-accent/25"
+            className="rounded bg-accent/15 px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-accent ring-1 ring-accent/30 hover:bg-accent/25"
           >
             {mid} ✕
           </button>
         ))}
         <button
           onClick={() => setOpen((o) => !o)}
-          className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
+          className="rounded bg-bg-base px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
         >
           {open ? "done" : "+ methodology"}
         </button>
@@ -456,7 +456,7 @@ function MethodPicker({ selected, onToggle }: { selected: string[]; onToggle: (i
               <button
                 key={e.id}
                 onClick={() => onToggle(e.id)}
-                className={`flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-[11px] ${
+                className={`flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-[calc(11px_*_var(--text-scale))] ${
                   on ? "bg-accent/10 text-accent" : "text-ink-muted hover:bg-nav-hover hover:text-ink-primary"
                 }`}
               >
@@ -476,7 +476,7 @@ function MethodPicker({ selected, onToggle }: { selected: string[]; onToggle: (i
 function QuickAdd({ onAdd }: { onAdd: (toolId: string) => void }) {
   const [val, setVal] = useState("");
   return (
-    <div className="flex items-center gap-2 border-t border-divider pt-3 text-[11px] text-ink-dim">
+    <div className="flex items-center gap-2 border-t border-divider pt-3 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
       <span>Or add without dragging:</span>
       <select
         value={val}
@@ -485,7 +485,7 @@ function QuickAdd({ onAdd }: { onAdd: (toolId: string) => void }) {
           setVal("");
           if (v) onAdd(v);
         }}
-        className="rounded border border-divider bg-bg-card px-2 py-1 text-[12px] text-ink-primary outline-none focus:border-accent"
+        className="rounded border border-divider bg-bg-card px-2 py-1 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent"
       >
         <option value="">pick a tool…</option>
         {toolGroups().map(({ group, tools }) => (

@@ -27,6 +27,10 @@ const P: Record<string, El[]> = {
   // Erlenmeyer flask — Labs (box read like a package).
   flask: [["path", { d: "M9 3 h6" }], ["path", { d: "M10 3 v5.5 L4.8 18 a1.6 1.6 0 0 0 1.4 2.4 h11.6 a1.6 1.6 0 0 0 1.4-2.4 L14 8.5 V3" }], ["line", { x1: 7.2, y1: 14, x2: 16.8, y2: 14 }]],
   "chevron-down": [["polyline", { points: "6 9 12 15 18 9" }]],
+  // House — the Home landing surface.
+  home: [["path", { d: "M3 11 L12 3 L21 11" }], ["path", { d: "M5 9.5 V20 H19 V9.5" }], ["line", { x1: 10, y1: 20, x2: 10, y2: 14 }], ["line", { x1: 14, y1: 20, x2: 14, y2: 14 }]],
+  // Scroll/ledger — the Audit log.
+  ledger: [["path", { d: "M5 3 H17 a2 2 0 0 1 2 2 V21 H7 a2 2 0 0 1 -2 -2 V5 a2 2 0 0 1 0 -2 Z" }], ["line", { x1: 8, y1: 8, x2: 16, y2: 8 }], ["line", { x1: 8, y1: 12, x2: 16, y2: 12 }], ["line", { x1: 8, y1: 16, x2: 13, y2: 16 }]],
 };
 
 export default function Icon({ name, size = 20 }: { name: keyof typeof P | string; size?: number }) {

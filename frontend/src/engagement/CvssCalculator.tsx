@@ -46,12 +46,12 @@ export default function CvssCalculator({
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {METRICS.map((m) => (
-          <label key={m.id} className="flex items-center justify-between gap-1 text-[11px] text-ink-muted">
+          <label key={m.id} className="flex items-center justify-between gap-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted">
             {m.label}
             <select
               value={vec[m.id]}
               onChange={(e) => set(m.id, e.target.value)}
-              className="rounded bg-bg-card px-1 py-0.5 text-[11px] text-ink-primary outline-none ring-1 ring-divider focus:ring-accent"
+              className="rounded bg-bg-card px-1 py-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-primary outline-none ring-1 ring-divider focus:ring-accent"
             >
               {m.options.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>

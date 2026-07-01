@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 import {
   listEngagements,
+  isLabEngagement,
   setActiveEngagementId,
   useActiveEngagementId,
   type Engagement,
@@ -40,7 +41,8 @@ export default function EngagementSwitcher() {
     let alive = true;
     (async () => {
       try {
-        const es = await listEngagements();
+        // Labs live in Learn → Labs; the switcher lists real engagements only.
+        const es = (await listEngagements()).filter((e) => !isLabEngagement(e));
         if (!alive) return;
         setEngagements(es);
         const entries = await Promise.all(
@@ -106,14 +108,14 @@ export default function EngagementSwitcher() {
 
       {open && (
         <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-80 overflow-hidden rounded-lg border border-divider bg-bg-sidebar shadow-xl">
-          <div className="border-b border-divider px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-ink-dim">
+          <div className="border-b border-divider px-3 py-2 text-[calc(10px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">
             Switch engagement
           </div>
           <div className="max-h-[60vh] overflow-y-auto py-1">
             {engagements === null ? (
-              <div className="px-3 py-2 text-[11px] text-ink-dim">loading…</div>
+              <div className="px-3 py-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">loading…</div>
             ) : engagements.length === 0 ? (
-              <div className="px-3 py-2 text-[11px] text-ink-dim">
+              <div className="px-3 py-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
                 No engagements — create one in the Explorer.
               </div>
             ) : (
@@ -134,13 +136,13 @@ export default function EngagementSwitcher() {
                           {isActive ? "▸" : "·"}
                         </span>
                         <span
-                          className={`truncate text-[12.5px] ${
+                          className={`truncate text-[calc(12.5px_*_var(--text-scale))] ${
                             isActive ? "font-medium text-ink-primary" : "text-ink-muted"
                           }`}
                         >
                           {e.name}
                         </span>
-                        <span className="ml-auto shrink-0 rounded bg-bg-base px-1.5 py-0.5 text-[10px] text-ink-dim">
+                        <span className="ml-auto shrink-0 rounded bg-bg-base px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
                           {ts.length} {ts.length === 1 ? "target" : "targets"}
                         </span>
                       </button>
@@ -158,7 +160,7 @@ export default function EngagementSwitcher() {
                         {ts.slice(0, 5).map((t) => (
                           <li
                             key={t.id}
-                            className="flex items-center gap-1.5 text-[11px] text-ink-dim"
+                            className="flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim"
                           >
                             <span className="text-accent/60">›</span>
                             <span className="truncate font-mono">{t.address}</span>
@@ -168,7 +170,7 @@ export default function EngagementSwitcher() {
                           </li>
                         ))}
                         {ts.length > 5 && (
-                          <li className="text-[10px] text-ink-dim/70">
+                          <li className="text-[calc(10px_*_var(--text-scale))] text-ink-dim/70">
                             +{ts.length - 5} more
                           </li>
                         )}
