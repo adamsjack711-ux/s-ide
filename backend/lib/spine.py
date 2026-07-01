@@ -570,6 +570,21 @@ def _execute(sub: dict[str, Any], tool: str) -> tuple[str, str, str]:
         except OSError as e:
             lines.append(f"resolution failed: {e}")
             return "error", "\n".join(lines), f"{tool}: {host} unresolved"
+    # Dispatch by tool family. These are bounded, dependency-light stdlib probes
+    # (socket / ssl / http.client) — never a shell, never unbounded. Anything we
+    # don't have a richer probe for falls back to the TCP connect check, so an
+    # armed pairing always produces genuine output. The full external-tool
+    # arsenal (nmap, the web fuzzers, …) layers on here incrementally.
+    t = tool.lower()
+    scheme = "https" if (port == 443 or "https" in (address or "")) else "http"
+    if any(k in t for k in ("tls", "ssl", "cert")):
+        return _probe_tls(host, port, tool, lines)
+    if any(k in t for k in ("http", "fingerprint", "cms", "header", "probe", "wayback", "takeover")):
+        return _probe_http(host, port, scheme, tool, lines)
+    return _probe_connect(host, port, tool, lines)
+
+
+def _probe_connect(host: str, port: int, tool: str, lines: list[str]) -> tuple[str, str, str]:
     try:
         with socket.create_connection((host, port), timeout=3.0):
             lines.append(f"connected to {host}:{port} — port open")
@@ -577,6 +592,66 @@ def _execute(sub: dict[str, Any], tool: str) -> tuple[str, str, str]:
     except OSError as e:
         lines.append(f"connect to {host}:{port} failed: {e}")
         return "completed", "\n".join(lines), f"{tool}: {host}:{port} closed/filtered"
+
+
+def _probe_http(host: str, port: int, scheme: str, tool: str, lines: list[str]) -> tuple[str, str, str]:
+    """A bounded HTTP HEAD/GET: status line + a few telling response headers."""
+    import http.client
+
+    conn = None
+    try:
+        if scheme == "https":
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            conn = http.client.HTTPSConnection(host, port, timeout=5.0, context=ctx)
+        else:
+            conn = http.client.HTTPConnection(host, port, timeout=5.0)
+        conn.request("HEAD", "/", headers={"User-Agent": "s-ide-workbench"})
+        r = conn.getresponse()
+        lines.append(f"{scheme.upper()} {r.status} {r.reason}")
+        for h in ("Server", "X-Powered-By", "Location", "Content-Type", "Strict-Transport-Security"):
+            v = r.getheader(h)
+            if v:
+                lines.append(f"{h}: {v}")
+        return "completed", "\n".join(lines), f"{tool}: HTTP {r.status} from {host}"
+    except Exception as e:  # noqa: BLE001 — capture into output, never raise
+        lines.append(f"http probe failed: {e}")
+        return "completed", "\n".join(lines), f"{tool}: http probe failed"
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _probe_tls(host: str, port: int, tool: str, lines: list[str]) -> tuple[str, str, str]:
+    """A bounded TLS handshake: negotiated version + cert subject/issuer/expiry."""
+    import ssl
+
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with socket.create_connection((host, port), timeout=5.0) as raw:
+            with ctx.wrap_socket(raw, server_hostname=host) as s:
+                lines.append(f"TLS {s.version()} · cipher {s.cipher()[0] if s.cipher() else '?'}")
+                cert = s.getpeercert()
+                if cert:
+                    def _name(field):
+                        return ", ".join(f"{k}={v}" for part in field for (k, v) in part)
+                    if cert.get("subject"):
+                        lines.append(f"subject: {_name(cert['subject'])}")
+                    if cert.get("issuer"):
+                        lines.append(f"issuer: {_name(cert['issuer'])}")
+                    if cert.get("notAfter"):
+                        lines.append(f"expires: {cert['notAfter']}")
+        return "completed", "\n".join(lines), f"{tool}: TLS ok on {host}:{port}"
+    except Exception as e:  # noqa: BLE001
+        lines.append(f"tls probe failed: {e}")
+        return "completed", "\n".join(lines), f"{tool}: tls probe failed"
 
 
 def _host_port(address: str, default_port: int | None) -> tuple[str | None, int | None]:
