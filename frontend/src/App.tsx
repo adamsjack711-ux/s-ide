@@ -11,6 +11,7 @@ import MethodPromote from "./engagement/MethodPromote";
 import AttestationModal from "./safety/AttestationModal";
 import CopilotRail from "./copilot/CopilotRail";
 import { emit, on } from "./shell/bus";
+import { hydrateCapabilities } from "./shell/tools";
 import { BACKEND_URL } from "./api";
 import "./lib/theme"; // self-applies dark/light on import
 import "./lib/fonts"; // self-applies --text-scale / --mono-font-px on import
@@ -65,7 +66,13 @@ export default function App() {
     const poll = async () => {
       try {
         const r = await fetch(`${BACKEND_URL}/health`);
-        if (r.ok) return alive && setReady(true);
+        if (r.ok) {
+          // Reconcile capability enablement with the server (authoritative for
+          // the gated groups) before the shell renders, so tool availability
+          // matches what the backend will actually allow.
+          void hydrateCapabilities();
+          return alive && setReady(true);
+        }
       } catch {
         /* not up yet */
       }

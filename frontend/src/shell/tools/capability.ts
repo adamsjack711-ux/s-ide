@@ -7,6 +7,7 @@
  * the scope/auth/audit gates remain the hard enforcement.
  */
 import { useSyncExternalStore } from "react";
+import { fetchCapabilities, setServerCapability } from "../../api";
 import type { ToolDescriptor } from "./types";
 
 const KEY = "s-ide:enabled-caps:v1";
@@ -20,6 +21,17 @@ function load(): Set<string> {
   }
 }
 let enabled = load();
+
+/** Persist to localStorage + notify subscribers (no server round-trip). */
+function writeLocal(next: Set<string>): void {
+  enabled = next;
+  try {
+    localStorage.setItem(KEY, JSON.stringify([...enabled]));
+  } catch {
+    /* quota */
+  }
+  listeners.forEach((l) => l());
+}
 
 /** A capability key is the tool's group (we enable/disable by group). */
 export function capabilityKey(t: ToolDescriptor): string {
@@ -37,15 +49,42 @@ export function isCapabilityEnabled(group: string): boolean {
 }
 
 export function setCapabilityEnabled(group: string, on: boolean): void {
-  enabled = new Set(enabled);
-  if (on) enabled.add(group);
-  else enabled.delete(group);
+  const next = new Set(enabled);
+  if (on) next.add(group);
+  else next.delete(group);
+  writeLocal(next); // optimistic — reflect immediately
+
+  // The backend is authoritative: gated routers 403 until the group is enabled
+  // server-side. Push the change; revert the optimistic update if it fails so
+  // the UI never claims a capability the server hasn't actually granted.
+  void setServerCapability(group, on).catch((e) => {
+    const reverted = new Set(enabled);
+    if (on) reverted.delete(group);
+    else reverted.add(group);
+    writeLocal(reverted);
+    console.error(`capability "${group}" ${on ? "enable" : "disable"} failed`, e);
+  });
+}
+
+/**
+ * Reconcile local state with the server (the source of truth). Call once at
+ * app boot so tool availability matches what the backend will actually allow —
+ * otherwise a localStorage-"enabled" group whose server state was reset would
+ * show tools as runnable that then 403.
+ */
+export async function hydrateCapabilities(): Promise<void> {
   try {
-    localStorage.setItem(KEY, JSON.stringify([...enabled]));
-  } catch {
-    /* quota */
+    const states = await fetchCapabilities();
+    const server = new Set(states.filter((s) => s.enabled).map((s) => s.group));
+    // Preserve any locally-enabled groups the backend doesn't gate (none today,
+    // but keeps this forward-safe); authoritative for every gated group.
+    const gated = new Set(states.map((s) => s.group));
+    const merged = new Set([...enabled].filter((g) => !gated.has(g)));
+    server.forEach((g) => merged.add(g));
+    writeLocal(merged);
+  } catch (e) {
+    console.error("capability hydrate failed", e);
   }
-  listeners.forEach((l) => l());
 }
 
 function subscribe(cb: () => void): () => void {

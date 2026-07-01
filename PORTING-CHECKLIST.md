@@ -21,7 +21,8 @@
 **37 tool descriptors wired** (6 parallel agents + AD written inline; tsc clean, vite build green, smoke-tested live: JWT decode 200, Exploits search 200, /ws/xss registered). Registry refactored to `src/shell/tools/` (types · core · per-group files · index aggregator · capability). Capability model live: Tier-1 info-gathering on by default; **privileged / Tier-3 / intrusive groups OFF until enabled in Settings → Capabilities**.
 
 - **Done:** Discovery (+local_discovery, lan_scan) · Recon (+fingerprint, nmap) · OSINT (ct, email_sec, takeover, reverse_ip, breach, dorking, github_leak) · Web Recon (subdom, cms, jwt, graphql) · Web Exploit (xss/sqli/cmdi/lfi/ssrf/idor) · Active Directory (ldap, smb, kerberoast, bloodhound, lateral, ad_spray) · Red Team (exploits, reverse_shell, c2_beacon) · capability manifest (`exposure.py` + frontend `capability.ts` + `CapabilitiesPanel`).
-- **Still pending:** Support descriptors (audit_log + processes, mode-aware) · Labs/colima + lab↔engagement · Playbooks + editor · Self-Assess · Terminal (lab-PTY) · server-side capability enforcement (currently UI-gated; scope/auth/audit are the hard backend gates) · Payload Obfuscator (no backend — client-side port later). Packaged `.app` on Desktop is the OLD 7-tool build — rebuild to refresh.
+- **Still pending:** Support descriptors (audit_log + processes, mode-aware) · Labs/colima + lab↔engagement · Playbooks + editor · Self-Assess · Terminal (lab-PTY) · Payload Obfuscator (no backend — client-side port later). Packaged `.app` on Desktop is the OLD 7-tool build — rebuild to refresh.
+- **Done since:** server-side capability enforcement — gated routers now carry a `require_capability(group)` dependency (`lib/capability.py`); intrusive/privileged groups return 403 (HTTP) / close (WS) until enabled via `POST /capabilities/{group}`, enforced by the backend rather than only the UI. Scope/auth/audit remain separate hard gates.
 
 ---
 
