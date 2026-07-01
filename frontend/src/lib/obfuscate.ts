@@ -41,21 +41,29 @@ function toBase64(s: string): string {
   return btoa(bin);
 }
 
+/** `\xNN` per UTF-8 byte — always two hex digits, correct for multi-byte input. */
 function hexEscape(s: string): string {
-  return Array.from(s)
-    .map((c) => "\\x" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+  return Array.from(enc.encode(s))
+    .map((b) => "\\x" + b.toString(16).padStart(2, "0"))
     .join("");
 }
 
+/** `\uNNNN` per UTF-16 code unit — astral chars emit their surrogate pair. */
 function unicodeEscape(s: string): string {
-  return Array.from(s)
-    .map((c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"))
-    .join("");
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    out += "\\u" + s.charCodeAt(i).toString(16).padStart(4, "0");
+  }
+  return out;
 }
 
+/** Numeric HTML entities per Unicode code point (correct for astral chars). */
 function htmlEntities(s: string, hex: boolean): string {
   return Array.from(s)
-    .map((c) => (hex ? "&#x" + c.charCodeAt(0).toString(16) + ";" : "&#" + c.charCodeAt(0) + ";"))
+    .map((c) => {
+      const cp = c.codePointAt(0)!;
+      return hex ? "&#x" + cp.toString(16) + ";" : "&#" + cp + ";";
+    })
     .join("");
 }
 
@@ -76,9 +84,11 @@ function sqlCommentSpaces(s: string): string {
   return s.replace(/\s+/g, "/**/");
 }
 
-/** JS String.fromCharCode(...) reconstruction. */
+/** JS String.fromCharCode(...) reconstruction (UTF-16 code units). */
 function jsFromCharCode(s: string): string {
-  return "String.fromCharCode(" + Array.from(s).map((c) => c.charCodeAt(0)).join(",") + ")";
+  const units: number[] = [];
+  for (let i = 0; i < s.length; i++) units.push(s.charCodeAt(i));
+  return "String.fromCharCode(" + units.join(",") + ")";
 }
 
 /** Break into a concatenated JS string literal ('a'+'b'+...). */
