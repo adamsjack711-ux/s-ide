@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CoveragePanel from "./CoveragePanel";
+import SelfAssessPanel from "./SelfAssessPanel";
 import FindingsPanel from "./FindingsPanel";
 import FindingDetail from "./findings/FindingDetail";
 import {
@@ -163,6 +164,7 @@ export default function FindingsView() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg-base">
       <CoveragePanel />
+      <SelfAssessPanel />
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div className="min-h-0 min-w-0 border-r border-divider">
           <FindingsPanel
