@@ -27,8 +27,10 @@ type Events = {
   openEditor: { labId: string; path: string };
   openAttestation: Record<string, never>;
   attestationsChanged: Record<string, never>;
-  /** Open a non-tool view as a tab in the center editor area. */
-  openView: { view: "home" | "findings" | "reports" | "learn" | "settings" | "playbook" | "graph" | "build" | "terminal" | "labs" | "lab" | "spine"; params?: Record<string, unknown> };
+  /** Open a non-tool view as a tab in the center editor area. The top-level bar
+   *  modes — home / targets / workbench / findings / reporting — and the
+   *  engagements switcher + audit log all route through here. */
+  openView: { view: "home" | "targets" | "workbench" | "reporting" | "engagements" | "audit" | "findings" | "reports" | "learn" | "settings" | "playbook" | "graph" | "build" | "terminal" | "labs" | "lab" | "spine"; params?: Record<string, unknown> };
   /**
    * Engagement-spine domain events. The four spine tabs (Targets / Engagements /
    * Workbench / Findings) cross-link through these: arming a sub-target in
@@ -56,6 +58,14 @@ type Events = {
   engagementTabOpened: { engagementId: string };
   engagementTabClosed: { engagementId: string };
   engagementTabActivated: { engagementId: string };
+  /**
+   * The window's ACTIVE engagement changed (via the persistent selector or any
+   * setActiveEngagementId caller). Every workspace surface — Targets, Workbench,
+   * Findings, Reporting — listens and re-scopes to the new engagement. The
+   * selector itself stays visible in every view; this is the re-scope signal.
+   * `engagementId` is null when no engagement is active.
+   */
+  activeEngagementChanged: { engagementId: string | null };
   /**
    * Command-system events (owned by the Foundation lane; see shell/commands.ts
    * + shell/keymap.ts). Feature lanes LISTEN for these to react to global

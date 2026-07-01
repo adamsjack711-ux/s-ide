@@ -178,15 +178,15 @@ export default function TerminalView() {
         <Icon name="terminal" size={16} />
         <span className="text-sm font-bold tracking-tight text-ink-primary">Terminal</span>
         {enabled ? (
-          <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-success ring-1 ring-success/30">
+          <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-bold uppercase tracking-wide text-success ring-1 ring-success/30">
             live · audited
           </span>
         ) : (
-          <span className="shrink-0 rounded bg-amber/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber ring-1 ring-amber/30">
+          <span className="shrink-0 rounded bg-amber/15 px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-bold uppercase tracking-wide text-amber ring-1 ring-amber/30">
             disabled
           </span>
         )}
-        <span className="truncate font-mono text-[11px] text-ink-dim">{cwd}</span>
+        <span className="truncate font-mono text-[calc(11px_*_var(--text-scale))] text-ink-dim">{cwd}</span>
         <div className="ml-auto flex items-center gap-1.5">
           {enabled && (
             <button
@@ -195,7 +195,7 @@ export default function TerminalView() {
                 void setHostTerminal(false);
               }}
               disabled={enabling}
-              className="rounded bg-bg-card px-2 py-1 text-[11px] text-ink-muted ring-1 ring-divider hover:text-amber"
+              className="rounded bg-bg-card px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider hover:text-amber"
               title="Disable host command execution"
             >
               Disable
@@ -206,7 +206,7 @@ export default function TerminalView() {
               e.stopPropagation();
               setLines([]);
             }}
-            className="rounded bg-bg-card px-2 py-1 text-[11px] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
+            className="rounded bg-bg-card px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
           >
             Clear
           </button>
@@ -241,7 +241,7 @@ export default function TerminalView() {
       <>
       {/* Baked-in tools */}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-divider px-4 py-2">
-        <span className="mr-1 text-[10px] uppercase tracking-wide text-ink-dim">Tools</span>
+        <span className="mr-1 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Tools</span>
         {QUICK.map((q) => (
           <button
             key={q.label}
@@ -250,7 +250,7 @@ export default function TerminalView() {
               loadQuick(q.cmd);
             }}
             title={q.cmd}
-            className="rounded bg-bg-card px-2 py-0.5 font-mono text-[11px] text-ink-muted ring-1 ring-divider hover:text-accent hover:ring-accent/40"
+            className="rounded bg-bg-card px-2 py-0.5 font-mono text-[calc(11px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider hover:text-accent hover:ring-accent/40"
           >
             {q.label}
           </button>
@@ -258,7 +258,7 @@ export default function TerminalView() {
       </div>
 
       {/* Scrollback */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-4 py-2 font-mono text-[12px] leading-relaxed">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-4 py-2 font-mono text-[length:var(--mono-font-px)] leading-relaxed">
         {lines.map((l, i) => (
           <div
             key={i}
@@ -279,7 +279,7 @@ export default function TerminalView() {
       </div>
 
       {/* Prompt */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-divider px-4 py-2.5 font-mono text-[12px]">
+      <div className="flex shrink-0 items-center gap-2 border-t border-divider px-4 py-2.5 font-mono text-[length:var(--mono-font-px)]">
         <span className="shrink-0 text-accent">{shortCwd(cwd)} $</span>
         <input
           ref={inputRef}

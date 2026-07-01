@@ -218,8 +218,8 @@ export default function GraphView() {
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-bg-base px-8 text-center">
         <Glyph />
         <div>
-          <div className="text-[15px] font-semibold text-ink-primary">No codebase set for this engagement</div>
-          <div className="mt-1.5 max-w-[420px] text-[12.5px] text-ink-dim">
+          <div className="text-[calc(15px_*_var(--text-scale))] font-semibold text-ink-primary">No codebase set for this engagement</div>
+          <div className="mt-1.5 max-w-[420px] text-[calc(12.5px_*_var(--text-scale))] text-ink-dim">
             Point this engagement at its source folder once — the graph then scans it
             automatically every time you open it.
           </div>
@@ -227,17 +227,17 @@ export default function GraphView() {
         {canBrowse ? (
           <button
             onClick={pickCodebase}
-            className="rounded-md bg-accent px-4 py-2 text-[12.5px] font-bold text-bg-base"
+            className="rounded-md bg-accent px-4 py-2 text-[calc(12.5px_*_var(--text-scale))] font-bold text-bg-base"
             style={{ boxShadow: `0 4px 16px ${hexA(ACCENT, 0.3)}` }}
           >
             Set codebase folder…
           </button>
         ) : (
-          <div className="text-[12px] text-ink-dim">
+          <div className="text-[calc(12px_*_var(--text-scale))] text-ink-dim">
             Set this engagement's source folder from the desktop app.
           </div>
         )}
-        {error && <div className="text-[12px] text-danger">{error}</div>}
+        {error && <div className="text-[calc(12px_*_var(--text-scale))] text-danger">{error}</div>}
       </div>
     );
   }
@@ -247,8 +247,8 @@ export default function GraphView() {
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[20px] font-bold text-ink-primary">Codebase Map</div>
-          <div className="mt-1 text-[12.5px] text-ink-dim">
+          <div className="text-[calc(20px_*_var(--text-scale))] font-bold text-ink-primary">Codebase Map</div>
+          <div className="mt-1 text-[calc(12.5px_*_var(--text-scale))] text-ink-dim">
             <span className="data">{codebase}</span>
             {result && (
               <>
@@ -263,14 +263,14 @@ export default function GraphView() {
           <button
             onClick={() => void scan(codebase)}
             disabled={scanning}
-            className="rounded-md bg-accent px-3.5 py-1.5 text-[12px] font-bold text-bg-base disabled:opacity-50"
+            className="rounded-md bg-accent px-3.5 py-1.5 text-[calc(12px_*_var(--text-scale))] font-bold text-bg-base disabled:opacity-50"
           >
             {scanning ? "Scanning…" : "Rescan"}
           </button>
           {canBrowse && (
             <button
               onClick={pickCodebase}
-              className="rounded-md border border-divider px-3 py-1.5 text-[12px] text-ink-muted hover:border-accent hover:text-accent"
+              className="rounded-md border border-divider px-3 py-1.5 text-[calc(12px_*_var(--text-scale))] text-ink-muted hover:border-accent hover:text-accent"
             >
               Change folder…
             </button>
@@ -279,7 +279,7 @@ export default function GraphView() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger">
+        <div className="mb-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[calc(12px_*_var(--text-scale))] text-danger">
           {error}
         </div>
       )}
@@ -313,16 +313,16 @@ export default function GraphView() {
                 >
                   <div className="flex w-full items-center gap-2">
                     <span
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-[14px]"
+                      className="flex h-7 w-7 items-center justify-center rounded-md text-[calc(14px_*_var(--text-scale))]"
                       style={{ background: hexA(color, 0.14), color }}
                     >
                       {CAT_GLYPH[cat.id] ?? "•"}
                     </span>
-                    <span className="data text-[22px] font-bold leading-none" style={{ color }}>
+                    <span className="data text-[calc(22px_*_var(--text-scale))] font-bold leading-none" style={{ color }}>
                       {cat.count}
                     </span>
                   </div>
-                  <span className="text-[12.5px] font-semibold text-ink-primary">{cat.label}</span>
+                  <span className="text-[calc(12.5px_*_var(--text-scale))] font-semibold text-ink-primary">{cat.label}</span>
                 </button>
               );
             })}
@@ -335,7 +335,7 @@ export default function GraphView() {
                 <>
                   <div className="mb-3 flex items-center gap-2">
                     <span
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-[12px]"
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-[calc(12px_*_var(--text-scale))]"
                       style={{
                         background: hexA(CAT_COLOR[selected.id] ?? ACCENT, 0.14),
                         color: CAT_COLOR[selected.id] ?? ACCENT,
@@ -343,11 +343,11 @@ export default function GraphView() {
                     >
                       {CAT_GLYPH[selected.id] ?? "•"}
                     </span>
-                    <span className="text-[13px] font-semibold text-ink-primary">{selected.label}</span>
-                    <span className="data text-[11.5px] text-ink-dim">{selected.count}</span>
+                    <span className="text-[calc(13px_*_var(--text-scale))] font-semibold text-ink-primary">{selected.label}</span>
+                    <span className="data text-[calc(11.5px_*_var(--text-scale))] text-ink-dim">{selected.count}</span>
                   </div>
                   {selected.items.length === 0 ? (
-                    <div className="text-[12px] text-ink-dim">None found.</div>
+                    <div className="text-[calc(12px_*_var(--text-scale))] text-ink-dim">None found.</div>
                   ) : (
                     <div className="flex flex-col gap-1.5">
                       {selected.items.map((it, i) => (
@@ -355,36 +355,36 @@ export default function GraphView() {
                           key={`${it.name}-${i}`}
                           className="flex items-baseline gap-3 border-b border-divider/60 py-1.5 last:border-b-0"
                         >
-                          <span className="data flex-1 truncate text-[12.5px] text-ink-primary">{it.name}</span>
-                          {it.detail && <span className="data shrink-0 text-[11px] text-ink-dim">{it.detail}</span>}
+                          <span className="data flex-1 truncate text-[calc(12.5px_*_var(--text-scale))] text-ink-primary">{it.name}</span>
+                          {it.detail && <span className="data shrink-0 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{it.detail}</span>}
                         </div>
                       ))}
                     </div>
                   )}
                 </>
               ) : (
-                <div className="text-[12px] text-ink-dim">Select an asset tile to list its members.</div>
+                <div className="text-[calc(12px_*_var(--text-scale))] text-ink-dim">Select an asset tile to list its members.</div>
               )}
             </div>
 
             <div className="rounded-[13px] border border-divider bg-bg-card p-4">
-              <div className="mb-3 text-[12px] font-semibold text-ink-primary">Severity Breakdown</div>
+              <div className="mb-3 text-[calc(12px_*_var(--text-scale))] font-semibold text-ink-primary">Severity Breakdown</div>
               <div className="flex items-center gap-4">
                 <div className="relative h-[88px] w-[88px] flex-[0_0_88px] rounded-full" style={{ background: donutBg }}>
                   <div className="absolute inset-[14px] flex flex-col items-center justify-center rounded-full bg-bg-card">
-                    <div className="data text-[20px] font-bold leading-none text-ink-primary">{total}</div>
-                    <div className="mt-0.5 text-[9px] uppercase tracking-wide text-ink-dim">findings</div>
+                    <div className="data text-[calc(20px_*_var(--text-scale))] font-bold leading-none text-ink-primary">{total}</div>
+                    <div className="mt-0.5 text-[calc(9px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">findings</div>
                   </div>
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5">
                   {SEV_ORDER.filter((s) => counts[s] > 0).map((s) => (
-                    <div key={s} className="flex items-center gap-2 text-[11.5px]">
+                    <div key={s} className="flex items-center gap-2 text-[calc(11.5px_*_var(--text-scale))]">
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: SEV_COLOR[s] }} />
                       <span className="flex-1 text-ink-muted">{SEV_LABEL[s]}</span>
                       <span className="data text-ink-primary">{counts[s]}</span>
                     </div>
                   ))}
-                  {total === 0 && <div className="text-[11.5px] text-ink-dim">No findings 🎉</div>}
+                  {total === 0 && <div className="text-[calc(11.5px_*_var(--text-scale))] text-ink-dim">No findings 🎉</div>}
                 </div>
               </div>
             </div>
@@ -393,8 +393,8 @@ export default function GraphView() {
           {/* ── Code review ── */}
           <div className="mt-6">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="text-[12px] font-semibold uppercase tracking-widest text-ink-dim">Code Review</span>
-              <span className="data text-[11.5px] text-ink-dim">{visibleFindings.length}/{total}</span>
+              <span className="text-[calc(12px_*_var(--text-scale))] font-semibold uppercase tracking-widest text-ink-dim">Code Review</span>
+              <span className="data text-[calc(11.5px_*_var(--text-scale))] text-ink-dim">{visibleFindings.length}/{total}</span>
               <div className="ml-auto flex items-center gap-1.5">
                 <Chip on={sevFilter === null} onClick={() => setSevFilter(null)} color={FAINT}>All</Chip>
                 {SEV_ORDER.filter((s) => counts[s] > 0).map((s) => (
@@ -406,7 +406,7 @@ export default function GraphView() {
             </div>
             <div className="overflow-hidden rounded-[13px] border border-divider bg-bg-card">
               {visibleFindings.length === 0 ? (
-                <div className="p-6 text-center text-[12.5px] text-ink-dim">
+                <div className="p-6 text-center text-[calc(12.5px_*_var(--text-scale))] text-ink-dim">
                   {total === 0 ? "No code findings — clean scan." : "No findings at this severity."}
                 </div>
               ) : (
@@ -415,17 +415,17 @@ export default function GraphView() {
                     <span className="mt-1 h-[8px] w-[8px] shrink-0 rounded-full" style={{ background: SEV_COLOR[f.severity] }} title={SEV_LABEL[f.severity]} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[12.5px] font-semibold text-ink-primary">{f.title}</span>
+                        <span className="text-[calc(12.5px_*_var(--text-scale))] font-semibold text-ink-primary">{f.title}</span>
                         <span
-                          className="rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                          className="rounded border px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-bold uppercase tracking-widest"
                           style={{ color: SEV_COLOR[f.severity], borderColor: hexA(SEV_COLOR[f.severity], 0.4), background: hexA(SEV_COLOR[f.severity], 0.1) }}
                         >
                           {f.type}
                         </span>
-                        <span className="data text-[11px] text-ink-dim">{f.file}:{f.line}</span>
+                        <span className="data text-[calc(11px_*_var(--text-scale))] text-ink-dim">{f.file}:{f.line}</span>
                       </div>
                       {f.snippet && (
-                        <pre className="data mt-1 overflow-x-auto rounded bg-bg-base px-2 py-1 text-[11px] text-ink-muted">{f.snippet}</pre>
+                        <pre className="data mt-1 overflow-x-auto rounded bg-bg-base px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted">{f.snippet}</pre>
                       )}
                     </div>
                   </div>
@@ -472,7 +472,7 @@ function ConnectionGraph({ graph }: { graph: ConnGraph }) {
 
   if (graph.edges.length === 0 && graph.nodes.length === 0) {
     return (
-      <div className="mb-2 rounded-[13px] border border-divider bg-bg-card p-6 text-center text-[12.5px] text-ink-dim">
+      <div className="mb-2 rounded-[13px] border border-divider bg-bg-card p-6 text-center text-[calc(12.5px_*_var(--text-scale))] text-ink-dim">
         No frontend→backend calls detected in this codebase.
       </div>
     );
@@ -494,10 +494,10 @@ function ConnectionGraph({ graph }: { graph: ConnGraph }) {
       <div className="relative overflow-auto rounded-[13px] border border-divider bg-bg-card">
         <div className="relative" style={{ width: CANVAS_W, height: Math.max(height, 160) }}>
           {/* Column captions */}
-          <div className="absolute left-[18px] top-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: FE_COLOR }}>
+          <div className="absolute left-[18px] top-1 text-[calc(10px_*_var(--text-scale))] font-bold uppercase tracking-widest" style={{ color: FE_COLOR }}>
             Frontend ({fe.length})
           </div>
-          <div className="absolute top-1 text-[10px] font-bold uppercase tracking-widest" style={{ left: RIGHT_X, color: BE_COLOR }}>
+          <div className="absolute top-1 text-[calc(10px_*_var(--text-scale))] font-bold uppercase tracking-widest" style={{ left: RIGHT_X, color: BE_COLOR }}>
             Backend ({be.length})
           </div>
 
@@ -557,16 +557,16 @@ function ConnectionGraph({ graph }: { graph: ConnGraph }) {
                 }}
               >
                 <span className="h-[7px] w-[7px] flex-[0_0_7px] rounded-full" style={{ background: color }} />
-                <span className="data flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px] font-medium text-ink-primary">
+                <span className="data flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[calc(11.5px_*_var(--text-scale))] font-medium text-ink-primary">
                   {n.label}
                 </span>
-                <span className="data shrink-0 text-[9px] text-ink-dim">{detail}</span>
+                <span className="data shrink-0 text-[calc(9px_*_var(--text-scale))] text-ink-dim">{detail}</span>
               </div>
             );
           })}
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-ink-dim">
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
         <Legend color={FE_COLOR} label="Frontend module" />
         <Legend color={BE_COLOR} label="Backend route" />
         <Legend color={TOOL_COLOR} label="Tool (WS/stream)" />
@@ -591,7 +591,7 @@ function Legend({ color, label }: { color: string; label: string }) {
 
 function SectionLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`mb-2 text-[12px] font-semibold uppercase tracking-widest text-ink-dim ${className}`}>
+    <div className={`mb-2 text-[calc(12px_*_var(--text-scale))] font-semibold uppercase tracking-widest text-ink-dim ${className}`}>
       {children}
     </div>
   );
@@ -601,7 +601,7 @@ function Chip({ on, onClick, color, children }: { on: boolean; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className="rounded-full border px-2.5 py-1 text-[11px] font-medium transition"
+      className="rounded-full border px-2.5 py-1 text-[calc(11px_*_var(--text-scale))] font-medium transition"
       style={{ color: on ? "#0a0e15" : color, background: on ? color : "transparent", borderColor: hexA(color, 0.5) }}
     >
       {children}
@@ -627,8 +627,8 @@ function Empty({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center bg-bg-base px-8 text-center">
       <Glyph />
-      <div className="mt-2 text-[15px] font-semibold text-ink-primary">{title}</div>
-      {sub && <div className="mt-1.5 max-w-[360px] text-[12.5px] text-ink-dim">{sub}</div>}
+      <div className="mt-2 text-[calc(15px_*_var(--text-scale))] font-semibold text-ink-primary">{title}</div>
+      {sub && <div className="mt-1.5 max-w-[360px] text-[calc(12.5px_*_var(--text-scale))] text-ink-dim">{sub}</div>}
     </div>
   );
 }

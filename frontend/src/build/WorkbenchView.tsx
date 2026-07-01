@@ -91,20 +91,20 @@ function ToolsPane({
         <div className="flex items-center gap-2">
           <Icon name="wrench" size={16} />
           <span className="text-sm font-bold tracking-tight text-ink-primary">Tools</span>
-          <span className="text-[11px] text-ink-dim">
+          <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             {counts.live} active · {allTools.length} total
           </span>
           <button
             onClick={() => void probeTools()}
             disabled={loading}
-            className="ml-auto rounded bg-bg-card px-2 py-1 text-[11px] text-ink-muted ring-1 ring-divider hover:text-ink-primary disabled:opacity-50"
+            className="ml-auto rounded bg-bg-card px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider hover:text-ink-primary disabled:opacity-50"
           >
             {loading ? "Testing…" : "Test all"}
           </button>
         </div>
 
         {/* status legend */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-ink-dim">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
           {(["live", "gated", "offline"] as ToolStatus[]).map((s) => (
             <span key={s} className="flex items-center gap-1" title={STATUS_META[s].hint}>
               <Dot color={STATUS_META[s].color} />
@@ -118,9 +118,9 @@ function ToolsPane({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Filter tools…"
-          className="mt-2 w-full rounded border border-divider bg-bg-card px-2 py-1 text-[12px] text-ink-primary outline-none focus:border-accent placeholder:text-ink-dim"
+          className="mt-2 w-full rounded border border-divider bg-bg-card px-2 py-1 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent placeholder:text-ink-dim"
         />
-        <p className="mt-2 text-[11px] text-ink-muted">Drag a tool onto a playbook → · click to open it.</p>
+        <p className="mt-2 text-[calc(11px_*_var(--text-scale))] text-ink-muted">Drag a tool onto a playbook → · click to open it.</p>
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto pb-4">
@@ -134,7 +134,7 @@ function ToolsPane({
             ))}
           </div>
         ))}
-        {filtered.length === 0 && <div className="px-4 py-6 text-[12px] text-ink-dim">No tools match “{q}”.</div>}
+        {filtered.length === 0 && <div className="px-4 py-6 text-[calc(12px_*_var(--text-scale))] text-ink-dim">No tools match “{q}”.</div>}
       </div>
     </section>
   );
@@ -156,12 +156,12 @@ function ToolRow({ tool, status }: { tool: ToolDescriptor; status: ToolStatus })
       className="group flex cursor-grab items-center gap-2 px-4 py-1.5 text-left hover:bg-nav-hover active:cursor-grabbing"
     >
       <Dot color={meta.color} pulse={status === "live"} />
-      <span className="truncate text-[13px] text-ink-muted group-hover:text-ink-primary">{tool.label}</span>
+      <span className="truncate text-[calc(13px_*_var(--text-scale))] text-ink-muted group-hover:text-ink-primary">{tool.label}</span>
       {attack && (
-        <span className="shrink-0 rounded bg-danger/15 px-1 text-[9px] uppercase tracking-wide text-danger">attack</span>
+        <span className="shrink-0 rounded bg-danger/15 px-1 text-[calc(9px_*_var(--text-scale))] uppercase tracking-wide text-danger">attack</span>
       )}
       {tool.requires && (
-        <span className="ml-auto truncate text-[10px] text-ink-dim" title={`Requires: ${tool.requires}`}>
+        <span className="ml-auto truncate text-[calc(10px_*_var(--text-scale))] text-ink-dim" title={`Requires: ${tool.requires}`}>
           {tool.requires}
         </span>
       )}
@@ -259,7 +259,7 @@ function PlaybooksPane() {
       <header className="flex shrink-0 items-center gap-2 border-b border-divider px-4 pb-3 pt-4">
         <Icon name="book" size={16} />
         <span className="text-sm font-bold tracking-tight text-ink-primary">Playbooks</span>
-        <span className="text-[11px] text-ink-dim">{playbooks.length}</span>
+        <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">{playbooks.length}</span>
 
         {/* tile / list toggle */}
         <div className="ml-auto flex items-center rounded ring-1 ring-divider">
@@ -268,7 +268,7 @@ function PlaybooksPane() {
         </div>
         <button
           onClick={() => setCreating((c) => !c)}
-          className="rounded bg-accent/15 px-2 py-1 text-[11px] font-bold text-accent ring-1 ring-accent/30 hover:bg-accent/25"
+          className="rounded bg-accent/15 px-2 py-1 text-[calc(11px_*_var(--text-scale))] font-bold text-accent ring-1 ring-accent/30 hover:bg-accent/25"
         >
           + New playbook
         </button>
@@ -278,7 +278,7 @@ function PlaybooksPane() {
         {creating && <NewPlaybookForm busy={busy} onCreate={create} onCancel={() => setCreating(false)} />}
 
         {playbooks.length === 0 && !creating ? (
-          <div className="mt-6 rounded-lg border border-dashed border-divider py-10 text-center text-[12px] text-ink-dim">
+          <div className="mt-6 rounded-lg border border-dashed border-divider py-10 text-center text-[calc(12px_*_var(--text-scale))] text-ink-dim">
             No playbooks yet. Hit <span className="text-accent">+ New playbook</span>, name it, then drag tools in.
           </div>
         ) : tile ? (
@@ -295,7 +295,7 @@ function PlaybooksPane() {
           </div>
         )}
       </div>
-      <p className="shrink-0 border-t border-divider px-4 py-2 text-[10px] text-ink-dim">
+      <p className="shrink-0 border-t border-divider px-4 py-2 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
         Drop a tool on a playbook to append a step · click to open the editor.
       </p>
     </section>
@@ -326,16 +326,16 @@ function NewPlaybookForm({
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === "Escape" && onCancel()}
         placeholder="Name this playbook…"
-        className="min-w-0 flex-1 bg-transparent px-1 text-[13px] text-ink-primary outline-none placeholder:text-ink-dim"
+        className="min-w-0 flex-1 bg-transparent px-1 text-[calc(13px_*_var(--text-scale))] text-ink-primary outline-none placeholder:text-ink-dim"
       />
       <button
         type="submit"
         disabled={busy}
-        className="rounded bg-accent px-2.5 py-1 text-[11px] font-bold text-bg-base disabled:opacity-50"
+        className="rounded bg-accent px-2.5 py-1 text-[calc(11px_*_var(--text-scale))] font-bold text-bg-base disabled:opacity-50"
       >
         Create
       </button>
-      <button type="button" onClick={onCancel} className="rounded px-2 py-1 text-[11px] text-ink-dim hover:text-ink-primary">
+      <button type="button" onClick={onCancel} className="rounded px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-dim hover:text-ink-primary">
         Cancel
       </button>
     </form>
@@ -368,20 +368,20 @@ function PlaybookTile({
       }`}
     >
       <div className="flex items-center gap-2">
-        <span className="truncate text-[13px] font-bold text-ink-primary">{pb.name}</span>
-        <span className="ml-auto shrink-0 rounded bg-bg-base px-1.5 py-0.5 text-[10px] text-ink-dim ring-1 ring-divider">
+        <span className="truncate text-[calc(13px_*_var(--text-scale))] font-bold text-ink-primary">{pb.name}</span>
+        <span className="ml-auto shrink-0 rounded bg-bg-base px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-ink-dim ring-1 ring-divider">
           {pb.steps.length} {pb.steps.length === 1 ? "step" : "steps"}
         </span>
         <DeleteBtn name={pb.name} onDelete={onDelete} />
       </div>
       <div className="flex min-h-[20px] flex-wrap gap-1">
         {pb.steps.slice(0, 8).map((s, i) => (
-          <span key={i} className="rounded bg-bg-base px-1.5 py-0.5 text-[10px] text-ink-muted ring-1 ring-divider">
+          <span key={i} className="rounded bg-bg-base px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider">
             {s.tool_id}
           </span>
         ))}
-        {pb.steps.length === 0 && <span className="text-[10px] text-ink-dim">empty — drag tools here</span>}
-        {pb.steps.length > 8 && <span className="text-[10px] text-ink-dim">+{pb.steps.length - 8}</span>}
+        {pb.steps.length === 0 && <span className="text-[calc(10px_*_var(--text-scale))] text-ink-dim">empty — drag tools here</span>}
+        {pb.steps.length > 8 && <span className="text-[calc(10px_*_var(--text-scale))] text-ink-dim">+{pb.steps.length - 8}</span>}
       </div>
     </div>
   );
@@ -407,8 +407,8 @@ function PlaybookRow({
       }`}
     >
       <Icon name="book" size={14} />
-      <span className="truncate text-[13px] text-ink-primary">{pb.name}</span>
-      <span className="ml-auto shrink-0 text-[11px] text-ink-dim">
+      <span className="truncate text-[calc(13px_*_var(--text-scale))] text-ink-primary">{pb.name}</span>
+      <span className="ml-auto shrink-0 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
         {pb.steps.length} {pb.steps.length === 1 ? "step" : "steps"}
       </span>
       <DeleteBtn name={pb.name} onDelete={onDelete} />
@@ -429,7 +429,7 @@ function DeleteBtn({ name, onDelete }: { name: string; onDelete: () => void }) {
       }}
       onMouseLeave={() => setArmed(false)}
       title={armed ? `Click again to delete “${name}”` : `Delete “${name}”`}
-      className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] transition ${
+      className={`shrink-0 rounded px-1.5 py-0.5 text-[calc(11px_*_var(--text-scale))] transition ${
         armed
           ? "bg-danger/20 text-danger ring-1 ring-danger/40"
           : "text-ink-dim opacity-0 hover:text-danger group-hover:opacity-100"

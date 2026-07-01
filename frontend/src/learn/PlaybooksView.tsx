@@ -69,7 +69,7 @@ export default function PlaybooksView({ isolationOk = true }: { isolationOk?: bo
           is tagged with the WSTG/PTES ids it exercises.
         </p>
         {!isolationOk && (
-          <div className="mt-2 rounded bg-amber/10 px-2 py-1 text-[11px] text-amber ring-1 ring-amber/30">
+          <div className="mt-2 rounded bg-amber/10 px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-amber ring-1 ring-amber/30">
             Isolation check not passing — running active playbooks is disabled.
           </div>
         )}
@@ -120,7 +120,7 @@ function PlaybookCard({ playbook, isolationOk }: { playbook: Playbook; isolation
     <div className="border-b border-divider px-3 py-2.5">
       <div className="flex items-center gap-2">
         <span className="truncate font-medium text-ink-primary">{playbook.name}</span>
-        <span className="text-[11px] text-ink-dim">{playbook.steps.length} steps</span>
+        <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">{playbook.steps.length} steps</span>
         <button
           onClick={() => (running ? setCursor(-1) : runStep(0))}
           disabled={!isolationOk || playbook.steps.length === 0}
@@ -139,7 +139,7 @@ function PlaybookCard({ playbook, isolationOk }: { playbook: Playbook; isolation
       </div>
 
       {coverage && (
-        <div className="mt-1 text-[11px] text-ink-dim">
+        <div className="mt-1 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
           coverage {coverage.pct}% — <span className="text-success">{coverage.covered.length} covered</span>
           {coverage.missing.length > 0 && <span className="text-amber"> · {coverage.missing.length} missing</span>}
         </div>
@@ -157,11 +157,11 @@ function PlaybookCard({ playbook, isolationOk }: { playbook: Playbook; isolation
               <div className="flex items-center gap-2">
                 <span className="text-ink-dim">{i + 1}.</span>
                 <span className="font-medium text-ink-primary">{tool?.label ?? s.tool_id}</span>
-                {!tool && <span className="text-[10px] text-amber">unknown tool</span>}
+                {!tool && <span className="text-[calc(10px_*_var(--text-scale))] text-amber">unknown tool</span>}
                 {running && (
                   <button
                     onClick={() => runStep(i)}
-                    className="ml-auto rounded bg-bg-card px-1.5 py-0.5 text-[11px] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
+                    className="ml-auto rounded bg-bg-card px-1.5 py-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
                   >
                     open
                   </button>
@@ -175,7 +175,7 @@ function PlaybookCard({ playbook, isolationOk }: { playbook: Playbook; isolation
                     <span
                       key={mid}
                       title={methodologyLabel(mid)}
-                      className="rounded bg-bg-card px-1.5 py-0.5 text-[10px] text-ink-muted ring-1 ring-divider"
+                      className="rounded bg-bg-card px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider"
                     >
                       {mid}
                     </span>
@@ -188,7 +188,7 @@ function PlaybookCard({ playbook, isolationOk }: { playbook: Playbook; isolation
       </ol>
 
       {running && (
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-ink-dim">
+        <div className="mt-2 flex items-center gap-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
           <span>step {cursor + 1}/{playbook.steps.length}</span>
           {cursor < playbook.steps.length - 1 && (
             <button
@@ -268,8 +268,8 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
         {steps.map((s, i) => (
           <div key={i} className="rounded p-2 ring-1 ring-divider">
             <div className="flex items-center gap-2 pb-1">
-              <span className="text-[11px] text-ink-dim">step {i + 1}</span>
-              <button onClick={() => removeStep(i)} className="ml-auto text-[11px] text-ink-dim hover:text-danger">
+              <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">step {i + 1}</span>
+              <button onClick={() => removeStep(i)} className="ml-auto text-[calc(11px_*_var(--text-scale))] text-ink-dim hover:text-danger">
                 remove
               </button>
             </div>

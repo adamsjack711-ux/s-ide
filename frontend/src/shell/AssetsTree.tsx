@@ -35,11 +35,11 @@ export default function AssetsTree() {
     <div className="border-b border-divider pb-2">
       <div className="flex items-center justify-between px-3 pb-1 pt-3">
         <SectionLabel>Discovered</SectionLabel>
-        <span className="text-[11px] text-ink-dim">{assets.size}</span>
+        <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">{assets.size}</span>
       </div>
       {byKind.map((g) => (
         <div key={g.kind} className="pb-1">
-          <div className="px-3 py-0.5 text-[11px] uppercase tracking-wide text-ink-dim">{g.kind}s</div>
+          <div className="px-3 py-0.5 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">{g.kind}s</div>
           {g.items.map((a) => (
             <div key={a.key} className="truncate px-4 py-0.5 text-xs text-ink-muted" title={`${a.key} · via ${a.tool}`}>
               <span className="mr-1.5 text-accent">{KIND_GLYPH[a.kind] ?? "·"}</span>

@@ -15,15 +15,18 @@ export default function FindingsTab({
   targets,
   engagements,
   lockTargetId,
+  lockEngagementId,
 }: {
   targets: Target[];
   engagements: Engagement[];
   /** When set, findings are locked to one Target (the picker is hidden). */
   lockTargetId?: string;
+  /** When set, findings are locked to one Engagement (the picker is hidden). */
+  lockEngagementId?: string;
 }) {
   const [findings, setFindings] = useState<PairingFinding[]>([]);
   const [targetFilter, setTargetFilter] = useState(lockTargetId ?? "all");
-  const [engFilter, setEngFilter] = useState("all");
+  const [engFilter, setEngFilter] = useState(lockEngagementId ?? "all");
   const [rollup, setRollup] = useState(false);
 
   const load = useCallback(async () => {
@@ -76,12 +79,12 @@ export default function FindingsTab({
       {/* Filter bar */}
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-divider px-4 py-2.5">
         {!lockTargetId && (
-          <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+          <label className="flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             Target
             <select
               value={targetFilter}
               onChange={(e) => setTargetFilter(e.target.value)}
-              className="rounded-md border border-divider bg-bg-base px-2 py-1 text-[12px] text-ink-primary outline-none focus:border-accent/50"
+              className="rounded-md border border-divider bg-bg-base px-2 py-1 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent/50"
             >
               <option value="all">all</option>
               {targets.map((t) => (
@@ -90,20 +93,22 @@ export default function FindingsTab({
             </select>
           </label>
         )}
-        <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
-          Engagement
-          <select
-            value={engFilter}
-            onChange={(e) => setEngFilter(e.target.value)}
-            className="rounded-md border border-divider bg-bg-base px-2 py-1 text-[12px] text-ink-primary outline-none focus:border-accent/50"
-          >
-            <option value="all">all</option>
-            {engagements.map((e) => (
-              <option key={e.id} value={e.id}>{e.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+        {!lockEngagementId && (
+          <label className="flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
+            Engagement
+            <select
+              value={engFilter}
+              onChange={(e) => setEngFilter(e.target.value)}
+              className="rounded-md border border-divider bg-bg-base px-2 py-1 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent/50"
+            >
+              <option value="all">all</option>
+              {engagements.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
           <input
             type="checkbox"
             checked={rollup}
@@ -113,22 +118,22 @@ export default function FindingsTab({
           Roll up by Target
         </label>
         <div className="flex-1" />
-        <span className="text-[11.5px] text-ink-muted"><span className="">{filtered.length}</span> finding{filtered.length === 1 ? "" : "s"}</span>
+        <span className="text-[calc(11.5px_*_var(--text-scale))] text-ink-muted"><span className="">{filtered.length}</span> finding{filtered.length === 1 ? "" : "s"}</span>
       </div>
 
       {/* List */}
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {filtered.length === 0 ? (
-          <div className="text-[12.5px] leading-relaxed text-ink-muted">
+          <div className="text-[calc(12.5px_*_var(--text-scale))] leading-relaxed text-ink-muted">
             No findings yet. Promote a Workbench run against an armed pairing into a finding.
           </div>
         ) : rollup ? (
           <div className="space-y-5">
             {grouped.map(([tid, fs]) => (
               <div key={tid}>
-                <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold tracking-tight text-ink-primary">
+                <div className="mb-2 flex items-center gap-2 text-[calc(13px_*_var(--text-scale))] font-semibold tracking-tight text-ink-primary">
                   {targetName(tid)}
-                  <span className="text-[11.5px] font-normal text-ink-muted">
+                  <span className="text-[calc(11.5px_*_var(--text-scale))] font-normal text-ink-muted">
                     <span className="">{fs.length}</span> finding{fs.length === 1 ? "" : "s"} across sub-targets
                   </span>
                 </div>
@@ -167,12 +172,12 @@ function Row({
 }) {
   return (
     <GlassCard className="flex flex-wrap items-center gap-3 px-3 py-2.5" glowOnHover>
-      <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${SEV_PILL[f.severity as FindingSeverity]}`}>
+      <span className={`rounded px-1.5 py-0.5 text-[calc(9.5px_*_var(--text-scale))] font-semibold ${SEV_PILL[f.severity as FindingSeverity]}`}>
         {SEV_LABEL[f.severity as FindingSeverity]}
       </span>
-      <span className="text-[13px] font-medium text-ink-primary">{f.title}</span>
+      <span className="text-[calc(13px_*_var(--text-scale))] font-medium text-ink-primary">{f.title}</span>
       <div className="flex-1" />
-      <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-ink-muted">
+      <div className="flex flex-wrap items-center gap-2 text-[calc(11.5px_*_var(--text-scale))] text-ink-muted">
         {showTarget && targetName && (
           <span className="rounded bg-bg-hover px-1.5 py-0.5 ring-1 ring-divider">
             {targetName(f.target_id)}

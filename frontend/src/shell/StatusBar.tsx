@@ -53,7 +53,7 @@ export default function StatusBar() {
   const scoped = mode === "engagement";
 
   return (
-    <div className="flex h-6 items-center gap-4 border-t border-divider bg-bg-sidebar px-3 text-[11px] text-ink-muted">
+    <div className="flex h-6 items-center gap-4 border-t border-divider bg-bg-sidebar px-3 text-[calc(11px_*_var(--text-scale))] text-ink-muted">
       <span className="flex items-center gap-1">
         <span className="text-accent">⛬</span>
         {active ? active.name : "no engagement"}

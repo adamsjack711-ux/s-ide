@@ -133,14 +133,14 @@ export default function LabAuthoring() {
             <div className="space-y-1.5">
               {hints.map((h, i) => (
                 <div key={i} className="flex gap-1.5">
-                  <span className="mt-1.5 text-[11px] text-ink-dim">{i + 1}.</span>
+                  <span className="mt-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{i + 1}.</span>
                   <input
                     value={h}
                     onChange={(e) => patchHint(i, e.target.value)}
                     placeholder={`Hint ${i + 1}`}
                     className={inputCls}
                   />
-                  <button onClick={() => removeHint(i)} className="rounded px-1.5 text-[11px] text-ink-dim hover:text-danger">
+                  <button onClick={() => removeHint(i)} className="rounded px-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim hover:text-danger">
                     ✕
                   </button>
                 </div>
@@ -153,7 +153,7 @@ export default function LabAuthoring() {
         </Section>
 
         <Section title="Private solution">
-          <div className="mb-1.5 rounded bg-amber/10 px-2 py-1 text-[11px] text-amber ring-1 ring-amber/30">
+          <div className="mb-1.5 rounded bg-amber/10 px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-amber ring-1 ring-amber/30">
             Stays server-side — never shown to learners or in reports.
           </div>
           <textarea
@@ -216,7 +216,7 @@ const textareaCls = `${inputCls} resize-y font-mono`;
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="pb-1 text-[11px] uppercase tracking-wide text-ink-dim">{label}</div>
+      <div className="pb-1 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">{label}</div>
       {children}
     </div>
   );

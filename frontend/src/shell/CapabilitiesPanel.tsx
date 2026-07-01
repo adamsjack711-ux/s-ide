@@ -43,9 +43,9 @@ export default function CapabilitiesPanel() {
           <div key={g.group} className="border-b border-divider px-3 py-2">
             <div className="flex items-center gap-2">
               <span className="font-medium text-ink-primary">{g.group}</span>
-              <span className="rounded bg-bg-hover px-1.5 text-[10px] text-ink-dim">{g.gated.length}</span>
+              <span className="rounded bg-bg-hover px-1.5 text-[calc(10px_*_var(--text-scale))] text-ink-dim">{g.gated.length}</span>
               {intrusive && (
-                <span className="rounded bg-amber/15 px-1.5 text-[10px] uppercase text-amber" title="Intrusive — authorization required">
+                <span className="rounded bg-amber/15 px-1.5 text-[calc(10px_*_var(--text-scale))] uppercase text-amber" title="Intrusive — authorization required">
                   intrusive
                 </span>
               )}
@@ -57,7 +57,7 @@ export default function CapabilitiesPanel() {
               </button>
             </div>
             {reqs.length > 0 && (
-              <div className="mt-1 truncate text-[11px] text-ink-dim" title={reqs.join(" · ")}>
+              <div className="mt-1 truncate text-[calc(11px_*_var(--text-scale))] text-ink-dim" title={reqs.join(" · ")}>
                 needs: {reqs.join(" · ")}
               </div>
             )}

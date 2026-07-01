@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { authFetch, BACKEND_URL, parseError } from "../api";
 import { getMode } from "./mode";
+import { emit } from "../shell/bus";
 
 export type EngagementStatus = "active" | "completed" | "archived";
 
@@ -118,13 +119,28 @@ export function getActiveEngagementId(): string | null {
   return activeId;
 }
 
+/**
+ * True if an engagement belongs to the Labs/training surface, not the real
+ * engagement workspace. Lab attaches now tag provenance "lab", but older
+ * auto-created ones (named "Lab: <name>") predate that, so we catch both.
+ * Used to keep labs OUT of every engagement list (Learning is their home).
+ */
+export function isLabEngagement(e: { provenance?: string; name?: string }): boolean {
+  return e.provenance === "lab" || /^lab:\s/i.test(e.name ?? "");
+}
+
 export function setActiveEngagementId(id: string | null): void {
+  if (id === activeId) return; // no-op: don't churn listeners / the bus
   activeId = id;
   try {
     if (id) localStorage.setItem(ACTIVE_KEY, id);
     else localStorage.removeItem(ACTIVE_KEY);
   } catch { /* quota */ }
   notify();
+  // Broadcast so non-hook subscribers (the spine surfaces, the StatusBar, the
+  // Workbench) re-scope to the new engagement. Hook consumers re-render via
+  // notify() above; the bus event covers everything else.
+  emit("activeEngagementChanged", { engagementId: id });
 }
 
 export function useActiveEngagementId(): string | null {
