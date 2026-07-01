@@ -22,6 +22,10 @@ _CVSS_EXPECTED = frozenset({"medium", "high", "critical"})
 # Canonical "still needs a verdict" status (legacy `triaged` also counts as
 # resolved-enough; `open` is the unresolved state).
 _UNRESOLVED_STATUS = "open"
+# Cap on how many distinct targets we DNS-classify for the attestation check —
+# provenance()/attestation_for() each hit the (untimed) system resolver, so an
+# engagement with a huge target list won't tie up the worker unboundedly.
+_MAX_ATTEST_TARGETS = 100
 
 
 def _check(cid: str, label: str, status: str, detail: str,
@@ -107,16 +111,28 @@ def assess(engagement_id: str) -> dict[str, Any]:
     ))
 
     # 6 — External targets acted upon without a covering attestation.
-    external_unattested = [
-        t for t in _distinct_targets(engagement_id)
-        if safety.provenance(t) == "external"
-        and safety.attestation_for(t, engagement_id) is None
-    ]
+    # provenance()/attestation_for() resolve DNS (no timeout in the shared
+    # resolver), so bound the work: cap the target set and treat any target we
+    # can't classify as a skip rather than 500-ing the whole assessment.
+    all_targets = _distinct_targets(engagement_id)
+    scanned = all_targets[:_MAX_ATTEST_TARGETS]
+    external_unattested: list[str] = []
+    for t in scanned:
+        try:
+            if safety.provenance(t) == "external" and safety.attestation_for(t, engagement_id) is None:
+                external_unattested.append(t)
+        except Exception:
+            continue  # unresolvable / unclassifiable — don't fail the report
+    attest_detail = (
+        "No unattested external targets." if not external_unattested
+        else f"{len(external_unattested)} external target(s) acted on without attestation."
+    )
+    if len(all_targets) > len(scanned):
+        attest_detail += f" (checked first {len(scanned)} of {len(all_targets)} targets)"
     checks.append(_check(
         "target_attestation", "External targets attested",
         "ok" if not external_unattested else "gap",
-        "No unattested external targets." if not external_unattested
-        else f"{len(external_unattested)} external target(s) acted on without attestation.",
+        attest_detail,
         count=len(external_unattested), items=external_unattested,
     ))
 
