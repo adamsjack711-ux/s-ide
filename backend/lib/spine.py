@@ -637,21 +637,75 @@ def _probe_tls(host: str, port: int, tool: str, lines: list[str]) -> tuple[str, 
         ctx.verify_mode = ssl.CERT_NONE
         with socket.create_connection((host, port), timeout=5.0) as raw:
             with ctx.wrap_socket(raw, server_hostname=host) as s:
-                lines.append(f"TLS {s.version()} · cipher {s.cipher()[0] if s.cipher() else '?'}")
-                cert = s.getpeercert()
-                if cert:
-                    def _name(field):
-                        return ", ".join(f"{k}={v}" for part in field for (k, v) in part)
-                    if cert.get("subject"):
-                        lines.append(f"subject: {_name(cert['subject'])}")
-                    if cert.get("issuer"):
-                        lines.append(f"issuer: {_name(cert['issuer'])}")
-                    if cert.get("notAfter"):
-                        lines.append(f"expires: {cert['notAfter']}")
+                cph = s.cipher()
+                lines.append(f"TLS {s.version()} · cipher {cph[0] if cph else '?'}")
+                # verify_mode=CERT_NONE means getpeercert() returns {} — the parsed
+                # dict is only populated when the chain is verified. Pull the DER form
+                # (always available post-handshake) and decode it ourselves so that
+                # self-signed / expired certs still yield subject/issuer/expiry.
+                der = s.getpeercert(binary_form=True)
+                if der:
+                    _describe_cert(der, lines)
         return "completed", "\n".join(lines), f"{tool}: TLS ok on {host}:{port}"
     except Exception as e:  # noqa: BLE001
         lines.append(f"tls probe failed: {e}")
         return "completed", "\n".join(lines), f"{tool}: tls probe failed"
+
+
+def _describe_cert(der: bytes, lines: list[str]) -> None:
+    """Decode a DER cert and append subject/issuer/expiry — never raises.
+
+    Uses the stdlib DER→PEM→decode path (no third-party crypto dep). A malformed
+    or unparseable cert is swallowed so it can't break an otherwise-good handshake
+    result. ``notAfter`` (format ``'%b %d %H:%M:%S %Y %Z'``) is turned into a
+    days-until-expiry so an expired cert is visible at a glance.
+    """
+    import os
+    import ssl
+    import tempfile
+
+    tmp = None
+    try:
+        pem = ssl.DER_cert_to_PEM_cert(der)
+        fd, tmp = tempfile.mkstemp(suffix=".pem")
+        with os.fdopen(fd, "w") as fh:
+            fh.write(pem)
+        cert = ssl._ssl._test_decode_cert(tmp)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 — best-effort cert detail only
+        if tmp is not None:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        return
+    else:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+    def _name(field: Any) -> str:
+        return ", ".join(f"{k}={v}" for part in field for (k, v) in part)
+
+    try:
+        if cert.get("subject"):
+            lines.append(f"subject: {_name(cert['subject'])}")
+        if cert.get("issuer"):
+            lines.append(f"issuer: {_name(cert['issuer'])}")
+    except Exception:  # noqa: BLE001 — odd name structure, skip
+        pass
+
+    not_after = cert.get("notAfter")
+    if not_after:
+        try:
+            import datetime
+            exp = datetime.datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+            exp = exp.replace(tzinfo=datetime.timezone.utc)
+            days = (exp - datetime.datetime.now(datetime.timezone.utc)).days
+            tag = "EXPIRED" if days < 0 else f"{days}d left"
+            lines.append(f"expires: {not_after} ({tag})")
+        except (ValueError, TypeError):
+            lines.append(f"expires: {not_after}")
 
 
 def _host_port(address: str, default_port: int | None) -> tuple[str | None, int | None]:
