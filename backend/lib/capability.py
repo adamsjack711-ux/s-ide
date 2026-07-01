@@ -51,6 +51,38 @@ ROUTER_GROUP: dict[str, str] = {
 
 ALL_GROUPS: tuple[str, ...] = tuple(GROUP_ROUTERS.keys())
 
+# Preset/playbook step name → capability group. The preset engine drives tool
+# routers by calling their handler functions *directly* (see
+# lib/preset_engine.py), which bypasses the route-level require_capability
+# dependency — so `/ws/preset-run` would otherwise be a hole through which the
+# whole intrusive arsenal runs regardless of enablement. `preset_engine`
+# consults this map before executing a gated step. Includes the preset name
+# variants (nmap_vuln, ldap_full, …) that resolve to the same gated adapter.
+PRESET_TOOL_GROUP: dict[str, str] = {
+    # Discovery / Recon / Web Recon.
+    "lan_scan": "Discovery",
+    "subdomain_enum": "Web Recon",
+    "nmap": "Recon", "nmap_vuln": "Recon", "nmap_full": "Recon", "nmap_smb": "Recon",
+    # Web Exploit fuzzers (+ variants).
+    "xss": "Web Exploit", "xss_passive": "Web Exploit", "sqli": "Web Exploit",
+    "cmdi": "Web Exploit", "lfi": "Web Exploit", "ssrf": "Web Exploit",
+    "ssrf_imds": "Web Exploit", "idor": "Web Exploit", "idor_own": "Web Exploit",
+    # Active Directory family.
+    "kerberoast": "Active Directory", "asrep_roast": "Active Directory",
+    "crack_spns": "Active Directory", "bloodhound": "Active Directory",
+    "ad_spray": "Active Directory", "password_spray": "Active Directory",
+    "smb_enum": "Active Directory", "smb_null": "Active Directory",
+    "ldap_enum": "Active Directory", "ldap_full": "Active Directory",
+    "ldap_anon": "Active Directory", "find_dcs": "Active Directory",
+    "acl_abuse": "Active Directory", "delegation_abuse": "Active Directory",
+    "gpo_analysis": "Active Directory",
+}
+
+
+def group_for_preset(tool: str) -> str | None:
+    """The capability group gating this preset step tool, or None if ungated."""
+    return PRESET_TOOL_GROUP.get(tool)
+
 
 def router_group(key: str) -> str | None:
     """The capability group gating this router key, or None if ungated."""
