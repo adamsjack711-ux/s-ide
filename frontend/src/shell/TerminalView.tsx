@@ -47,21 +47,48 @@ export default function TerminalView() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [hIdx, setHIdx] = useState(-1);
+  // null = still checking; false = disabled (show opt-in gate); true = live.
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [enabling, setEnabling] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Initial working directory.
+  // Initial working directory + opt-in status.
   useEffect(() => {
     let alive = true;
     authFetch("/terminal/cwd")
       .then((r) => (r.ok ? r.json() : null))
       .then((b) => alive && b?.cwd && setCwd(b.cwd))
       .catch(() => {});
+    authFetch("/terminal/status")
+      .then((r) => (r.ok ? r.json() : { enabled: false }))
+      .then((b) => alive && setEnabled(!!b?.enabled))
+      .catch(() => alive && setEnabled(false));
     return () => {
       alive = false;
     };
   }, []);
+
+  async function setHostTerminal(on: boolean) {
+    setEnabling(true);
+    try {
+      const r = await authFetch("/terminal/enable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: on }),
+      });
+      const b = r.ok ? await r.json() : null;
+      const next = !!b?.enabled;
+      setEnabled(next);
+      push({ kind: "info", text: next ? "host terminal enabled — every command is audited." : "host terminal disabled." });
+      if (next) inputRef.current?.focus();
+    } catch {
+      push({ kind: "err", text: "could not change host-terminal state" });
+    } finally {
+      setEnabling(false);
+    }
+  }
 
   // Keep the view pinned to the latest output.
   useEffect(() => {
@@ -100,8 +127,11 @@ export default function TerminalView() {
         } catch {
           /* keep status */
         }
+        if (r.status === 403 && /host terminal is disabled/i.test(detail)) {
+          setEnabled(false); // server says off — reflect it in the gate
+        }
         const hint =
-          r.status === 403 || /engagement/i.test(detail)
+          r.status === 403 && /engagement/i.test(detail)
             ? " — an active engagement (or lab mode) is required to run commands."
             : "";
         push({ kind: "err", text: `${detail}${hint}` });
@@ -147,21 +177,68 @@ export default function TerminalView() {
       <header className="flex shrink-0 items-center gap-2 border-b border-divider px-4 py-2.5">
         <Icon name="terminal" size={16} />
         <span className="text-sm font-bold tracking-tight text-ink-primary">Terminal</span>
-        <span className="shrink-0 rounded bg-amber/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber ring-1 ring-amber/30">
-          WIP
-        </span>
+        {enabled ? (
+          <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-success ring-1 ring-success/30">
+            live · audited
+          </span>
+        ) : (
+          <span className="shrink-0 rounded bg-amber/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber ring-1 ring-amber/30">
+            disabled
+          </span>
+        )}
         <span className="truncate font-mono text-[11px] text-ink-dim">{cwd}</span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setLines([]);
-          }}
-          className="ml-auto rounded bg-bg-card px-2 py-1 text-[11px] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
-        >
-          Clear
-        </button>
+        <div className="ml-auto flex items-center gap-1.5">
+          {enabled && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                void setHostTerminal(false);
+              }}
+              disabled={enabling}
+              className="rounded bg-bg-card px-2 py-1 text-[11px] text-ink-muted ring-1 ring-divider hover:text-amber"
+              title="Disable host command execution"
+            >
+              Disable
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setLines([]);
+            }}
+            className="rounded bg-bg-card px-2 py-1 text-[11px] text-ink-muted ring-1 ring-divider hover:text-ink-primary"
+          >
+            Clear
+          </button>
+        </div>
       </header>
 
+      {enabled === false && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber/15 text-amber ring-1 ring-amber/30">
+            <Icon name="terminal" size={18} />
+          </div>
+          <div className="max-w-sm text-sm text-ink-primary">Host terminal is off</div>
+          <p className="max-w-sm text-xs leading-relaxed text-ink-dim">
+            Enabling runs <span className="text-ink-muted">arbitrary commands on your machine</span> (one program per line — no
+            pipes or shell). It stays loopback + token gated, and <span className="text-ink-muted">every command is written to the
+            hash-chained audit log</span>. Turn it off any time.
+          </p>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              void setHostTerminal(true);
+            }}
+            disabled={enabling}
+            className="rounded bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent ring-1 ring-accent/30 hover:bg-accent/25 disabled:opacity-50"
+          >
+            {enabling ? "Enabling…" : "Enable host terminal"}
+          </button>
+        </div>
+      )}
+
+      {enabled && (
+      <>
       {/* Baked-in tools */}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-divider px-4 py-2">
         <span className="mr-1 text-[10px] uppercase tracking-wide text-ink-dim">Tools</span>
@@ -219,6 +296,8 @@ export default function TerminalView() {
           className="min-w-0 flex-1 bg-transparent text-ink-primary outline-none placeholder:text-ink-dim"
         />
       </div>
+      </>
+      )}
     </div>
   );
 }
