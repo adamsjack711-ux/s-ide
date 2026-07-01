@@ -210,6 +210,36 @@ export function resetAuthToken(): void {
   cachedAuthToken = null;
 }
 
+/**
+ * True only for the 403 the backend raises when the per-launch token is
+ * missing or stale (`require_local_auth` → `HTTPException(403, "missing or
+ * invalid X-MHP-Token")`). A genuine authorization 403 — un-armed pairing,
+ * scope/target denial, missing attestation — always carries a structured
+ * `{error/detail, code}` envelope (SUBTARGET_UNARMED, TARGET_DENIED, …) and
+ * must NOT trigger a token reset + replay: that would throw away a valid
+ * token on every authz denial and needlessly re-run the request.
+ *
+ * Reads a `clone()` so the original response body stays intact for the caller.
+ */
+async function isStaleTokenResponse(res: Response): Promise<boolean> {
+  if (res.status !== 403) return false;
+  try {
+    const body = await res.clone().json();
+    // The auth reject is a bare-string FastAPI detail with no `code`; every
+    // authz gate ships a structured code, so their presence rules a stale
+    // token out.
+    if (body && typeof body === "object") {
+      if (typeof body.code === "string") return false;
+      const detail = (body as Record<string, unknown>).detail;
+      if (detail && typeof detail === "object") return false; // structured authz decision
+      if (typeof detail === "string") return detail.includes("X-MHP-Token");
+    }
+  } catch {
+    /* non-JSON or empty body — not the token reject, which is always JSON */
+  }
+  return false;
+}
+
 /** Synchronously returns the cached auth token, or null if not yet fetched.
  *  Used by URL builders for `<a href>` / `<iframe src>` cases where headers
  *  can't be set. The token must already be cached — call `fetchAuthToken()`
@@ -250,10 +280,12 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
   let res = await fetch(url, await withAuthHeader(init));
   // The per-launch auth token rotates every time the backend restarts (dev
   // --reload, a rebuild, or any sidecar relaunch). A cached-but-stale token
-  // makes every call 403. Recover transparently: clear the token, fetch a
-  // fresh one, and retry ONCE. A genuine authorization 403 (un-armed pairing,
-  // scope denial) 403s again and is surfaced unchanged — no gate is weakened.
-  if (res.status === 403 && !isTokenPath) {
+  // makes every call 403 with the auth reject body. Recover transparently:
+  // clear the token, fetch a fresh one, and retry ONCE. A genuine
+  // authorization 403 (un-armed pairing, scope denial) carries a structured
+  // code, so `isStaleTokenResponse` returns false and it's surfaced unchanged
+  // without a wasteful token reset/replay — no gate is weakened.
+  if (!isTokenPath && (await isStaleTokenResponse(res))) {
     resetAuthToken();
     res = await fetch(url, await withAuthHeader(init));
   }
@@ -296,9 +328,11 @@ export async function api<T>(path: string, init?: ApiInit): Promise<T> {
 
   let res = await attempt();
   // Transparently recover from a stale per-launch token (rotates on every
-  // backend restart): clear it, re-fetch, retry ONCE. A real authorization 403
-  // 403s again below and is surfaced unchanged. See authFetch for the rationale.
-  if (res.status === 403 && !isTokenPath) {
+  // backend restart): clear it, re-fetch, retry ONCE. Only the token-auth
+  // reject qualifies — a real authorization 403 carries a structured code and
+  // is surfaced unchanged below. See authFetch/isStaleTokenResponse for the
+  // rationale.
+  if (!isTokenPath && (await isStaleTokenResponse(res))) {
     resetAuthToken();
     res = await attempt();
   }
