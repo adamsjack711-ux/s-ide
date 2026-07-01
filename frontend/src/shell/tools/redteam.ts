@@ -12,6 +12,7 @@
  *   - c2_beacon     : Tier 2, intrusive (egress / beacon test)
  */
 import { authFetch } from "../../api";
+import { obfuscate, type Variant, type ObfContext } from "../../lib/obfuscate";
 import type { ToolDescriptor, HttpDescriptor, ResultRow, OutLine } from "./types";
 
 // ── exploits (SearchSploit) ──────────────────────────────────────────────────
@@ -179,4 +180,51 @@ const C2_BEACON: HttpDescriptor = {
   },
 };
 
-export const REDTEAM_TOOLS: ToolDescriptor[] = [EXPLOITS, REVERSE_SHELL, C2_BEACON];
+// ── payload_obfuscator (client-side, no backend) ─────────────────────────────
+// A pure-renderer utility: transform a payload into encoding/evasion variants.
+// Tier 1, non-intrusive (touches no target), so it's always available; the
+// scope/authorization/audit gates apply to whatever tool consumes the output.
+const PAYLOAD_OBFUSCATOR: HttpDescriptor = {
+  id: "payload_obfuscator",
+  label: "Payload Obfuscator",
+  group: "Red Team",
+  blurb: "Encode a payload into filter/WAF-evasion variants (URL, base64, hex, unicode, HTML entities, mixed-case, SQL comments, JS). Runs entirely in the app — no backend.",
+  tier: 1,
+  requires: "none (client-side)",
+  transport: "http",
+  fields: [
+    { name: "payload", label: "Payload", type: "text", placeholder: "<script>alert(1)</script>", required: true },
+    {
+      name: "context",
+      label: "Context",
+      type: "select",
+      default: "any",
+      options: [
+        { value: "any", label: "Any" },
+        { value: "url", label: "URL / query" },
+        { value: "html", label: "HTML" },
+        { value: "js", label: "JavaScript" },
+        { value: "sql", label: "SQL" },
+      ],
+    },
+  ],
+  columns: ["Technique", "Output"],
+  // No network: compute the variants locally and hand them to the panel.
+  run: async (v) => ({
+    payload: v.payload ?? "",
+    context: v.context || "any",
+    variants: obfuscate(v.payload ?? "", (v.context || "any") as ObfContext),
+  }),
+  toRows: (j) =>
+    (j?.variants || []).map(
+      (x: Variant): ResultRow => ({ cols: [x.label, x.value], level: "hit" }),
+    ),
+  toOutputs: (j) => {
+    const out: OutLine[] = [{ level: "info", text: `${(j?.variants || []).length} variants · context: ${j?.context}` }];
+    for (const x of j?.variants || []) out.push({ level: "hit", text: `${x.label}: ${x.value}` });
+    return out;
+  },
+  doneText: (j) => `${(j?.variants || []).length} variants`,
+};
+
+export const REDTEAM_TOOLS: ToolDescriptor[] = [EXPLOITS, REVERSE_SHELL, C2_BEACON, PAYLOAD_OBFUSCATOR];

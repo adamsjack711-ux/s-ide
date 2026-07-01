@@ -213,7 +213,7 @@ export default function ReportsView() {
     <div className="flex h-full flex-col overflow-auto bg-bg-base text-sm">
       {/* ── Report document ─────────────────────────────────────────────────── */}
       <div className="mx-auto flex w-full max-w-4xl items-end justify-between px-6 pb-3 pt-6">
-        <div className="text-[22px] font-bold tracking-tight text-ink-primary">Reporting</div>
+        <div className="text-[calc(22px_*_var(--text-scale))] font-bold tracking-tight text-ink-primary">Reporting</div>
         <button
           onClick={() => open(requestReportLink(eid, "html"))}
           className="flex h-8 items-center rounded-lg border border-divider bg-bg-card px-3 text-xs font-medium text-ink-muted hover:border-borderBright hover:text-ink-primary"
@@ -226,10 +226,10 @@ export default function ReportsView() {
       <div className="mx-auto w-full max-w-4xl border-b border-divider px-6 pb-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
           {metrics.map((m) => (
-            <span key={m.label} className="flex items-baseline gap-1.5 text-[12.5px]">
+            <span key={m.label} className="flex items-baseline gap-1.5 text-[calc(12.5px_*_var(--text-scale))]">
               <span className="text-ink-muted">{m.label}</span>
               <span className="data font-semibold" style={{ color: m.color }}>{m.value}</span>
-              {m.delta && <span className="text-[11px] text-ink-dim">({m.delta})</span>}
+              {m.delta && <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">({m.delta})</span>}
             </span>
           ))}
         </div>
@@ -239,7 +239,7 @@ export default function ReportsView() {
       <div className="mx-auto w-full max-w-4xl space-y-7 px-6 py-6">
         {/* Report outline — the document's table of contents (primary). */}
         <section>
-          <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">Report Outline</h2>
+          <h2 className="mb-2 text-[calc(13px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">Report Outline</h2>
           <div className="flex flex-col">
             {OUTLINE.map((label) => {
               const active = label === activeSection;
@@ -247,7 +247,7 @@ export default function ReportsView() {
                 <div
                   key={label}
                   onClick={() => setActiveSection(label)}
-                  className="cursor-pointer border-l-2 px-3 py-2 text-[13.5px]"
+                  className="cursor-pointer border-l-2 px-3 py-2 text-[calc(13.5px_*_var(--text-scale))]"
                   style={{
                     color: active ? "var(--text-primary)" : "var(--text-secondary)",
                     background: active ? "var(--accent-dim)" : "transparent",
@@ -263,22 +263,22 @@ export default function ReportsView() {
 
         {/* Findings by severity — compact inline breakdown (no chart). */}
         <section>
-          <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">Findings by Severity</h2>
+          <h2 className="mb-2 text-[calc(13px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">Findings by Severity</h2>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {FINDING_SEVERITIES.map((sev) => (
-              <span key={sev} className="flex items-center gap-2 text-[13px]">
+              <span key={sev} className="flex items-center gap-2 text-[calc(13px_*_var(--text-scale))]">
                 <span className="h-[10px] w-[10px] rounded-[3px]" style={{ background: SEV_COLOR[sev] }} />
                 <span className="text-ink-muted">{SEV_LABEL[sev]}</span>
                 <span className="data font-semibold text-ink-primary">{counts[sev]}</span>
               </span>
             ))}
-            <span className="text-[12px] text-ink-dim">· {openFindings} open</span>
+            <span className="text-[calc(12px_*_var(--text-scale))] text-ink-dim">· {openFindings} open</span>
           </div>
         </section>
 
         {/* Coverage. */}
         <section>
-          <h2 className="mb-2 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">
+          <h2 className="mb-2 flex items-center gap-2 text-[calc(13px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">
             Coverage
             {coveragePct != null && <span className="data normal-case text-ink-muted">· {coveragePct}%</span>}
           </h2>
@@ -290,7 +290,7 @@ export default function ReportsView() {
                 <span
                   key={a.key}
                   title={a.covered ? `${a.runs} run(s) · last: ${a.last_tool ?? "—"}` : a.description}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11.5px]"
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[calc(11.5px_*_var(--text-scale))]"
                   style={{
                     color: a.covered ? "var(--accent)" : "var(--text-muted)",
                     borderColor: a.covered ? "var(--accent-dim)" : "var(--border)",
@@ -307,7 +307,7 @@ export default function ReportsView() {
 
         {/* Tools used — compact ranked list. */}
         <section>
-          <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-dim">Tools Used</h2>
+          <h2 className="mb-2 text-[calc(13px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">Tools Used</h2>
           {toolsUsed.length === 0 ? (
             <div className="text-xs text-ink-dim">No tool activity recorded yet.</div>
           ) : (
@@ -316,7 +316,7 @@ export default function ReportsView() {
                 const findColor =
                   t.findings >= 3 ? "var(--critical)" : t.findings >= 1 ? "var(--high)" : "var(--text-muted)";
                 return (
-                  <div key={t.name} className="flex items-center gap-3 text-[12.5px]">
+                  <div key={t.name} className="flex items-center gap-3 text-[calc(12.5px_*_var(--text-scale))]">
                     <span className="w-40 truncate font-medium text-ink-primary">{t.name}</span>
                     <div className="h-[6px] flex-1 overflow-hidden rounded bg-bg-surface">
                       <div className="h-full rounded" style={{ width: `${Math.round((t.findings / maxToolFindings) * 100)}%`, background: "var(--accent-dim)" }} />
@@ -354,8 +354,8 @@ export default function ReportsView() {
             <div className="text-xs text-ink-muted">{new Date(s.ts).toLocaleString()}</div>
             <div className="mt-0.5 line-clamp-2 text-xs text-ink-dim">{s.rollup_preview}</div>
             <div className="mt-1 flex gap-2">
-              <button onClick={() => open(requestSnapshotLink(eid, s.id, "md"))} className="text-[11px] text-accent hover:underline">md ↗</button>
-              <button onClick={() => open(requestSnapshotLink(eid, s.id, "html"))} className="text-[11px] text-accent hover:underline">html ↗</button>
+              <button onClick={() => open(requestSnapshotLink(eid, s.id, "md"))} className="text-[calc(11px_*_var(--text-scale))] text-accent hover:underline">md ↗</button>
+              <button onClick={() => open(requestSnapshotLink(eid, s.id, "html"))} className="text-[calc(11px_*_var(--text-scale))] text-accent hover:underline">html ↗</button>
             </div>
           </div>
         ))

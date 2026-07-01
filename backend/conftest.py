@@ -89,6 +89,25 @@ def _restore_env(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(k, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _enable_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Enable every capability group for the duration of a test.
+
+    The privileged / intrusive routers (nmap, lan_scan, lateral, the web
+    fuzzers, AD, …) now carry a server-side ``require_capability`` gate that
+    refuses the call (403 / WS 1008) until the operator enables the group —
+    off by default. The functional tests exercise those routers directly and
+    aren't testing the gate itself, so we open every group in-memory here.
+    Patched (never persisted to the real app-data ``capabilities.json``) and
+    reset per-test by monkeypatch, so default-off / gate tests stay honest.
+    """
+    try:
+        from lib import capability  # noqa: PLC0415
+    except ImportError:
+        return
+    monkeypatch.setattr(capability, "_enabled", set(capability.ALL_GROUPS))
+
+
 @pytest.fixture
 def permissive_policy(monkeypatch: pytest.MonkeyPatch) -> None:
     """Swap target_policy._policy for a permissive shim (warn-on-external).

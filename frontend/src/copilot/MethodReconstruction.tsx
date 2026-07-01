@@ -99,10 +99,10 @@ export default function MethodReconstruction({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto bg-bg-sidebar">
       <header className="border-b border-divider px-3.5 py-3">
-        <div className="font-mono text-[12px] font-semibold uppercase tracking-wide text-ink-dim">
+        <div className="font-mono text-[calc(12px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">
           Investigation
         </div>
-        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-dim">
+        <div className="mt-1.5 flex items-center gap-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
           <span className="font-mono text-ink-muted">{method.finding_id}</span>
           <StateBadge state={method.state} />
           <span>·</span>
@@ -110,7 +110,7 @@ export default function MethodReconstruction({
             {steps.length} step{steps.length === 1 ? "" : "s"}
           </span>
           {gaps.length > 0 && (
-            <span className="ml-auto rounded-md bg-danger/[0.13] px-1.5 py-px font-mono text-[10px] font-semibold text-danger">
+            <span className="ml-auto rounded-md bg-danger/[0.13] px-1.5 py-px font-mono text-[calc(10px_*_var(--text-scale))] font-semibold text-danger">
               {gaps.length} gap{gaps.length === 1 ? "" : "s"}
             </span>
           )}
@@ -123,7 +123,7 @@ export default function MethodReconstruction({
         </div>
       ) : (
         <>
-          <div className="px-3.5 pb-2 pt-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-ink-dim">
+          <div className="px-3.5 pb-2 pt-3 font-mono text-[calc(11px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">
             Method flow — log to interpretation
           </div>
           <ol className="px-3.5 pb-3">
@@ -157,7 +157,7 @@ function StateBadge({ state }: { state: string }) {
         : "text-amber ring-amber/40";
   return (
     <span
-      className={`rounded px-1 py-px text-[10px] uppercase tracking-wide ring-1 ${tone}`}
+      className={`rounded px-1 py-px text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide ring-1 ${tone}`}
     >
       {state}
     </span>
@@ -204,7 +204,7 @@ function FlowStep({
       {/* Spine — numbered node + connecting line. */}
       <div className="flex flex-col items-center">
         <span
-          className={`z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-bg-base font-mono text-[11px] font-semibold ${nodeTone}`}
+          className={`z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-bg-base font-mono text-[calc(11px_*_var(--text-scale))] font-semibold ${nodeTone}`}
         >
           {step.ordinal ?? index + 1}
         </span>
@@ -218,11 +218,11 @@ function FlowStep({
             <span className="truncate font-mono text-xs text-ink-primary">{toolId}</span>
             <span className="ml-auto shrink-0">
               {step.anchored ? (
-                <span className="rounded bg-phos/10 px-1.5 py-px text-[10px] uppercase tracking-wide text-phos ring-1 ring-phos/30">
+                <span className="rounded bg-phos/10 px-1.5 py-px text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-phos ring-1 ring-phos/30">
                   anchored
                 </span>
               ) : (
-                <span className="rounded bg-amber/10 px-1.5 py-px text-[10px] uppercase tracking-wide text-amber ring-1 ring-amber/30">
+                <span className="rounded bg-amber/10 px-1.5 py-px text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-amber ring-1 ring-amber/30">
                   unanchored
                 </span>
               )}
@@ -232,10 +232,10 @@ function FlowStep({
           {/* ── LAYER 1: FACTUAL SPINE (action + evidence) ───────────────── */}
           <div className="border-l-2 border-phos/40 px-3 py-2.5">
             <FlowTag tone="fact">FACT · from the log</FlowTag>
-            <div className="mt-2 space-y-2 text-[11px]">
+            <div className="mt-2 space-y-2 text-[calc(11px_*_var(--text-scale))]">
               <div>
                 <span className="text-ink-dim">action</span>
-                <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-bg-base/60 p-2 font-mono text-[10.5px] text-ink-muted">
+                <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-bg-base/60 p-2 font-mono text-[calc(10.5px_*_var(--text-scale))] text-ink-muted">
                   {toolId}
                   {params && Object.keys(params).length > 0
                     ? "  " + JSON.stringify(params)
@@ -245,15 +245,15 @@ function FlowStep({
               <div>
                 <span className="text-ink-dim">evidence</span>
                 {rawOut ? (
-                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-bg-base/60 p-2 font-mono text-[10.5px] text-ink-muted">
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-bg-base/60 p-2 font-mono text-[calc(10.5px_*_var(--text-scale))] text-ink-muted">
                     {rawOut}
                   </pre>
                 ) : (
-                  <div className="mt-1 text-[10.5px] italic text-ink-dim">
+                  <div className="mt-1 text-[calc(10.5px_*_var(--text-scale))] italic text-ink-dim">
                     (no raw output captured)
                   </div>
                 )}
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-dim">
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
                   {step.evidence?.hash && (
                     <span className="font-mono">
                       sha256:{String(step.evidence.hash).slice(0, 12)}…
@@ -271,7 +271,7 @@ function FlowStep({
           {gaps.length > 0 && (
             <div className="border-t border-divider bg-danger/[0.06] px-3 py-2">
               {gaps.map((g, gi) => (
-                <div key={gi} className="flex items-start gap-1.5 text-[10.5px] text-danger">
+                <div key={gi} className="flex items-start gap-1.5 text-[calc(10.5px_*_var(--text-scale))] text-danger">
                   <span className="shrink-0">⚑</span>
                   <span>
                     <span className="font-semibold">{gapLabel(g.type)}</span> — {g.note}
@@ -321,20 +321,20 @@ function WhyLayer({
       <FlowTag tone="inference">{label}</FlowTag>
 
       {step.hasInterpretation ? (
-        <p className="mt-1.5 whitespace-pre-wrap text-[11px] leading-snug text-ink-muted">
+        <p className="mt-1.5 whitespace-pre-wrap text-[calc(11px_*_var(--text-scale))] leading-snug text-ink-muted">
           {step.interpretation}
         </p>
       ) : submitted ? (
-        <p className="mt-1.5 whitespace-pre-wrap text-[11px] leading-snug text-ink-muted">
+        <p className="mt-1.5 whitespace-pre-wrap text-[calc(11px_*_var(--text-scale))] leading-snug text-ink-muted">
           {submitted}
-          <span className="ml-1 text-[10px] text-ink-dim">
+          <span className="ml-1 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
             (you confirmed this — not yet from the log)
           </span>
         </p>
       ) : (
         <>
           {/* Flagged placeholder — NO invented rationale. */}
-          <div className="mt-1.5 rounded-md bg-amber/10 px-2 py-1.5 text-[11px] text-amber ring-1 ring-amber/30">
+          <div className="mt-1.5 rounded-md bg-amber/10 px-2 py-1.5 text-[calc(11px_*_var(--text-scale))] text-amber ring-1 ring-amber/30">
             ⚠ unverified — no rationale recorded
           </div>
           {open ? (
@@ -344,13 +344,13 @@ function WhyLayer({
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Why did this step follow? (you supply it — not invented)"
                 rows={2}
-                className="w-full resize-none rounded-md bg-bg-base px-2 py-1.5 text-[11px] text-ink-primary outline-none ring-1 ring-divider focus:ring-accent"
+                className="w-full resize-none rounded-md bg-bg-base px-2 py-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-primary outline-none ring-1 ring-divider focus:ring-accent"
               />
               <div className="flex gap-1.5">
                 <button
                   onClick={submit}
                   disabled={!draft.trim()}
-                  className="rounded-md bg-accent px-2.5 py-1 text-[10.5px] font-semibold text-bg-base disabled:opacity-50"
+                  className="rounded-md bg-accent px-2.5 py-1 text-[calc(10.5px_*_var(--text-scale))] font-semibold text-bg-base disabled:opacity-50"
                 >
                   Confirm why
                 </button>
@@ -359,7 +359,7 @@ function WhyLayer({
                     setOpen(false);
                     setDraft("");
                   }}
-                  className="rounded-md px-2 py-1 text-[10.5px] text-ink-muted hover:text-ink-primary"
+                  className="rounded-md px-2 py-1 text-[calc(10.5px_*_var(--text-scale))] text-ink-muted hover:text-ink-primary"
                 >
                   Cancel
                 </button>
@@ -368,7 +368,7 @@ function WhyLayer({
           ) : (
             <button
               onClick={() => setOpen(true)}
-              className="mt-2 text-[10.5px] text-accent hover:underline"
+              className="mt-2 text-[calc(10.5px_*_var(--text-scale))] text-accent hover:underline"
             >
               + confirm why
             </button>
@@ -393,7 +393,7 @@ function FlowTag({
       : "text-amber ring-amber/30 bg-amber/[0.14]";
   return (
     <span
-      className={`inline-block rounded px-1.5 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.06em] ring-1 ${cls}`}
+      className={`inline-block rounded px-1.5 py-0.5 font-mono text-[calc(9.5px_*_var(--text-scale))] font-semibold uppercase tracking-[0.06em] ring-1 ${cls}`}
     >
       {children}
     </span>
@@ -408,17 +408,17 @@ function RelatedSection({
 }) {
   return (
     <section className="border-t border-divider px-3.5 py-3">
-      <div className="font-mono text-[11px] font-semibold uppercase tracking-wide text-ink-dim">
+      <div className="font-mono text-[calc(11px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-ink-dim">
         Related steps
       </div>
       <ul className="mt-2 space-y-1.5">
         {related.map(([tool, arr]) => (
           <li
             key={tool}
-            className="flex items-center gap-2 rounded-lg border border-divider bg-bg-card px-2.5 py-1.5 text-[11px]"
+            className="flex items-center gap-2 rounded-lg border border-divider bg-bg-card px-2.5 py-1.5 text-[calc(11px_*_var(--text-scale))]"
           >
             <span className="truncate font-mono text-ink-primary">{tool}</span>
-            <span className="ml-auto shrink-0 font-mono text-[10px] text-ink-dim">
+            <span className="ml-auto shrink-0 font-mono text-[calc(10px_*_var(--text-scale))] text-ink-dim">
               steps {arr.map((s, i) => s.ordinal ?? i + 1).join(", ")}
             </span>
           </li>
@@ -431,7 +431,7 @@ function RelatedSection({
 function GapsSection({ gaps }: { gaps: MethodGap[] }) {
   return (
     <section className="mt-auto border-t border-divider bg-danger/[0.05] px-3.5 py-3">
-      <div className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-danger">
+      <div className="flex items-center gap-2 font-mono text-[calc(11px_*_var(--text-scale))] font-semibold uppercase tracking-wide text-danger">
         <span className="h-[7px] w-[7px] rounded-full bg-danger" />
         Critical fails ({gaps.length})
       </div>
@@ -439,13 +439,13 @@ function GapsSection({ gaps }: { gaps: MethodGap[] }) {
         {gaps.map((g, i) => (
           <li
             key={i}
-            className="flex gap-1.5 rounded-lg border border-danger/30 bg-bg-card px-2.5 py-1.5 text-[11px]"
+            className="flex gap-1.5 rounded-lg border border-danger/30 bg-bg-card px-2.5 py-1.5 text-[calc(11px_*_var(--text-scale))]"
           >
             <span className="shrink-0 font-medium text-danger">
               {gapLabel(g.type)}
             </span>
             <span className="text-ink-muted">{g.note}</span>
-            <span className="ml-auto shrink-0 font-mono text-[10px] text-ink-dim">
+            <span className="ml-auto shrink-0 font-mono text-[calc(10px_*_var(--text-scale))] text-ink-dim">
               {g.stepId.slice(0, 8)}
             </span>
           </li>

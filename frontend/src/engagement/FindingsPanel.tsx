@@ -112,7 +112,7 @@ export default function FindingsPanel({
         <div className="border-b border-divider px-4 pb-3 pt-3.5">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <div className="text-[15px] font-bold text-ink-primary">Triage Queue</div>
+              <div className="text-[calc(15px_*_var(--text-scale))] font-bold text-ink-primary">Triage Queue</div>
               <div className="mt-0.5 text-xs text-ink-dim">
                 {shown.length} of {findings.length} findings · sorted by severity
               </div>
@@ -165,15 +165,15 @@ export default function FindingsPanel({
                   }`}
                 >
                   <span
-                    className={`inline-flex w-[72px] shrink-0 justify-center rounded-md px-2 py-1 font-mono text-[10.5px] font-semibold tracking-wide ${SEV_PILL[f.severity]}`}
+                    className={`inline-flex w-[72px] shrink-0 justify-center rounded-md px-2 py-1 font-mono text-[calc(10.5px_*_var(--text-scale))] font-semibold tracking-wide ${SEV_PILL[f.severity]}`}
                   >
                     {SEV_LABEL[f.severity]}
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-[13px] font-medium text-ink-primary">
+                    <span className="truncate text-[calc(13px_*_var(--text-scale))] font-medium text-ink-primary">
                       {f.title}
                     </span>
-                    <span className="flex items-center gap-2 truncate font-mono text-[11px] text-ink-dim">
+                    <span className="flex items-center gap-2 truncate font-mono text-[calc(11px_*_var(--text-scale))] text-ink-dim">
                       <span className={`inline-flex items-center gap-1.5 ${SEV_TEXT.info}`}>
                         <span className={`h-[6px] w-[6px] rounded-[2px] ${sourceSwatch(f.tool)}`} />
                         {f.tool || "—"}
@@ -182,7 +182,7 @@ export default function FindingsPanel({
                     </span>
                   </div>
                   <span
-                    className={`shrink-0 text-[11px] ${STATUS_TEXT[f.status] ?? "text-ink-muted"}`}
+                    className={`shrink-0 text-[calc(11px_*_var(--text-scale))] ${STATUS_TEXT[f.status] ?? "text-ink-muted"}`}
                   >
                     {statusLabel(f.status)}
                   </span>
@@ -204,7 +204,7 @@ export default function FindingsPanel({
 function FacetGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2 px-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.05em] text-ink-dim">
+      <div className="mb-2 px-1 font-mono text-[calc(10.5px_*_var(--text-scale))] font-semibold uppercase tracking-[0.05em] text-ink-dim">
         {title}
       </div>
       <div className="flex flex-col">{children}</div>

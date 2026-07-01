@@ -46,6 +46,9 @@ TIER1: frozenset[str] = frozenset(
         "chat", "summarize",
         # Meta / settings.
         "tool_requirements", "basic_check", "settings", "presets",
+        # Capability enablement API (control surface for the server-side
+        # require_capability gate — see lib/capability.py).
+        "capabilities",
         # Single-shot terminal — zero-setup (localhost + token + engagement
         # gated). Baked into the Workbench as a quick-run surface.
         "terminal",
@@ -62,13 +65,11 @@ TIER1: frozenset[str] = frozenset(
 # ── Sandbox arsenal (re-scope 2026-06-28) ───────────────────────────────────
 # The "open security-testing sandbox" exposes privileged / intrusive / external
 # tools too, so they're REGISTERED here and callable. They remain OFF in the UI
-# until the operator enables their capability group (frontend
-# shell/tools/capability.ts), and the backend scope + authorization + audit
-# gates stay the hard enforcement. Web-exploit fuzzers are un-deferred here.
-#
-# TODO(capability): move enablement enforcement server-side (a per-request
-# require_capability dependency) so "off until enabled" is enforced by the
-# backend, not only the UI.
+# until the operator enables their capability group. Enablement is now enforced
+# server-side: `main.py` attaches `capability.require_capability(group)` to each
+# gated router (see lib/capability.py), so "off until enabled" holds against a
+# direct API call, not just in the UI. Scope + authorization + audit remain
+# separate hard gates on top. Web-exploit fuzzers are un-deferred here.
 EXPOSED_EXTRA: frozenset[str] = frozenset(
     {
         # Recon (privileged).

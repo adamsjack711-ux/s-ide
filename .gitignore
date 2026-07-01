@@ -23,3 +23,6 @@ engagements.db
 .idea/
 .vscode/
 *.log
+
+# Claude Code local worktrees/session state
+.claude/

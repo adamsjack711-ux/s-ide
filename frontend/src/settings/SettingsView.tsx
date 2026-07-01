@@ -31,6 +31,16 @@ import {
 import { useTheme, clearSideTheme, type ThemeChoice } from "../lib/theme";
 import { ACCENTS, useAccent } from "../lib/accent";
 import { useScale, SCALE_MIN, SCALE_MAX } from "../lib/density";
+import {
+  useMonoSize,
+  MONO_MIN,
+  MONO_MAX,
+  MONO_DEFAULT,
+  useTextScale,
+  TEXT_MIN,
+  TEXT_MAX,
+  TEXT_DEFAULT,
+} from "../lib/fonts";
 import ThemeMarket from "./ThemeMarket";
 import {
   fetchChatConfig,
@@ -112,7 +122,7 @@ export default function SettingsView() {
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto bg-bg-base">
       <header className="border-b border-divider px-6 pt-5 pb-4">
-        <EyebrowPill icon={false} className="text-[10px]">
+        <EyebrowPill icon={false} className="text-[calc(10px_*_var(--text-scale))]">
           s-ide
         </EyebrowPill>
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight">
@@ -159,13 +169,13 @@ function Section({
     <GlassCard className="p-0" glowOnHover>
       <header className="flex items-start gap-3 border-b border-divider px-5 py-3.5">
         <div className="flex-1">
-          <EyebrowPill icon={false} className="text-[10px]">
+          <EyebrowPill icon={false} className="text-[calc(10px_*_var(--text-scale))]">
             {eyebrow}
           </EyebrowPill>
-          <h2 className="mt-1.5 text-[15px] font-bold text-ink-primary">
+          <h2 className="mt-1.5 text-[calc(15px_*_var(--text-scale))] font-bold text-ink-primary">
             <GradientText static>{title}</GradientText>
           </h2>
-          <p className="mt-0.5 text-[11px] text-ink-dim">{hint}</p>
+          <p className="mt-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{hint}</p>
         </div>
         {status && <div className="shrink-0 pt-1">{status}</div>}
       </header>
@@ -197,7 +207,7 @@ function AppearanceSection() {
       title="Theme & accent"
       hint="Persisted to localStorage. System follows your OS preference live."
       status={
-        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-dim">
+        <span className="inline-flex items-center gap-1.5 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wider text-ink-dim">
           <StatusDot color="var(--accent)" static />
           {theme.resolved}
         </span>
@@ -214,14 +224,14 @@ function AppearanceSection() {
               onClick={() => pickMode(c.id)}
             >
               {c.label}
-              {c.hint && <span className="ml-1.5 text-[10px] opacity-70">{c.hint}</span>}
+              {c.hint && <span className="ml-1.5 text-[calc(10px_*_var(--text-scale))] opacity-70">{c.hint}</span>}
             </Button>
           );
         })}
       </div>
 
       <div className="mt-4">
-        <div className="mb-2 font-mono text-[10.5px] uppercase tracking-wider text-ink-dim">Accent</div>
+        <div className="mb-2 font-mono text-[calc(10.5px_*_var(--text-scale))] uppercase tracking-wider text-ink-dim">Accent</div>
         <div className="flex items-center gap-3">
           {ACCENTS.map((a) => {
             const on = accent.toLowerCase() === a.hex.toLowerCase();
@@ -242,9 +252,84 @@ function AppearanceSection() {
       </div>
 
       <div className="mt-5 border-t border-divider pt-4">
+        <FontSizeControl />
+      </div>
+
+      <div className="mt-5 border-t border-divider pt-4">
         <CardSizeControl />
       </div>
     </Section>
+  );
+}
+
+// Font sizing — the editor/terminal monospace text size. A real text-size token
+// (lib/fonts.ts → --mono-font-px); resizes text, not the layout, so no UI-zoom
+// reflow. Live + persisted.
+function FontSizeControl() {
+  const [text, setText] = useTextScale();
+  const [mono, setMono] = useMonoSize();
+  const tpct = Math.round(text * 100);
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="font-mono text-[calc(10.5px_*_var(--text-scale))] uppercase tracking-wider text-ink-dim">UI text size</span>
+          <span className="data text-[calc(11px_*_var(--text-scale))] text-ink-muted">{tpct}%</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[calc(10px_*_var(--text-scale))] text-ink-dim">A</span>
+          <input
+            type="range"
+            min={Math.round(TEXT_MIN * 100)}
+            max={Math.round(TEXT_MAX * 100)}
+            value={tpct}
+            onChange={(e) => setText(Number(e.target.value) / 100)}
+            className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-bg-base accent-accent"
+          />
+          <span className="text-[calc(16px_*_var(--text-scale))] text-ink-dim">A</span>
+          <button
+            onClick={() => setText(TEXT_DEFAULT)}
+            className="rounded-md px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted hover:text-ink-primary"
+          >
+            Reset
+          </button>
+        </div>
+        <p className="mt-1.5 text-[calc(10.5px_*_var(--text-scale))] text-ink-dim">
+          Resizes interface text only — padding, icons and layout stay put.
+        </p>
+      </div>
+
+      <div className="border-t border-divider pt-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="font-mono text-[calc(10.5px_*_var(--text-scale))] uppercase tracking-wider text-ink-dim">Editor / terminal size</span>
+          <span className="data text-[calc(11px_*_var(--text-scale))] text-ink-muted">{mono}px</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[calc(10px_*_var(--text-scale))] text-ink-dim">m</span>
+          <input
+            type="range"
+            min={MONO_MIN}
+            max={MONO_MAX}
+            value={mono}
+            onChange={(e) => setMono(Number(e.target.value))}
+            className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-bg-base accent-accent"
+          />
+          <span className="font-mono text-[calc(15px_*_var(--text-scale))] text-ink-dim">m</span>
+          <button
+            onClick={() => setMono(MONO_DEFAULT)}
+            className="rounded-md px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted hover:text-ink-primary"
+          >
+            Reset
+          </button>
+        </div>
+        <div
+          className="mt-2 rounded-md border border-divider bg-bg-base px-2 py-1.5 text-ink-muted"
+          style={{ fontFamily: "var(--font-mono)", fontSize: "var(--mono-font-px)" }}
+        >
+          $ nmap -sV 10.0.0.5  # editor/terminal preview
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -271,11 +356,11 @@ function CardSizeControl() {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-mono text-[10.5px] uppercase tracking-wider text-ink-dim">Card &amp; list size</span>
-        <span className="data text-[11px] text-ink-muted">{pct}%</span>
+        <span className="font-mono text-[calc(10.5px_*_var(--text-scale))] uppercase tracking-wider text-ink-dim">Card &amp; list size</span>
+        <span className="data text-[calc(11px_*_var(--text-scale))] text-ink-muted">{pct}%</span>
       </div>
       <div className="flex items-center gap-3">
-        <span className="text-[10px] text-ink-dim">A</span>
+        <span className="text-[calc(10px_*_var(--text-scale))] text-ink-dim">A</span>
         <input
           type="range"
           min={Math.round(SCALE_MIN * 100)}
@@ -284,10 +369,10 @@ function CardSizeControl() {
           onChange={(e) => setScale(Number(e.target.value) / 100)}
           className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-bg-base accent-accent"
         />
-        <span className="text-[16px] text-ink-dim">A</span>
+        <span className="text-[calc(16px_*_var(--text-scale))] text-ink-dim">A</span>
         <button
           onClick={() => setScale(1)}
-          className="rounded-md px-2 py-1 text-[11px] text-ink-muted hover:text-ink-primary"
+          className="rounded-md px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted hover:text-ink-primary"
         >
           Reset
         </button>
@@ -451,7 +536,7 @@ function CopilotSection() {
       title="Assistant"
       hint="Provider, API key, model, and system prompt for the in-app copilot."
       status={
-        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-dim">
+        <span className="inline-flex items-center gap-1.5 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wider text-ink-dim">
           <StatusDot color={dotColor} static={!usable} />
           {statusText}
         </span>
@@ -461,7 +546,7 @@ function CopilotSection() {
         {/* Provider + key status */}
         <div>
           <Label>Provider</Label>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[calc(12px_*_var(--text-scale))]">
             <span className="text-ink-primary">{providerLabel}</span>
             <span className="inline-flex items-center gap-1.5 text-ink-muted">
               <StatusDot
@@ -486,7 +571,7 @@ function CopilotSection() {
           <Label>Anthropic API key</Label>
           {keyStatus?.present ? (
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-2 text-[12px] text-ink-primary">
+              <span className="inline-flex items-center gap-2 text-[calc(12px_*_var(--text-scale))] text-ink-primary">
                 <StatusDot color={C_PHOS} static />
                 Configured
                 {keyStatus.last4 && (
@@ -514,7 +599,7 @@ function CopilotSection() {
                 spellCheck={false}
                 autoComplete="off"
                 className="flex-1 rounded border border-divider bg-bg-base px-2.5 py-1.5
-                           font-mono text-[12px] text-ink-primary focus:border-accent
+                           font-mono text-[calc(12px_*_var(--text-scale))] text-ink-primary focus:border-accent
                            focus:outline-none"
               />
               <Button
@@ -528,7 +613,7 @@ function CopilotSection() {
               </Button>
             </div>
           )}
-          <p className="mt-1.5 text-[10px] text-ink-dim">
+          <p className="mt-1.5 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
             Stored in the OS keychain.
           </p>
         </div>
@@ -558,14 +643,14 @@ function CopilotSection() {
                       static={!active}
                     />
                     <span className="flex-1">
-                      <span className="text-[12px] font-bold text-ink-primary">
+                      <span className="text-[calc(12px_*_var(--text-scale))] font-bold text-ink-primary">
                         {meta.label}
-                        <code className="ml-2 text-[10px] font-normal text-ink-dim">
+                        <code className="ml-2 text-[calc(10px_*_var(--text-scale))] font-normal text-ink-dim">
                           {m}
                         </code>
                       </span>
                       {meta.hint && (
-                        <span className="mt-0.5 block text-[10px] text-ink-muted">
+                        <span className="mt-0.5 block text-[calc(10px_*_var(--text-scale))] text-ink-muted">
                           {meta.hint}
                         </span>
                       )}
@@ -576,7 +661,7 @@ function CopilotSection() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-[11px] text-ink-dim">
+          <div className="flex items-center gap-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             <WibblingSpinner />
           </div>
         )}
@@ -587,7 +672,7 @@ function CopilotSection() {
             <div className="mb-1.5 flex items-center gap-2">
               <Label inline>System prompt</Label>
               {settings.system_prompt_path && (
-                <code className="truncate text-[10px] text-ink-dim">
+                <code className="truncate text-[calc(10px_*_var(--text-scale))] text-ink-dim">
                   {settings.system_prompt_path}
                 </code>
               )}
@@ -601,7 +686,7 @@ function CopilotSection() {
                   disabled={busy}
                   spellCheck={false}
                   className="w-full resize-y rounded border border-divider bg-bg-base
-                             px-2.5 py-2 font-mono text-[11px] leading-relaxed
+                             px-2.5 py-2 font-mono text-[calc(11px_*_var(--text-scale))] leading-relaxed
                              text-ink-primary focus:border-accent focus:outline-none"
                 />
                 <div className="mt-2 flex items-center gap-2">
@@ -622,13 +707,13 @@ function CopilotSection() {
                   >
                     Revert
                   </Button>
-                  <span className="ml-auto text-[10px] text-ink-dim">
+                  <span className="ml-auto text-[calc(10px_*_var(--text-scale))] text-ink-dim">
                     {prompt.length.toLocaleString()} chars
                   </span>
                 </div>
               </>
             ) : (
-              <div className="rounded border border-amber/30 bg-amber/10 p-2 text-[11px] text-amber">
+              <div className="rounded border border-amber/30 bg-amber/10 p-2 text-[calc(11px_*_var(--text-scale))] text-amber">
                 System prompt is read-only — an environment override is set.
               </div>
             )}
@@ -637,11 +722,11 @@ function CopilotSection() {
 
         {/* Flash + errors */}
         {flash && (
-          <div className="flex items-center gap-1.5 text-[11px] text-success">
+          <div className="flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] text-success">
             <Sparkle solid /> {flash}
           </div>
         )}
-        {error && <div className="text-[11px] text-danger">⚠ {error}</div>}
+        {error && <div className="text-[calc(11px_*_var(--text-scale))] text-danger">⚠ {error}</div>}
       </div>
     </Section>
   );
@@ -785,7 +870,7 @@ function EffectsSection() {
       title="Dopamine"
       hint="Visual flourishes on scan start / complete / auth. Respects reduced-motion. Persists to localStorage."
       status={
-        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-dim">
+        <span className="inline-flex items-center gap-1.5 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wider text-ink-dim">
           <StatusDot color={off ? C_DIM : C_ACCENT} static={off} />
           {off ? "off" : "on"}
         </span>
@@ -794,10 +879,10 @@ function EffectsSection() {
       {/* Master toggle */}
       <div className="mb-4 flex items-center justify-between gap-4 border-b border-divider pb-4">
         <div>
-          <div className="text-[12px] font-bold text-ink-primary">
+          <div className="text-[calc(12px_*_var(--text-scale))] font-bold text-ink-primary">
             {settings.enabled ? "Effects enabled" : "Effects disabled"}
           </div>
-          <p className="mt-0.5 max-w-md text-[11px] text-ink-dim">
+          <p className="mt-0.5 max-w-md text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             Master kill-switch. Reduced-motion always wins regardless.
           </p>
         </div>
@@ -823,7 +908,7 @@ function EffectsSection() {
               onClick={() => applyPreset(p.id)}
             >
               {p.label}
-              <span className="ml-1.5 text-[10px] opacity-70">{p.hint}</span>
+              <span className="ml-1.5 text-[calc(10px_*_var(--text-scale))] opacity-70">{p.hint}</span>
             </Button>
           ))}
         </div>
@@ -839,7 +924,7 @@ function EffectsSection() {
               onClick={() => patch({ mood: m.id })}
             >
               {m.label}
-              <span className="ml-1.5 text-[10px] opacity-70">{m.hint}</span>
+              <span className="ml-1.5 text-[calc(10px_*_var(--text-scale))] opacity-70">{m.hint}</span>
             </Button>
           ))}
         </div>
@@ -871,7 +956,7 @@ function EffectsSection() {
               className="group rounded-md border border-divider bg-bg-card px-3 py-2.5
                          text-left transition hover:border-accent disabled:opacity-60"
             >
-              <div className="flex items-center gap-1.5 font-mono text-[12px] font-bold
+              <div className="flex items-center gap-1.5 font-mono text-[calc(12px_*_var(--text-scale))] font-bold
                               text-ink-primary group-hover:text-accent">
                 {firing === tile.id ? (
                   <>
@@ -881,7 +966,7 @@ function EffectsSection() {
                   tile.label
                 )}
               </div>
-              <div className="mt-0.5 truncate text-[10px] text-ink-dim">
+              <div className="mt-0.5 truncate text-[calc(10px_*_var(--text-scale))] text-ink-dim">
                 {tile.hint}
               </div>
             </button>
@@ -891,7 +976,7 @@ function EffectsSection() {
 
       {/* Reset */}
       <div className="mt-4 flex items-center justify-between border-t border-divider pt-4">
-        <code className="text-[10px] text-ink-dim">localStorage["mhp:dopamine"]</code>
+        <code className="text-[calc(10px_*_var(--text-scale))] text-ink-dim">localStorage["mhp:dopamine"]</code>
         <Button
           variant="ghost"
           size="sm"
@@ -920,12 +1005,12 @@ function Slider({
   return (
     <label className="block">
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-widest text-ink-muted">
+        <span className="text-[calc(11px_*_var(--text-scale))] font-bold uppercase tracking-widest text-ink-muted">
           {label}
         </span>
-        <span className="text-[10px] text-ink-dim">{hint}</span>
+        <span className="text-[calc(10px_*_var(--text-scale))] text-ink-dim">{hint}</span>
         <span className="flex-1" />
-        <span className="font-mono text-[11px] tabular-nums text-accent">
+        <span className="font-mono text-[calc(11px_*_var(--text-scale))] tabular-nums text-accent">
           {value.toFixed(2)} · {pct}%
         </span>
       </div>
@@ -973,7 +1058,7 @@ function Label({
   return (
     <div
       className={
-        "text-[10px] font-bold uppercase tracking-widest text-ink-dim " +
+        "text-[calc(10px_*_var(--text-scale))] font-bold uppercase tracking-widest text-ink-dim " +
         (inline ? "" : "mb-2")
       }
     >

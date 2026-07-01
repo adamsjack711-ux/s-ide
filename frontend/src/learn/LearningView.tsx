@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import SectionLabel from "../shell/SectionLabel";
 import Icon from "../shell/Icon";
-import LabsView from "../labs/LabsView";
+import LabsWorkspace from "../labs/LabsWorkspace";
+import WorkbenchWalkthrough from "./WorkbenchWalkthrough";
 
 import { authFetch } from "../api";
 import { METHODOLOGY_IDS, methodologyLabel } from "../lib/methodology";
@@ -35,10 +36,11 @@ type Progress = {
   methodology_steps: string[];
 };
 
-export default function LearningView() {
+export default function LearningView({ initialTab }: { initialTab?: "learn" | "labs" | "walkthrough" } = {}) {
   const [progress, setProgress] = useState<Progress | null>(null);
   // Labs now live inside Learn — spin up a target here, then learn against it.
-  const [tab, setTab] = useState<"learn" | "labs">("learn");
+  // The Walkthrough tab guides running the Workbench against those practice labs.
+  const [tab, setTab] = useState<"learn" | "labs" | "walkthrough">(initialTab ?? "learn");
 
   const refreshProgress = useCallback(() => {
     authFetch("/method/progress")
@@ -56,13 +58,14 @@ export default function LearningView() {
         {([
           { id: "learn", icon: "book", label: "Learn" },
           { id: "labs", icon: "flask", label: "Labs" },
+          { id: "walkthrough", icon: "wrench", label: "Workbench Walkthrough" },
         ] as const).map((t) => {
           const active = tab === t.id;
           return (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-[12px] transition-colors ${
+              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-[calc(12px_*_var(--text-scale))] transition-colors ${
                 active ? "border-accent text-ink-primary" : "border-transparent text-ink-dim hover:text-ink-primary"
               }`}
             >
@@ -75,8 +78,10 @@ export default function LearningView() {
 
       {tab === "labs" ? (
         <div className="min-h-0 flex-1 overflow-hidden">
-          <LabsView />
+          <LabsWorkspace />
         </div>
+      ) : tab === "walkthrough" ? (
+        <WorkbenchWalkthrough onGoToLabs={() => setTab("labs")} />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <div className="border-b border-divider px-3 py-3">
@@ -106,11 +111,11 @@ function GuidedSteps() {
   ];
   return (
     <div className="border-b border-divider px-3 py-3">
-      <div className="pb-2 text-[11px] uppercase tracking-wide text-ink-dim">Getting started</div>
+      <div className="pb-2 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Getting started</div>
       <ol className="space-y-2">
         {steps.map((s) => (
           <li key={s.n} className="flex gap-2.5">
-            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bg-card text-[11px] font-semibold text-accent ring-1 ring-divider">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bg-card text-[calc(11px_*_var(--text-scale))] font-semibold text-accent ring-1 ring-divider">
               {s.n}
             </span>
             <div>
@@ -158,7 +163,7 @@ function HintPanel() {
 
   return (
     <div className="border-b border-divider px-3 py-3">
-      <div className="pb-2 text-[11px] uppercase tracking-wide text-ink-dim">No-spoiler hints</div>
+      <div className="pb-2 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">No-spoiler hints</div>
 
       <div className="flex gap-1.5">
         <input
@@ -183,7 +188,7 @@ function HintPanel() {
         <div className="mt-3 space-y-2">
           {view.objective && (
             <div>
-              <div className="text-[11px] uppercase tracking-wide text-ink-dim">Objective</div>
+              <div className="text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Objective</div>
               <div className="text-xs text-ink-primary">{view.objective}</div>
             </div>
           )}
@@ -211,19 +216,19 @@ function HintPanel() {
                 {revealed === 0 ? "Reveal first hint" : "Next hint"}
               </button>
             ) : (
-              hints.length > 0 && <span className="text-[11px] text-ink-dim">All hints revealed</span>
+              hints.length > 0 && <span className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">All hints revealed</span>
             )}
-            <span className="ml-auto text-[11px] text-ink-dim">
+            <span className="ml-auto text-[calc(11px_*_var(--text-scale))] text-ink-dim">
               {revealed}/{hints.length} hints
             </span>
           </div>
 
           {anchor?.file && (
-            <div className="text-[11px] text-ink-dim">
+            <div className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">
               source: <span className="font-mono">{anchor.file}{anchor.line ? `:${anchor.line}` : ""}</span>
             </div>
           )}
-          <p className="text-[11px] text-ink-dim">
+          <p className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             The lab solution is never sent to this view — hints only.
           </p>
         </div>
@@ -241,8 +246,8 @@ function ProgressPanel({ progress, onRefresh }: { progress: Progress | null; onR
   return (
     <div className="px-3 py-3">
       <div className="flex items-center justify-between pb-2">
-        <span className="text-[11px] uppercase tracking-wide text-ink-dim">Progress</span>
-        <button onClick={onRefresh} className="text-[11px] text-ink-dim hover:text-ink-primary">
+        <span className="text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Progress</span>
+        <button onClick={onRefresh} className="text-[calc(11px_*_var(--text-scale))] text-ink-dim hover:text-ink-primary">
           refresh
         </button>
       </div>
@@ -255,10 +260,10 @@ function ProgressPanel({ progress, onRefresh }: { progress: Progress | null; onR
 
       {vulns.length > 0 && (
         <div className="mt-3">
-          <div className="pb-1 text-[11px] uppercase tracking-wide text-ink-dim">Vuln classes seen</div>
+          <div className="pb-1 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Vuln classes seen</div>
           <div className="flex flex-wrap gap-1">
             {vulns.map((v) => (
-              <span key={v} className="rounded bg-bg-card px-1.5 py-0.5 text-[11px] text-ink-muted ring-1 ring-divider">
+              <span key={v} className="rounded bg-bg-card px-1.5 py-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-muted ring-1 ring-divider">
                 {v}
               </span>
             ))}
@@ -267,18 +272,18 @@ function ProgressPanel({ progress, onRefresh }: { progress: Progress | null; onR
       )}
 
       <div className="mt-3">
-        <div className="pb-1 text-[11px] uppercase tracking-wide text-ink-dim">
+        <div className="pb-1 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">
           Methodology steps practiced ({practiced.size}/{METHODOLOGY_IDS.length})
         </div>
         <div className="space-y-0.5">
           {METHODOLOGY_IDS.filter((id) => practiced.has(id)).map((id) => (
-            <div key={id} className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+            <div key={id} className="flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-muted">
               <span className="text-success">✓</span>
               <span className="truncate" title={methodologyLabel(id)}>{methodologyLabel(id)}</span>
             </div>
           ))}
           {practiced.size === 0 && (
-            <div className="text-[11px] text-ink-dim">None yet — practice a step in a lab to tick it.</div>
+            <div className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">None yet — practice a step in a lab to tick it.</div>
           )}
         </div>
       </div>
@@ -290,7 +295,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded bg-bg-card px-2 py-2 text-center ring-1 ring-divider">
       <div className="text-lg font-semibold text-ink-primary">{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-ink-dim">{label}</div>
+      <div className="text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">{label}</div>
     </div>
   );
 }

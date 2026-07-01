@@ -203,7 +203,7 @@ export default function PromoteModal() {
         {err && <div className="mb-2 text-xs text-danger">{err}</div>}
 
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10.5px] text-ink-dim">
+          <span className="text-[calc(10.5px_*_var(--text-scale))] text-ink-dim">
             <kbd className="font-mono">↵</kbd> save · <kbd className="font-mono">esc</kbd> cancel
           </span>
           <div className="flex gap-2">

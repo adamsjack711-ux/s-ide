@@ -210,6 +210,36 @@ export function resetAuthToken(): void {
   cachedAuthToken = null;
 }
 
+/**
+ * True only for the 403 the backend raises when the per-launch token is
+ * missing or stale (`require_local_auth` → `HTTPException(403, "missing or
+ * invalid X-MHP-Token")`). A genuine authorization 403 — un-armed pairing,
+ * scope/target denial, missing attestation — always carries a structured
+ * `{error/detail, code}` envelope (SUBTARGET_UNARMED, TARGET_DENIED, …) and
+ * must NOT trigger a token reset + replay: that would throw away a valid
+ * token on every authz denial and needlessly re-run the request.
+ *
+ * Reads a `clone()` so the original response body stays intact for the caller.
+ */
+async function isStaleTokenResponse(res: Response): Promise<boolean> {
+  if (res.status !== 403) return false;
+  try {
+    const body = await res.clone().json();
+    // The auth reject is a bare-string FastAPI detail with no `code`; every
+    // authz gate ships a structured code, so their presence rules a stale
+    // token out.
+    if (body && typeof body === "object") {
+      if (typeof body.code === "string") return false;
+      const detail = (body as Record<string, unknown>).detail;
+      if (detail && typeof detail === "object") return false; // structured authz decision
+      if (typeof detail === "string") return detail.includes("X-MHP-Token");
+    }
+  } catch {
+    /* non-JSON or empty body — not the token reject, which is always JSON */
+  }
+  return false;
+}
+
 /** Synchronously returns the cached auth token, or null if not yet fetched.
  *  Used by URL builders for `<a href>` / `<iframe src>` cases where headers
  *  can't be set. The token must already be cached — call `fetchAuthToken()`
@@ -246,8 +276,20 @@ async function withAuthHeader(init?: RequestInit): Promise<RequestInit> {
  */
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   const url = path.startsWith("http") ? path : `${BACKEND_URL}${path}`;
-  const finalInit = await withAuthHeader(init);
-  return fetch(url, finalInit);
+  const isTokenPath = path.endsWith("/auth/token");
+  let res = await fetch(url, await withAuthHeader(init));
+  // The per-launch auth token rotates every time the backend restarts (dev
+  // --reload, a rebuild, or any sidecar relaunch). A cached-but-stale token
+  // makes every call 403 with the auth reject body. Recover transparently:
+  // clear the token, fetch a fresh one, and retry ONCE. A genuine
+  // authorization 403 (un-armed pairing, scope denial) carries a structured
+  // code, so `isStaleTokenResponse` returns false and it's surfaced unchanged
+  // without a wasteful token reset/replay — no gate is weakened.
+  if (!isTokenPath && (await isStaleTokenResponse(res))) {
+    resetAuthToken();
+    res = await fetch(url, await withAuthHeader(init));
+  }
+  return res;
 }
 
 export interface ApiInit extends RequestInit {
@@ -259,30 +301,40 @@ export async function api<T>(path: string, init?: ApiInit): Promise<T> {
   // Skip the auth fetch when we're already fetching /auth/token, otherwise
   // we'd recurse forever.
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchInit } = init ?? {};
-  const finalInit = path === "/auth/token" ? fetchInit : await withAuthHeader(fetchInit);
-  // AbortController so the underlying request actually stops on timeout
-  // (otherwise the socket would keep going and consume resources).
-  const ctl = new AbortController();
-  const merged: RequestInit = { ...finalInit, signal: finalInit.signal ?? ctl.signal };
-  const fetchPromise = fetch(`${BACKEND_URL}${path}`, merged).catch((e: unknown) => {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new ApiError("Request aborted", {
-        code: "TIMEOUT",
-        status: 504,
-        body: null,
-      });
+  const isTokenPath = path === "/auth/token";
+
+  // One attempt = build the (auth-stamped) init, fire it with an AbortController
+  // so a timeout actually stops the socket, and race it against the timeout.
+  async function attempt(): Promise<Response> {
+    const finalInit = isTokenPath ? fetchInit : await withAuthHeader(fetchInit);
+    const ctl = new AbortController();
+    const merged: RequestInit = { ...finalInit, signal: finalInit.signal ?? ctl.signal };
+    const fetchPromise = fetch(`${BACKEND_URL}${path}`, merged).catch((e: unknown) => {
+      if (e instanceof Error && e.name === "AbortError") {
+        throw new ApiError("Request aborted", { code: "TIMEOUT", status: 504, body: null });
+      }
+      throw e;
+    });
+    try {
+      return await withTimeout(fetchPromise, timeoutMs);
+    } catch (e) {
+      // On timeout, abort the in-flight request so we don't leak the socket.
+      if (isApiError(e, "TIMEOUT")) {
+        try { ctl.abort(); } catch { /* ignore */ }
+      }
+      throw e;
     }
-    throw e;
-  });
-  let res: Response;
-  try {
-    res = await withTimeout(fetchPromise, timeoutMs);
-  } catch (e) {
-    // On timeout, abort the in-flight request so we don't leak the socket.
-    if (isApiError(e, "TIMEOUT")) {
-      try { ctl.abort(); } catch { /* ignore */ }
-    }
-    throw e;
+  }
+
+  let res = await attempt();
+  // Transparently recover from a stale per-launch token (rotates on every
+  // backend restart): clear it, re-fetch, retry ONCE. Only the token-auth
+  // reject qualifies — a real authorization 403 carries a structured code and
+  // is surfaced unchanged below. See authFetch/isStaleTokenResponse for the
+  // rationale.
+  if (!isTokenPath && (await isStaleTokenResponse(res))) {
+    resetAuthToken();
+    res = await attempt();
   }
   if (!res.ok) {
     const { message, code, body } = await parseErrorBody(res);
@@ -316,6 +368,21 @@ export const setApiKey = (api_key: string) =>
 
 export const deleteApiKey = () =>
   api<ApiKeyStatus>("/settings/api-key", { method: "DELETE" });
+
+// ── Capabilities (server-side enablement gate) ───────────────────────────────
+// Mirror of lib/capability.py: the backend refuses gated routers until their
+// group is enabled here, so the UI toggle must push to the server (authoritative)
+// rather than living only in localStorage.
+export type CapabilityState = { group: string; enabled: boolean; routers: string[] };
+
+export const fetchCapabilities = () => api<CapabilityState[]>("/capabilities");
+
+export const setServerCapability = (group: string, enabled: boolean) =>
+  api<CapabilityState>(`/capabilities/${encodeURIComponent(group)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
 
 // Named external-service keys (SecurityTrails, VirusTotal, Shodan, HIBP,
 // GitHub, Google CSE, Censys, Hunter). The Anthropic key has its own

@@ -33,8 +33,8 @@ export default function TopBar() {
         className="mx-auto flex h-[30px] w-full max-w-[520px] items-center gap-2.5 rounded-lg border border-divider bg-bg-base px-3 text-ink-dim hover:border-borderBright"
       >
         <Icon name="search" size={14} />
-        <span className="text-[12.5px]">Search commands, tools, findings…</span>
-        <span className="ml-auto font-mono text-[11px] text-ink-dim">{mod}K</span>
+        <span className="text-[calc(12.5px_*_var(--text-scale))]">Search commands, tools, findings…</span>
+        <span className="ml-auto font-mono text-[calc(11px_*_var(--text-scale))] text-ink-dim">{mod}K</span>
       </button>
 
       <EngagementSwitcher />

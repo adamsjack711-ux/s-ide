@@ -13,16 +13,16 @@ import Icon from "./Icon";
 export type ActivityItem = { id: string; icon: string; label: string; kind: "panel" | "tab" };
 
 // Clustered top groups (rendered top-to-bottom with dividers between them).
-// Targets is the top of the app: the front door is the Targets list, and each
-// Target nests its own Engagements / Workbench / Findings / Reporting. Labs now
-// live inside Learn, so they're no longer a rail destination.
+// Engagements is the top of the app: the front door is the Engagements list, and
+// each Engagement nests its own Targets / Workbench / Findings / Reporting (the
+// targets live INSIDE the engagement that arms them). Labs live inside Learn, so
+// they're no longer a rail destination.
 export const VIEW_GROUPS: ActivityItem[][] = [
-  [{ id: "spine", icon: "target", label: "Targets", kind: "tab" }],
+  [{ id: "spine", icon: "shield", label: "Engagements", kind: "tab" }],
 ];
 // Flat view (compat / lookups).
 export const VIEW_ITEMS: ActivityItem[] = VIEW_GROUPS.flat();
-// Global, untabbable destinations — pinned to the bottom of the rail. Reporting
-// is no longer global (it lives inside each Target); Learn now carries Labs.
+// Global, bottom-anchored destinations.
 export const BOTTOM_ITEMS: ActivityItem[] = [
   { id: "learn", icon: "book", label: "Learn", kind: "tab" },
   { id: "settings", icon: "gear", label: "Settings", kind: "tab" },

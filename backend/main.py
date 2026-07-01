@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from lib import errors as mhp_errors
 from lib import logging_setup
 from lib import exposure
+from lib import capability
 from lib.auth import (
     AUTH_TOKEN,
     require_local_auth,
@@ -34,7 +35,7 @@ from lib.auth import (
 
 from routers import (
     ad_spray, audit, audit_log, aws_recon, azure_recon, basic_check,
-    bloodhound_ingest, breach, brew, bt_recon, c2_beacon, chat, cmdi, cms,
+    bloodhound_ingest, breach, brew, bt_recon, c2_beacon, capabilities, chat, cmdi, cms,
     codescan, cred_harvest, ct_log, cvss, dns_recon, dorking, email_harvest, email_security,
     engagements, evil_twin, exploits, findings, fingerprint, gcp_recon, github_leak,
     graphql, hash_cracker, http_probe, ids, idor, imds, ip_checker,
@@ -144,8 +145,15 @@ _REPORT_GATE = [
 # only when exposure.is_exposed(key) is true (Tier 1, or RAMPART_EXPOSE_ALL=1).
 # Tier 2/3 routers ship in the codebase but 404 by default. See lib/exposure.py.
 def _inc(key, router, deps):
-    if exposure.is_exposed(key):
-        app.include_router(router, dependencies=deps)
+    if not exposure.is_exposed(key):
+        return
+    # Server-side capability gate: privileged/intrusive routers carry an extra
+    # require_capability dependency so they 403 (HTTP) / close (WS) until the
+    # operator enables their group — enforced here, not just hidden in the UI.
+    group = capability.router_group(key)
+    if group:
+        deps = [*deps, Depends(capability.require_capability(group))]
+    app.include_router(router, dependencies=deps)
 
 _inc("ip_checker", ip_checker.router, _PRIVILEGED)
 _inc("ip_checker", ip_checker.shodan_router, _PRIVILEGED)
@@ -188,6 +196,7 @@ _inc("reverse_shell", reverse_shell.router, _PRIVILEGED)
 _inc("system_info", system_info.router, _PRIVILEGED)
 _inc("settings", settings.router, _PRIVILEGED)
 _inc("self_assess", self_assess.router, _PRIVILEGED)
+_inc("capabilities", capabilities.router, _PRIVILEGED)
 _inc("chat", chat.router, _PRIVILEGED)
 _inc("engagements", engagements.router, _REPORT_GATE)
 _inc("findings", findings.router, _PRIVILEGED)
