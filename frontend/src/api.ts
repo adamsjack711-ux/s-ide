@@ -246,8 +246,18 @@ async function withAuthHeader(init?: RequestInit): Promise<RequestInit> {
  */
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   const url = path.startsWith("http") ? path : `${BACKEND_URL}${path}`;
-  const finalInit = await withAuthHeader(init);
-  return fetch(url, finalInit);
+  const isTokenPath = path.endsWith("/auth/token");
+  let res = await fetch(url, await withAuthHeader(init));
+  // The per-launch auth token rotates every time the backend restarts (dev
+  // --reload, a rebuild, or any sidecar relaunch). A cached-but-stale token
+  // makes every call 403. Recover transparently: clear the token, fetch a
+  // fresh one, and retry ONCE. A genuine authorization 403 (un-armed pairing,
+  // scope denial) 403s again and is surfaced unchanged — no gate is weakened.
+  if (res.status === 403 && !isTokenPath) {
+    resetAuthToken();
+    res = await fetch(url, await withAuthHeader(init));
+  }
+  return res;
 }
 
 export interface ApiInit extends RequestInit {
@@ -259,30 +269,38 @@ export async function api<T>(path: string, init?: ApiInit): Promise<T> {
   // Skip the auth fetch when we're already fetching /auth/token, otherwise
   // we'd recurse forever.
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchInit } = init ?? {};
-  const finalInit = path === "/auth/token" ? fetchInit : await withAuthHeader(fetchInit);
-  // AbortController so the underlying request actually stops on timeout
-  // (otherwise the socket would keep going and consume resources).
-  const ctl = new AbortController();
-  const merged: RequestInit = { ...finalInit, signal: finalInit.signal ?? ctl.signal };
-  const fetchPromise = fetch(`${BACKEND_URL}${path}`, merged).catch((e: unknown) => {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new ApiError("Request aborted", {
-        code: "TIMEOUT",
-        status: 504,
-        body: null,
-      });
+  const isTokenPath = path === "/auth/token";
+
+  // One attempt = build the (auth-stamped) init, fire it with an AbortController
+  // so a timeout actually stops the socket, and race it against the timeout.
+  async function attempt(): Promise<Response> {
+    const finalInit = isTokenPath ? fetchInit : await withAuthHeader(fetchInit);
+    const ctl = new AbortController();
+    const merged: RequestInit = { ...finalInit, signal: finalInit.signal ?? ctl.signal };
+    const fetchPromise = fetch(`${BACKEND_URL}${path}`, merged).catch((e: unknown) => {
+      if (e instanceof Error && e.name === "AbortError") {
+        throw new ApiError("Request aborted", { code: "TIMEOUT", status: 504, body: null });
+      }
+      throw e;
+    });
+    try {
+      return await withTimeout(fetchPromise, timeoutMs);
+    } catch (e) {
+      // On timeout, abort the in-flight request so we don't leak the socket.
+      if (isApiError(e, "TIMEOUT")) {
+        try { ctl.abort(); } catch { /* ignore */ }
+      }
+      throw e;
     }
-    throw e;
-  });
-  let res: Response;
-  try {
-    res = await withTimeout(fetchPromise, timeoutMs);
-  } catch (e) {
-    // On timeout, abort the in-flight request so we don't leak the socket.
-    if (isApiError(e, "TIMEOUT")) {
-      try { ctl.abort(); } catch { /* ignore */ }
-    }
-    throw e;
+  }
+
+  let res = await attempt();
+  // Transparently recover from a stale per-launch token (rotates on every
+  // backend restart): clear it, re-fetch, retry ONCE. A real authorization 403
+  // 403s again below and is surfaced unchanged. See authFetch for the rationale.
+  if (res.status === 403 && !isTokenPath) {
+    resetAuthToken();
+    res = await attempt();
   }
   if (!res.ok) {
     const { message, code, body } = await parseErrorBody(res);
