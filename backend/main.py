@@ -44,7 +44,7 @@ from routers import (
     persistence, ping, playbook_suggest, port_scanner, presets, processes,
     profile_finder, reports, reverse_ip, reverse_shell, s3_scanner, safety, scope, settings,
     shodan_censys, smb_enum, spine, sqli, ssrf, stego, subdomain_enum, suggest_checks, summarize,
-    system_info, takeover, targets, tcpdump, terminal, themes, tls_audit,
+    self_assess, system_info, takeover, targets, tcpdump, terminal, themes, tls_audit,
     tool_requirements, triage, urlscan, wayback, whois, wifi, wifi_scan,
     windows_posture,
     wpa_capture, xss, systemd_units, firewall_rules, users_audit,
@@ -187,6 +187,7 @@ _inc("stego", stego.router, _PRIVILEGED)
 _inc("reverse_shell", reverse_shell.router, _PRIVILEGED)
 _inc("system_info", system_info.router, _PRIVILEGED)
 _inc("settings", settings.router, _PRIVILEGED)
+_inc("self_assess", self_assess.router, _PRIVILEGED)
 _inc("chat", chat.router, _PRIVILEGED)
 _inc("engagements", engagements.router, _REPORT_GATE)
 _inc("findings", findings.router, _PRIVILEGED)

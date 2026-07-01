@@ -22,7 +22,7 @@ TIER1: frozenset[str] = frozenset(
     {
         # Engagement spine (pure SQLite — the differentiator).
         "engagements", "findings", "cvss", "reports", "scope", "targets",
-        "audit_log", "triage", "suggest_checks",
+        "audit_log", "triage", "suggest_checks", "self_assess",
         # Target / sub-target / engagement / pairing domain model + 4-tab spine.
         "spine",
         # Discovery / DNS / naming.
