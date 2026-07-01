@@ -239,7 +239,7 @@ export default function MethodPromote() {
                       <span className="font-mono text-ink-dim">{e.ts}</span>
                       <span className="truncate font-medium text-ink-primary">{e.category}</span>
                     </div>
-                    <div className="ml-4 truncate font-mono text-[11px] text-ink-dim">
+                    <div className="ml-4 truncate font-mono text-[calc(11px_*_var(--text-scale))] text-ink-dim">
                       {e.summary}
                     </div>
                   </li>

@@ -162,11 +162,11 @@ export default function ThemeMarket() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-[12px] font-semibold text-ink-primary">Theme sources</div>
+        <div className="text-[calc(12px_*_var(--text-scale))] font-semibold text-ink-primary">Theme sources</div>
         {active && (
           <button
             onClick={() => { clearSideTheme(); setActive(null); }}
-            className="text-[11px] text-ink-muted hover:text-ink-primary"
+            className="text-[calc(11px_*_var(--text-scale))] text-ink-muted hover:text-ink-primary"
           >
             Revert to bundled theme
           </button>
@@ -174,14 +174,14 @@ export default function ThemeMarket() {
       </div>
 
       {active && (
-        <div className="rounded-md border border-accent/30 bg-accent/[0.08] px-3 py-1.5 text-[11.5px] text-ink-primary">
+        <div className="rounded-md border border-accent/30 bg-accent/[0.08] px-3 py-1.5 text-[calc(11.5px_*_var(--text-scale))] text-ink-primary">
           Active custom theme: <span className="font-semibold">{active.name}</span> <span className="text-ink-dim">v{active.version}</span>
         </div>
       )}
 
       {/* Bundled gallery — the curated themes that ship with s-ide. */}
       <div>
-        <div className="mb-1.5 text-[11px] uppercase tracking-wide text-ink-dim">Bundled</div>
+        <div className="mb-1.5 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Bundled</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {BUILTIN_THEMES.map((t) => (
             <button
@@ -192,7 +192,7 @@ export default function ThemeMarket() {
             >
               <ThemeMiniPreview theme={t} />
               <div className="flex items-center justify-between px-0.5">
-                <span className="text-[12px] font-semibold text-ink-primary">{t.name}</span>
+                <span className="text-[calc(12px_*_var(--text-scale))] font-semibold text-ink-primary">{t.name}</span>
                 {active?.name === t.name && <span className="h-1.5 w-1.5 rounded-full bg-accent" title="active" />}
               </div>
             </button>
@@ -202,10 +202,10 @@ export default function ThemeMarket() {
 
       {/* Add a remote source. */}
       <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-wide text-ink-dim">Remote sources</div>
+        <div className="text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Remote sources</div>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-md border border-divider px-2.5 py-1 text-[11px] text-accent hover:border-accent"
+          className="rounded-md border border-divider px-2.5 py-1 text-[calc(11px_*_var(--text-scale))] text-accent hover:border-accent"
           title="Import a .side theme file from disk"
         >
           Import .side file…
@@ -223,47 +223,47 @@ export default function ThemeMarket() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://github.com/you/your-theme  (git repo or raw .side URL)"
-          className="flex-1 rounded-md border border-divider bg-bg-base px-2.5 py-1.5 text-[12px] text-ink-primary outline-none focus:border-accent"
+          className="flex-1 rounded-md border border-divider bg-bg-base px-2.5 py-1.5 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent"
         />
         <input
           value={version}
           onChange={(e) => setVersion(e.target.value)}
           placeholder="version (optional)"
-          className="w-32 rounded-md border border-divider bg-bg-base px-2.5 py-1.5 text-[12px] text-ink-primary outline-none focus:border-accent"
+          className="w-32 rounded-md border border-divider bg-bg-base px-2.5 py-1.5 text-[calc(12px_*_var(--text-scale))] text-ink-primary outline-none focus:border-accent"
         />
         <button
           onClick={add}
           disabled={busy === "add" || !url.trim()}
-          className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-bg-base hover:brightness-110 disabled:opacity-40"
+          className="rounded-md bg-accent px-3 py-1.5 text-[calc(12px_*_var(--text-scale))] font-semibold text-bg-base hover:brightness-110 disabled:opacity-40"
         >
           Add
         </button>
       </div>
 
-      {error && <div className="rounded-md bg-danger/10 px-3 py-2 text-[11.5px] text-danger">{error}</div>}
+      {error && <div className="rounded-md bg-danger/10 px-3 py-2 text-[calc(11.5px_*_var(--text-scale))] text-danger">{error}</div>}
 
       {/* Sources list. */}
       <div className="flex flex-col gap-1.5">
         {sources.length === 0 ? (
-          <div className="text-[11.5px] text-ink-dim">No sources added yet.</div>
+          <div className="text-[calc(11.5px_*_var(--text-scale))] text-ink-dim">No sources added yet.</div>
         ) : (
           sources.map((s) => (
             <div key={s.url} className="flex items-center gap-2 rounded-md border border-divider bg-bg-base px-3 py-2">
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+                className={`rounded-full px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-semibold uppercase ${
                   s.official ? "bg-accent/15 text-accent" : "bg-bg-card text-ink-muted ring-1 ring-divider"
                 }`}
               >
                 {s.official ? "official" : "community"}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-[11.5px] text-ink-primary" title={s.url}>{s.url}</div>
-                {s.version && <div className="font-mono text-[10px] text-ink-dim">pinned {s.version}</div>}
+                <div className="truncate font-mono text-[calc(11.5px_*_var(--text-scale))] text-ink-primary" title={s.url}>{s.url}</div>
+                {s.version && <div className="font-mono text-[calc(10px_*_var(--text-scale))] text-ink-dim">pinned {s.version}</div>}
               </div>
               <button
                 onClick={() => doPreview(s)}
                 disabled={busy === s.url}
-                className="rounded-md border border-divider px-2.5 py-1 text-[11px] text-accent hover:border-accent disabled:opacity-50"
+                className="rounded-md border border-divider px-2.5 py-1 text-[calc(11px_*_var(--text-scale))] text-accent hover:border-accent disabled:opacity-50"
               >
                 {busy === s.url ? "Resolving…" : "Preview"}
               </button>
@@ -273,7 +273,7 @@ export default function ThemeMarket() {
         )}
       </div>
 
-      <div className="text-[10px] text-ink-dim">
+      <div className="text-[calc(10px_*_var(--text-scale))] text-ink-dim">
         Curated default manifest: <span className="font-mono">{defaultUrl || "—"}</span>. Themes are verified on fetch
         (hash-locked, immutable by version) and re-validated on apply. See the README “Creating themes” section.
       </div>

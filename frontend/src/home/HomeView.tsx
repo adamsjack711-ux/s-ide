@@ -61,6 +61,7 @@ import {
   listFindings,
   fetchCoverage,
   deleteEngagement,
+  isLabEngagement,
   getActiveEngagementId,
   setActiveEngagementId,
   useActiveEngagementId,
@@ -269,7 +270,9 @@ function Dashboard() {
 
   const refresh = useCallback(async () => {
     try {
-      const list = await listEngagements();
+      // Lab-provenance engagements (local sandbox + lab spin-ups) belong to the
+      // Learn → Labs area, not the engagements dashboard.
+      const list = (await listEngagements()).filter((e) => !isLabEngagement(e));
       list.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
       if (!mounted.current) return;
       setEngagements(list);
@@ -362,13 +365,13 @@ function Dashboard() {
       <div className="mx-auto max-w-6xl space-y-4 px-6 pt-5 pb-12">
         {engagements === null ? (
           <GlassCard className="p-0" glowOnHover>
-            <div className="flex items-center gap-2 p-5 text-[11px] text-ink-dim">
+            <div className="flex items-center gap-2 p-5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
               <WibblingSpinner /> loading engagements…
             </div>
           </GlassCard>
         ) : error ? (
           <GlassCard className="p-0" glowOnHover>
-            <div className="p-5 text-[11px] text-danger">⚠ {error}</div>
+            <div className="p-5 text-[calc(11px_*_var(--text-scale))] text-danger">⚠ {error}</div>
           </GlassCard>
         ) : (
           <>
@@ -465,7 +468,7 @@ function DashboardHeader({
       <div className="relative mx-auto max-w-6xl">
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
-            <EyebrowPill icon={false} className="text-[10px]">
+            <EyebrowPill icon={false} className="text-[calc(10px_*_var(--text-scale))]">
               security engagement IDE
             </EyebrowPill>
             <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight">
@@ -473,7 +476,7 @@ function DashboardHeader({
               <Sparkle />
             </h1>
             {summary && (
-              <p className="mt-1.5 max-w-2xl text-[12px] text-ink-primary">{summary}</p>
+              <p className="mt-1.5 max-w-2xl text-[calc(12px_*_var(--text-scale))] text-ink-primary">{summary}</p>
             )}
           </div>
           <Button
@@ -508,15 +511,15 @@ function MetricCard({
   return (
     <GlassCard className="p-0" glowOnHover>
       <div className="p-4">
-        <div className="text-[11px] font-medium text-ink-dim">{label}</div>
+        <div className="text-[calc(11px_*_var(--text-scale))] font-medium text-ink-dim">{label}</div>
         <div
-          className="data mt-2.5 text-[30px] font-bold leading-none"
+          className="data mt-2.5 text-[calc(30px_*_var(--text-scale))] font-bold leading-none"
           style={{ color: valueColor ?? "rgb(var(--ink-primary-rgb))" }}
         >
           {value}
         </div>
         <div
-          className="mt-2 text-[11px] font-medium"
+          className="mt-2 text-[calc(11px_*_var(--text-scale))] font-medium"
           style={{ color: subColor ?? "rgb(var(--ink-dim-rgb))" }}
         >
           {sub}
@@ -599,7 +602,7 @@ function SevChips({ counts }: { counts: SevCounts }) {
   const present = order.filter((s) => counts[s] > 0);
   if (present.length === 0) {
     return (
-      <span className="text-[10.5px] text-ink-dim">no findings yet</span>
+      <span className="text-[calc(10.5px_*_var(--text-scale))] text-ink-dim">no findings yet</span>
     );
   }
   return (
@@ -607,7 +610,7 @@ function SevChips({ counts }: { counts: SevCounts }) {
       {present.map((s) => (
         <span
           key={s}
-          className="data inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold"
+          className="data inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[calc(10.5px_*_var(--text-scale))] font-semibold"
           style={{
             color: SEV_COLOR[s],
             background: `color-mix(in srgb, ${SEV_COLOR[s]} 13%, transparent)`,
@@ -636,13 +639,13 @@ function DeleteX({
       <span className="inline-flex shrink-0 items-center gap-1">
         <button
           onClick={(e) => { e.stopPropagation(); onConfirm(); }}
-          className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-danger ring-1 ring-danger/40 hover:bg-danger/10"
+          className="rounded px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] font-semibold text-danger ring-1 ring-danger/40 hover:bg-danger/10"
         >
           Delete
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
-          className="rounded px-1 py-0.5 text-[11px] text-ink-dim hover:text-ink-primary"
+          className="rounded px-1 py-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim hover:text-ink-primary"
           aria-label="cancel delete"
         >
           ✕
@@ -653,7 +656,7 @@ function DeleteX({
   return (
     <button
       onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-      className="shrink-0 rounded px-1 py-0.5 text-[13px] leading-none text-ink-dim hover:text-danger"
+      className="shrink-0 rounded px-1 py-0.5 text-[calc(13px_*_var(--text-scale))] leading-none text-ink-dim hover:text-danger"
       aria-label={label}
       title={label}
     >
@@ -690,9 +693,9 @@ function EngagementCard({
           <span className="min-w-0 flex-1 truncate text-[length:var(--row-name)] font-semibold text-ink-primary">{eng.name}</span>
           {stat ? <div className="hidden items-center gap-1 sm:flex"><SevChips counts={stat.counts} /></div> : null}
           {stat?.coverage != null && (
-            <span className="data hidden w-12 text-right text-[11px] text-ink-muted md:inline">{stat.coverage}%</span>
+            <span className="data hidden w-12 text-right text-[calc(11px_*_var(--text-scale))] text-ink-muted md:inline">{stat.coverage}%</span>
           )}
-          <span className="hidden text-[10.5px] text-ink-dim lg:inline">{relTime(eng.updated_at)}</span>
+          <span className="hidden text-[calc(10.5px_*_var(--text-scale))] text-ink-dim lg:inline">{relTime(eng.updated_at)}</span>
           <Button variant={isActive ? "ghost" : "solid"} size="sm" onClick={() => openEngagement(eng.id, eng.name)}>
             Open
           </Button>
@@ -708,12 +711,12 @@ function EngagementCard({
         {/* top row: status pill */}
         <div className="mb-2.5 flex items-center gap-2">
           {isActive && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
+            <span className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-bold uppercase tracking-wider text-accent">
               <Sparkle solid /> pinned
             </span>
           )}
           <span
-            className="ml-auto inline-flex items-center gap-1.5 text-[10.5px] font-semibold"
+            className="ml-auto inline-flex items-center gap-1.5 text-[calc(10.5px_*_var(--text-scale))] font-semibold"
             style={{ color: sm.color }}
           >
             <StatusDot color={sm.color} static={!sm.pulse} />
@@ -730,7 +733,7 @@ function EngagementCard({
         {/* coverage bar — only when we have a real number */}
         {stat?.coverage !== null && stat?.coverage !== undefined ? (
           <div className="mb-2">
-            <div className="mb-1 flex items-center justify-between text-[10.5px] font-medium text-ink-dim">
+            <div className="mb-1 flex items-center justify-between text-[calc(10.5px_*_var(--text-scale))] font-medium text-ink-dim">
               <span>Methodology coverage</span>
               <span className="data text-ink-muted">{stat.coverage}%</span>
             </div>
@@ -750,13 +753,13 @@ function EngagementCard({
           {stat ? (
             <SevChips counts={stat.counts} />
           ) : (
-            <span className="text-[10.5px] text-ink-dim">loading…</span>
+            <span className="text-[calc(10.5px_*_var(--text-scale))] text-ink-dim">loading…</span>
           )}
         </div>
 
         {/* footer: scope + last activity + Open */}
         <div className="mt-auto flex items-center gap-3 border-t border-divider pt-2.5">
-          <div className="min-w-0 flex-1 text-[10px] text-ink-dim">
+          <div className="min-w-0 flex-1 text-[calc(10px_*_var(--text-scale))] text-ink-dim">
             <span className="uppercase tracking-wider">{eng.status}</span>
             <span className="mx-1.5" aria-hidden>
               ·
@@ -789,16 +792,16 @@ function NewEngagementCard({ onOpenCreate }: { onOpenCreate: () => void }) {
     >
       <div
         className="flex h-11 w-11 items-center justify-center rounded-xl border border-divider
-                   bg-bg-card text-[26px] font-light leading-none text-ink-dim
+                   bg-bg-card text-[calc(26px_*_var(--text-scale))] font-light leading-none text-ink-dim
                    transition-colors group-hover:border-accent group-hover:text-accent"
         aria-hidden
       >
         +
       </div>
-      <div className="text-[13px] font-bold text-ink-primary">
+      <div className="text-[calc(13px_*_var(--text-scale))] font-bold text-ink-primary">
         Start new engagement
       </div>
-      <div className="max-w-[260px] text-[11px] text-ink-dim">
+      <div className="max-w-[260px] text-[calc(11px_*_var(--text-scale))] text-ink-dim">
         Choose a type — a local codebase or a web application — and we'll collect
         the right details.
       </div>
@@ -829,7 +832,7 @@ function EngagementGrid({
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-wide text-ink-dim">Engagements</span>
+        <span className="text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Engagements</span>
         <ViewModeToggle storageKey="engagements" />
       </div>
       <div className={grid}>
@@ -875,21 +878,21 @@ function GettingStartedHero({
         <div className="relative">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <EyebrowPill icon={false} className="text-[10px]">
+              <EyebrowPill icon={false} className="text-[calc(10px_*_var(--text-scale))]">
                 {firstRun ? "welcome" : "getting started"}
               </EyebrowPill>
               <h2 className="mt-2 flex items-center gap-2 text-xl font-bold tracking-tight">
                 <GradientText>Create your first engagement</GradientText>
                 <Sparkle />
               </h2>
-              <p className="mt-1.5 max-w-xl text-[12px] leading-relaxed text-ink-primary">
+              <p className="mt-1.5 max-w-xl text-[calc(12px_*_var(--text-scale))] leading-relaxed text-ink-primary">
                 An engagement is your workspace — scope, targets, findings and
                 coverage on one spine. Spin one up, then point a tool at it.
               </p>
             </div>
             <button
               onClick={onDismiss}
-              className="shrink-0 rounded px-1.5 py-0.5 text-[13px] leading-none text-ink-dim hover:text-ink-primary"
+              className="shrink-0 rounded px-1.5 py-0.5 text-[calc(13px_*_var(--text-scale))] leading-none text-ink-dim hover:text-ink-primary"
               aria-label="Dismiss getting started"
               title="Dismiss"
             >
@@ -941,14 +944,14 @@ function StepCard({
     <div className="flex flex-col gap-2 rounded-xl border border-divider bg-bg-card p-4">
       <div className="flex items-center gap-2">
         <span
-          className="data flex h-6 w-6 items-center justify-center rounded-full border border-accent/40 bg-accent/10 text-[11px] font-bold text-accent"
+          className="data flex h-6 w-6 items-center justify-center rounded-full border border-accent/40 bg-accent/10 text-[calc(11px_*_var(--text-scale))] font-bold text-accent"
           aria-hidden
         >
           {step}
         </span>
-        <span className="text-[13px] font-bold text-ink-primary">{title}</span>
+        <span className="text-[calc(13px_*_var(--text-scale))] font-bold text-ink-primary">{title}</span>
       </div>
-      <p className="text-[11px] leading-relaxed text-ink-dim">{hint}</p>
+      <p className="text-[calc(11px_*_var(--text-scale))] leading-relaxed text-ink-dim">{hint}</p>
       <div className="mt-1">{cta}</div>
     </div>
   );
@@ -991,15 +994,15 @@ function ToolsUsedCard({
   return (
     <GlassCard className="p-0" glowOnHover>
       <div className="p-5">
-        <h2 className="mb-4 text-[13px] font-bold text-ink-primary">
+        <h2 className="mb-4 text-[calc(13px_*_var(--text-scale))] font-bold text-ink-primary">
           <GradientText static>Tools used</GradientText>
         </h2>
         {!ready ? (
-          <div className="flex items-center gap-2 text-[11px] text-ink-dim">
+          <div className="flex items-center gap-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             <WibblingSpinner /> tallying findings…
           </div>
         ) : tools.length === 0 ? (
-          <div className="text-[11px] text-ink-dim">
+          <div className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             No findings yet.
           </div>
         ) : (
@@ -1007,11 +1010,11 @@ function ToolsUsedCard({
             {tools.map((t) => (
               <div key={t.name}>
                 <div className="mb-1.5 flex items-center gap-2">
-                  <span className="flex-1 truncate text-[12.5px] font-medium text-ink-primary">
+                  <span className="flex-1 truncate text-[calc(12.5px_*_var(--text-scale))] font-medium text-ink-primary">
                     {t.name}
                   </span>
                   <span
-                    className="data text-[11.5px] font-semibold"
+                    className="data text-[calc(11.5px_*_var(--text-scale))] font-semibold"
                     style={{
                       color:
                         t.findings >= 3
@@ -1082,15 +1085,15 @@ function ActivityCard({
   return (
     <GlassCard className="p-0" glowOnHover>
       <div className="p-5">
-        <h2 className="mb-2 text-[13px] font-bold text-ink-primary">
+        <h2 className="mb-2 text-[calc(13px_*_var(--text-scale))] font-bold text-ink-primary">
           <GradientText static>Recent activity</GradientText>
         </h2>
         {!ready ? (
-          <div className="flex items-center gap-2 text-[11px] text-ink-dim">
+          <div className="flex items-center gap-2 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             <WibblingSpinner /> loading activity…
           </div>
         ) : items.length === 0 ? (
-          <div className="text-[11px] text-ink-dim">
+          <div className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">
             No activity yet.
           </div>
         ) : (
@@ -1106,14 +1109,14 @@ function ActivityCard({
                   aria-hidden
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] leading-snug text-ink-primary">
+                  <div className="text-[calc(12.5px_*_var(--text-scale))] leading-snug text-ink-primary">
                     {it.text}
                   </div>
-                  <div className="mt-0.5 truncate text-[10.5px] text-ink-dim">
+                  <div className="mt-0.5 truncate text-[calc(10.5px_*_var(--text-scale))] text-ink-dim">
                     {it.eng}
                   </div>
                 </div>
-                <div className="data shrink-0 text-[11px] text-ink-dim">
+                <div className="data shrink-0 text-[calc(11px_*_var(--text-scale))] text-ink-dim">
                   {relTime(it.ts)}
                 </div>
               </div>
@@ -1145,13 +1148,13 @@ function Section({
     <GlassCard className="p-0" glowOnHover>
       <header className="flex items-start gap-3 border-b border-divider px-5 py-3.5">
         <div className="flex-1">
-          <EyebrowPill icon={false} className="text-[10px]">
+          <EyebrowPill icon={false} className="text-[calc(10px_*_var(--text-scale))]">
             {eyebrow}
           </EyebrowPill>
-          <h2 className="mt-1.5 text-[15px] font-bold text-ink-primary">
+          <h2 className="mt-1.5 text-[calc(15px_*_var(--text-scale))] font-bold text-ink-primary">
             <GradientText static>{title}</GradientText>
           </h2>
-          <p className="mt-0.5 text-[11px] text-ink-dim">{hint}</p>
+          <p className="mt-0.5 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{hint}</p>
         </div>
         {status && <div className="shrink-0 pt-1">{status}</div>}
       </header>
@@ -1183,7 +1186,7 @@ function QuickLinksSection() {
         {/* Most-likely next action — run a tool — leads as a solid pill. */}
         <Button variant="solid" size="sm" onClick={openToolSearch}>
           Run a tool →
-          <span className="ml-1.5 text-[10px] opacity-70">open the arsenal</span>
+          <span className="ml-1.5 text-[calc(10px_*_var(--text-scale))] opacity-70">open the arsenal</span>
         </Button>
         <Button
           variant="ghost"
@@ -1191,7 +1194,7 @@ function QuickLinksSection() {
           onClick={() => emit("openView", { view: "build" })}
         >
           Workbench
-          <span className="ml-1.5 text-[10px] opacity-70">tools & playbooks</span>
+          <span className="ml-1.5 text-[calc(10px_*_var(--text-scale))] opacity-70">tools & playbooks</span>
         </Button>
         {QUICK_LINKS.map((l) => (
           <Button
@@ -1201,7 +1204,7 @@ function QuickLinksSection() {
             onClick={() => emit("openView", { view: l.view })}
           >
             {l.label}
-            <span className="ml-1.5 text-[10px] opacity-70">{l.hint}</span>
+            <span className="ml-1.5 text-[calc(10px_*_var(--text-scale))] opacity-70">{l.hint}</span>
           </Button>
         ))}
       </div>

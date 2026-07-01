@@ -26,7 +26,7 @@ function Placeholder({ what }: { what: string }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-dim">
+    <div className="mb-2.5 font-mono text-[calc(11px_*_var(--text-scale))] font-semibold uppercase tracking-[0.05em] text-ink-dim">
       {children}
     </div>
   );
@@ -113,12 +113,12 @@ export default function FindingDetail({
       <div className="border-b border-divider px-6 pb-5 pt-5">
         <div className="flex items-start gap-3">
           <span
-            className={`mt-0.5 inline-flex items-center rounded-md px-2.5 py-1 font-mono text-[10.5px] font-semibold tracking-wide ${SEV_PILL[f.severity]}`}
+            className={`mt-0.5 inline-flex items-center rounded-md px-2.5 py-1 font-mono text-[calc(10.5px_*_var(--text-scale))] font-semibold tracking-wide ${SEV_PILL[f.severity]}`}
           >
             {SEV_LABEL[f.severity]}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-[19px] font-bold leading-snug text-ink-primary">{f.title}</h2>
+            <h2 className="text-[calc(19px_*_var(--text-scale))] font-bold leading-snug text-ink-primary">{f.title}</h2>
             <div className="mt-1.5 font-mono text-xs text-ink-dim">
               {f.id}
               {f.tool ? ` · ${f.tool}` : ""}
@@ -139,7 +139,7 @@ export default function FindingDetail({
           <MetaCard label="CVSS" value={f.cvss != null ? f.cvss.toFixed(1) : "—"} accent />
           <MetaCard label="Type" value={f.tool || "—"} />
           <div className="rounded-[10px] border border-divider bg-bg-card px-3.5 py-3">
-            <div className="mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.04em] text-ink-dim">
+            <div className="mb-1.5 font-mono text-[calc(10.5px_*_var(--text-scale))] uppercase tracking-[0.04em] text-ink-dim">
               Status
             </div>
             <select
@@ -255,7 +255,7 @@ export default function FindingDetail({
               <span className="text-sm font-semibold text-ink-primary">
                 Recommended Remediation
               </span>
-              <span className="ml-auto font-mono text-[11px] text-accent">S-IDE Copilot</span>
+              <span className="ml-auto font-mono text-[calc(11px_*_var(--text-scale))] text-accent">S-IDE Copilot</span>
             </div>
             {remediation?.change || remediation?.why ? (
               <div className="space-y-3">
@@ -288,7 +288,7 @@ export default function FindingDetail({
                     key={s.id}
                     className="flex items-start gap-3 rounded-lg border border-divider bg-bg-card px-3 py-2"
                   >
-                    <span className="mt-px shrink-0 font-mono text-[11px] text-ink-dim">
+                    <span className="mt-px shrink-0 font-mono text-[calc(11px_*_var(--text-scale))] text-ink-dim">
                       {(s.ordinal ?? i) + 1}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -296,13 +296,13 @@ export default function FindingDetail({
                         {String(s.action?.tool_id ?? "unknown")}
                       </div>
                       {s.evidence?.timestamp != null && (
-                        <div className="mt-0.5 font-mono text-[10.5px] text-ink-dim">
+                        <div className="mt-0.5 font-mono text-[calc(10.5px_*_var(--text-scale))] text-ink-dim">
                           {String(s.evidence.timestamp)}
                         </div>
                       )}
                     </div>
                     <span
-                      className={`shrink-0 rounded px-1.5 py-px text-[10px] uppercase tracking-wide ${
+                      className={`shrink-0 rounded px-1.5 py-px text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide ${
                         s.anchored ? "text-phos ring-1 ring-phos/30" : "text-amber ring-1 ring-amber/30"
                       }`}
                     >
@@ -332,7 +332,7 @@ function MetaCard({
 }) {
   return (
     <div className="rounded-[10px] border border-divider bg-bg-card px-3.5 py-3">
-      <div className="mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.04em] text-ink-dim">
+      <div className="mb-1.5 font-mono text-[calc(10.5px_*_var(--text-scale))] uppercase tracking-[0.04em] text-ink-dim">
         {label}
       </div>
       <div

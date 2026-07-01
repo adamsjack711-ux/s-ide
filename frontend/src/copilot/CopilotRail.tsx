@@ -122,9 +122,9 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
         <span className="flex text-accent">
           <Sparkle />
         </span>
-        <span className="text-[13px] font-semibold text-ink-primary">S-IDE Copilot</span>
+        <span className="text-[calc(13px_*_var(--text-scale))] font-semibold text-ink-primary">S-IDE Copilot</span>
         {cfg?.usable ? (
-          <span className="rounded-full bg-accent/[0.13] px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent">
+          <span className="rounded-full bg-accent/[0.13] px-1.5 py-0.5 font-mono text-[calc(10px_*_var(--text-scale))] font-medium text-accent">
             {cfg.model ? cfg.model : "live"}
           </span>
         ) : null}
@@ -135,7 +135,7 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
 
       {focusedFinding && (
         <div className="max-h-[55%] overflow-auto border-b border-divider">
-          <div className="flex items-center justify-between bg-bg-base px-3.5 py-2 text-[10px] uppercase tracking-wide text-ink-dim">
+          <div className="flex items-center justify-between bg-bg-base px-3.5 py-2 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">
             <span className="flex items-center gap-2 font-mono">
               <span className="h-[7px] w-[7px] rounded-full bg-danger" /> Investigation context
             </span>
@@ -171,8 +171,8 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
                   <div
                     className={
                       isUser
-                        ? "max-w-[85%] whitespace-pre-wrap rounded-xl rounded-br-[3px] border border-accent/30 bg-accent/[0.16] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-primary"
-                        : "max-w-[90%] whitespace-pre-wrap rounded-xl rounded-bl-[3px] border border-divider bg-bg-base px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-primary"
+                        ? "max-w-[85%] whitespace-pre-wrap rounded-xl rounded-br-[3px] border border-accent/30 bg-accent/[0.16] px-3.5 py-2.5 text-[calc(12.5px_*_var(--text-scale))] leading-relaxed text-ink-primary"
+                        : "max-w-[90%] whitespace-pre-wrap rounded-xl rounded-bl-[3px] border border-divider bg-bg-base px-3.5 py-2.5 text-[calc(12.5px_*_var(--text-scale))] leading-relaxed text-ink-primary"
                     }
                   >
                     {thinking ? <TokenStream text="thinking…" speedMs={[40, 90]} loop /> : m.content}
@@ -183,14 +183,14 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
 
             {checks.length > 0 && (
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-wide text-ink-dim">Suggested checks</div>
+                <div className="text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide text-ink-dim">Suggested checks</div>
                 {checks.map((c, i) => (
                   <div key={i} className="rounded-lg bg-bg-base p-2.5 ring-1 ring-divider">
                     <div className="text-xs font-medium text-ink-primary">{c.label}</div>
-                    <div className="text-[11px] text-ink-dim">{c.target} — {c.rationale}</div>
+                    <div className="text-[calc(11px_*_var(--text-scale))] text-ink-dim">{c.target} — {c.rationale}</div>
                     <div className="mt-2 flex gap-2">
-                      <button onClick={() => approve(c)} className="rounded-md bg-accent px-2.5 py-1 text-[11px] font-semibold text-bg-base hover:brightness-110">Approve</button>
-                      <button onClick={() => setChecks((cs) => cs.filter((x) => x !== c))} className="rounded-md px-2 py-1 text-[11px] text-ink-muted hover:text-ink-primary">Skip</button>
+                      <button onClick={() => approve(c)} className="rounded-md bg-accent px-2.5 py-1 text-[calc(11px_*_var(--text-scale))] font-semibold text-bg-base hover:brightness-110">Approve</button>
+                      <button onClick={() => setChecks((cs) => cs.filter((x) => x !== c))} className="rounded-md px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted hover:text-ink-primary">Skip</button>
                     </div>
                   </div>
                 ))}
@@ -204,7 +204,7 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
             <button
               onClick={suggest}
               disabled={streaming}
-              className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-accent hover:underline disabled:opacity-50"
+              className="mb-2 flex items-center gap-1.5 text-[calc(11px_*_var(--text-scale))] font-medium text-accent hover:underline disabled:opacity-50"
             >
               <span className="flex">
                 <Sparkle />
@@ -218,7 +218,7 @@ export default function CopilotRail({ onClose }: { onClose?: () => void }) {
                 onKeyDown={(e) => e.key === "Enter" && send()}
                 placeholder={cfg ? "Ask about this finding…" : "…"}
                 disabled={streaming}
-                className="flex-1 bg-transparent text-[12.5px] text-ink-primary outline-none placeholder:text-ink-dim"
+                className="flex-1 bg-transparent text-[calc(12.5px_*_var(--text-scale))] text-ink-primary outline-none placeholder:text-ink-dim"
               />
               <button
                 onClick={() => send()}

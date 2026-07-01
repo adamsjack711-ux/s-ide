@@ -216,7 +216,7 @@ export default function CommandPalette() {
               section.rows.length === 0 ? null : (
                 <div key={si}>
                   {section.title && (
-                    <div className="px-4 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-ink-dim">
+                    <div className="px-4 pb-1 pt-2 text-[calc(10px_*_var(--text-scale))] font-medium uppercase tracking-wider text-ink-dim">
                       {section.title}
                     </div>
                   )}
@@ -236,7 +236,7 @@ export default function CommandPalette() {
                         <span className="flex shrink-0 items-center gap-2">
                           <span className="text-xs text-ink-dim">{r.hint}</span>
                           {r.binding && (
-                            <kbd className="rounded border border-border bg-bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
+                            <kbd className="rounded border border-border bg-bg-elevated px-1.5 py-0.5 font-mono text-[calc(10px_*_var(--text-scale))] text-ink-muted">
                               {r.binding}
                             </kbd>
                           )}

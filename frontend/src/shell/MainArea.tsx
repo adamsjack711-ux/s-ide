@@ -4,17 +4,15 @@ import LearningView from "../learn/LearningView";
 import SettingsView from "../settings/SettingsView";
 import WorkbenchView from "../build/WorkbenchView";
 import SpineView from "../spine/SpineView";
-import LabsView from "../labs/LabsView";
-import LabTabView from "../labs/LabTabView";
 import ToolPanel from "../panels/ToolPanel";
-import EditorPanel from "../panels/EditorPanel";
 import OutputPanel from "../panels/OutputPanel";
+import TerminalView from "./TerminalView";
+import { useActiveEngagementId } from "../lib/engagement";
 import PlaybookEditor from "../build/PlaybookEditor";
 import EngagementWorkspace from "./EngagementWorkspace";
 import { useIsolationOk } from "../labs/useIsolationOk";
 import { toolById } from "./tools";
 import { on } from "./bus";
-import { useLabTabs, activateLabTab, closeLabTab } from "../lib/labTabs";
 import {
   useEngagementTabs,
   activateEngagementTab,
@@ -39,15 +37,16 @@ const SUB_TAB_KINDS = new Set(["build", "graph", "findings", "reports", "termina
  * collapsible Output dock sits below.
  */
 function initialView(): View {
-  // Targets is the front door of the app.
+  // Engagements is the front door of the app.
   return { kind: "spine" };
 }
 
 export default function MainArea() {
   const [view, setView] = useState<View>(initialView);
   const [outputOpen, setOutputOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<"output" | "terminal">("output");
+  const activeEngagementId = useActiveEngagementId();
   const isolationOk = useIsolationOk();
-  const { tabs: labTabs } = useLabTabs();
   const { tabs: engTabs, activeId: activeEngId, subTab } = useEngagementTabs();
 
   useEffect(() => on("openView", ({ view: v, params }) => {
@@ -66,14 +65,11 @@ export default function MainArea() {
     setView({ kind: v, params });
   }), []);
   useEffect(() => on("openTool", ({ toolId }) => setView({ kind: "tool", params: { toolId } })), []);
-  useEffect(() => on("openEditor", ({ labId, path }) => setView({ kind: "editor", params: { labId, path } })), []);
-  useEffect(() => on("labTabActivated", ({ labId }) => setView({ kind: "lab", params: { labId } })), []);
   // An engagement tab becoming active swaps the main view to its workspace.
   useEffect(() => on("engagementTabActivated", () => setView({ kind: "engagement" })), []);
   // Auto-reveal the output dock when a tool streams.
   useEffect(() => on("output", () => setOutputOpen(true)), []);
 
-  const activeLabId = view.kind === "lab" ? view.params?.labId : null;
   const inEngagement = view.kind === "engagement";
 
   function render() {
@@ -87,10 +83,9 @@ export default function MainArea() {
       case "spine": return <SpineView />;
       case "learn": return <LearningView />;
       case "settings": return <SettingsView />;
-      case "labs": return <LabsView />;
-      case "lab": return <LabTabView labId={p.labId} />;
+      // Labs live ONLY inside Learning now — any "open labs" routes there.
+      case "labs": return <LearningView initialTab="labs" />;
       case "playbook": return <PlaybookEditor playbookId={p.id} isolationOk={isolationOk} />;
-      case "editor": return <EditorPanel labId={p.labId} path={p.path} />;
       case "build": return <WorkbenchView />; // fallback if reached without an engagement
       case "tool": {
         const t = toolById(p.toolId);
@@ -102,15 +97,16 @@ export default function MainArea() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-base">
-      {/* Primary MDI tab strip — open engagements (+ open labs). */}
-      {(engTabs.length > 0 || labTabs.length > 0) && (
+      {/* Primary MDI tab strip — open engagements. (Labs are NOT here; active
+          labs live only in Learning → Labs.) */}
+      {engTabs.length > 0 && (
         <div className="flex shrink-0 items-stretch gap-px overflow-x-auto border-b border-divider bg-bg-sidebar">
           {engTabs.map((t) => {
             const active = inEngagement && t.id === activeEngId;
             return (
               <div
                 key={t.id}
-                className={`group flex items-center gap-2 border-r border-divider px-3 py-1.5 text-[12px] ${
+                className={`group flex items-center gap-2 border-r border-divider px-3 py-1.5 text-[calc(12px_*_var(--text-scale))] ${
                   active ? "bg-bg-base text-ink-primary" : "text-ink-dim hover:text-ink-primary"
                 }`}
               >
@@ -128,48 +124,48 @@ export default function MainArea() {
               </div>
             );
           })}
-          {labTabs.map((t) => {
-            const active = t.id === activeLabId;
-            return (
-              <div
-                key={t.id}
-                className={`group flex items-center gap-2 border-r border-divider px-3 py-1.5 text-[12px] ${
-                  active ? "bg-bg-base text-ink-primary" : "text-ink-dim hover:text-ink-primary"
-                }`}
-              >
-                {active && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
-                <button onClick={() => activateLabTab(t.id)} title={t.primaryUrl || t.name} className="max-w-[160px] truncate">
-                  {t.name}
-                </button>
-                <button
-                  onClick={() => closeLabTab(t.id)}
-                  title="Close lab tab"
-                  className="text-ink-dim opacity-0 hover:text-danger group-hover:opacity-100"
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })}
         </div>
       )}
 
       <div className="min-h-0 flex-1 overflow-hidden">{render()}</div>
 
-      {/* Output dock — collapsible bottom strip. */}
-      <div className={`flex shrink-0 flex-col border-t border-divider ${outputOpen ? "h-52" : ""}`}>
-        <button
-          onClick={() => setOutputOpen((o) => !o)}
-          className="flex items-center gap-2 px-3 py-1 text-[11px] uppercase tracking-wide text-ink-dim hover:text-ink-primary"
-        >
-          <span>{outputOpen ? "▾" : "▸"}</span> Output
-        </button>
+      {/* Bottom dock — collapsible, tabbed: Output + the integrated Terminal.
+          The Terminal tab is present whenever an engagement is active; it runs
+          engagement-scoped (authFetch attaches X-MHP-Engagement-Id) and the
+          server-side arm gate + target_policy still apply to every command. */}
+      <div className={`flex shrink-0 flex-col border-t border-divider ${outputOpen ? "h-60" : ""}`}>
+        <div className="flex items-center gap-1 px-2">
+          <DockTab id="output" label="Output" active={outputOpen && dockTab === "output"} onClick={() => { setDockTab("output"); setOutputOpen(true); }} />
+          {activeEngagementId && (
+            <DockTab id="terminal" label="Terminal" active={outputOpen && dockTab === "terminal"} onClick={() => { setDockTab("terminal"); setOutputOpen(true); }} />
+          )}
+          <button
+            onClick={() => setOutputOpen((o) => !o)}
+            title={outputOpen ? "Collapse" : "Expand"}
+            className="ml-auto px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-dim hover:text-ink-primary"
+          >
+            {outputOpen ? "▾" : "▸"}
+          </button>
+        </div>
         {outputOpen && (
           <div className="min-h-0 flex-1">
-            <OutputPanel />
+            {dockTab === "terminal" && activeEngagementId ? <TerminalView /> : <OutputPanel />}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function DockTab({ label, active, onClick }: { id: string; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2.5 py-1 text-[calc(11px_*_var(--text-scale))] uppercase tracking-wide transition-colors ${
+        active ? "text-ink-primary" : "text-ink-dim hover:text-ink-primary"
+      }`}
+    >
+      {label}
+    </button>
   );
 }

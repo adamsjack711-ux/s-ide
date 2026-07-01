@@ -392,7 +392,7 @@ export default function LabsView() {
         </div>
 
         {!catalogError && labs.length > 0 && enabledLabs.length === 0 && (
-          <div className="rounded border border-divider bg-bg-card px-4 py-6 text-center text-[13px] text-ink-dim">
+          <div className="rounded border border-divider bg-bg-card px-4 py-6 text-center text-[calc(13px_*_var(--text-scale))] text-ink-dim">
             No labs in your grid — add one from the catalog below.
           </div>
         )}
@@ -435,7 +435,7 @@ function AddLabDrawer({ labs, onAdded }: { labs: Lab[]; onAdded: () => void }) {
     <div className="mt-8 border-t border-divider pt-5">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-widest text-ink-muted hover:text-accent"
+        className="flex items-center gap-2 text-[calc(12px_*_var(--text-scale))] font-semibold uppercase tracking-widest text-ink-muted hover:text-accent"
       >
         <span className="text-base leading-none">{open ? "−" : "+"}</span>
         Add lab ({labs.length} available)
@@ -451,16 +451,16 @@ function AddLabDrawer({ labs, onAdded }: { labs: Lab[]; onAdded: () => void }) {
             <GlassCard key={lab.id} className="flex items-start gap-3 p-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[13px] font-semibold text-ink-primary">{lab.name}</span>
+                  <span className="text-[calc(13px_*_var(--text-scale))] font-semibold text-ink-primary">{lab.name}</span>
                   <span
-                    className={`rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${categoryClasses(
+                    className={`rounded border px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-bold uppercase tracking-widest ${categoryClasses(
                       lab.category,
                     )}`}
                   >
                     {lab.category || "Lab"}
                   </span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-ink-muted">
+                <p className="mt-1 line-clamp-2 text-[calc(11.5px_*_var(--text-scale))] leading-snug text-ink-muted">
                   {lab.summary}
                 </p>
               </div>
@@ -519,7 +519,7 @@ function CleanupAllButton({ onDone, disabled }: { onDone: () => void; disabled?:
     return (
       <button
         onClick={() => setResult(null)}
-        className="rounded border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] text-accent"
+        className="rounded border border-accent/40 bg-accent/10 px-2.5 py-1 text-[calc(11px_*_var(--text-scale))] text-accent"
         title="Click to dismiss"
       >
         {result}
@@ -537,7 +537,7 @@ function CleanupAllButton({ onDone, disabled }: { onDone: () => void; disabled?:
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[11px] text-ink-muted">Remove every lab + image?</span>
+      <span className="text-[calc(11px_*_var(--text-scale))] text-ink-muted">Remove every lab + image?</span>
       <Button variant="solid" size="sm" loading={busy} onClick={run}>
         Yes, purge
       </Button>
@@ -656,7 +656,7 @@ function RuntimeBanner({
 
   if (runtime?.state === "ok") {
     return (
-      <div className="flex items-center gap-2.5 rounded border border-accent/40 bg-accent/10 px-3 py-2 text-[12px]">
+      <div className="flex items-center gap-2.5 rounded border border-accent/40 bg-accent/10 px-3 py-2 text-[calc(12px_*_var(--text-scale))]">
         <StatusDot color="var(--accent, #39d98a)" />
         <span className="font-semibold text-accent">Docker ready</span>
       </div>
@@ -676,7 +676,7 @@ function RuntimeBanner({
   const installing = phase === "running";
 
   return (
-    <div className="rounded border border-amber/40 bg-amber/10 px-3 py-2.5 text-[12px]">
+    <div className="rounded border border-amber/40 bg-amber/10 px-3 py-2.5 text-[calc(12px_*_var(--text-scale))]">
       <div className="flex items-center gap-2.5">
         <StatusDot color="var(--amber, #ffc043)" static={false} />
         <span className="font-semibold text-amber">{headline}</span>
@@ -699,12 +699,12 @@ function RuntimeBanner({
       {/* Live installer log. */}
       {(installing || lines.length > 0) && (
         <div className="mt-2 pl-[18px]">
-          <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-widest text-ink-dim">
+          <div className="mb-1 flex items-center gap-2 text-[calc(10px_*_var(--text-scale))] uppercase tracking-widest text-ink-dim">
             <span>Installer</span>
             {installing && <StatusDot color="var(--amber, #ffc043)" static={false} />}
             {steps.length > 0 && <span className="font-mono normal-case text-ink-dim">{steps.join(" → ")}</span>}
           </div>
-          <pre className="max-h-44 overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-primary">
+          <pre className="max-h-44 overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[calc(11px_*_var(--text-scale))] leading-relaxed text-ink-primary">
             {lines.length ? lines.join("\n") : "Connecting…"}
             <div ref={logEndRef} />
           </pre>
@@ -714,10 +714,10 @@ function RuntimeBanner({
       {/* Homebrew bootstrap fallback — the installer refuses to install brew itself. */}
       {brewMissing && (
         <div className="mt-2 pl-[18px]">
-          <div className="mb-1 text-[10px] uppercase tracking-widest text-ink-dim">
+          <div className="mb-1 text-[calc(10px_*_var(--text-scale))] uppercase tracking-widest text-ink-dim">
             Homebrew required — run this first, then click Install again
           </div>
-          <pre className="select-all overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[12px] text-ink-primary">
+          <pre className="select-all overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[calc(12px_*_var(--text-scale))] text-ink-primary">
             {brewMissing.command}
           </pre>
         </div>
@@ -726,10 +726,10 @@ function RuntimeBanner({
       {/* Copy-paste fallback (kept) — for operators who'd rather use a terminal. */}
       {command && !brewMissing && (
         <div className="mt-2 pl-[18px]">
-          <div className="mb-1 text-[10px] uppercase tracking-widest text-ink-dim">
+          <div className="mb-1 text-[calc(10px_*_var(--text-scale))] uppercase tracking-widest text-ink-dim">
             Or run this in a terminal
           </div>
-          <pre className="select-all overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[12px] text-ink-primary">
+          <pre className="select-all overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[calc(12px_*_var(--text-scale))] text-ink-primary">
             {command}
           </pre>
         </div>
@@ -962,10 +962,10 @@ function LabCard({
       <GlassCard glowOnHover className="flex items-center gap-3 px-[var(--row-px)] py-[var(--row-py)]">
         <StatusDot color={dotColor(status)} static={!live && !building} />
         <span className="truncate text-[length:var(--row-name)] font-semibold text-ink-primary">{lab.name}</span>
-        <span className={`hidden rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest sm:inline ${categoryClasses(lab.category)}`}>
+        <span className={`hidden rounded border px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-bold uppercase tracking-widest sm:inline ${categoryClasses(lab.category)}`}>
           {lab.category || "Lab"}
         </span>
-        <span className="font-mono text-[9.5px] uppercase tracking-widest text-ink-dim">{stateLabel(status)}</span>
+        <span className="font-mono text-[calc(9.5px_*_var(--text-scale))] uppercase tracking-widest text-ink-dim">{stateLabel(status)}</span>
         <div className="ml-auto flex items-center gap-1.5">
           {!live ? (
             <Button variant="glow" size="sm" loading={pending === "start" || building} disabled={!runtimeOk || pending !== null} onClick={() => doAction(status?.build_status === "built" || live ? "start" : "build")}>
@@ -989,22 +989,22 @@ function LabCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[length:var(--card-name)] font-bold text-ink-primary">{lab.name}</h3>
             <span
-              className={`rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${categoryClasses(
+              className={`rounded border px-1.5 py-0.5 text-[calc(9px_*_var(--text-scale))] font-bold uppercase tracking-widest ${categoryClasses(
                 lab.category,
               )}`}
             >
               {lab.category || "Lab"}
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-ink-dim">
+            <span className="font-mono text-[calc(10px_*_var(--text-scale))] uppercase tracking-widest text-ink-dim">
               {stateLabel(status)}
             </span>
           </div>
-          <p className="mt-1 text-[12px] leading-snug text-ink-muted">{lab.summary}</p>
+          <p className="mt-1 text-[calc(12px_*_var(--text-scale))] leading-snug text-ink-muted">{lab.summary}</p>
         </div>
       </div>
 
       {/* Meta */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-ink-dim">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[calc(11px_*_var(--text-scale))] text-ink-dim">
         <span>{lab.image_tag}</span>
         {hasWeb ? (
           <a
@@ -1120,7 +1120,7 @@ function LabCard({
             </Button>
           ) : (
             <span className="flex items-center gap-1.5">
-              <span className="text-[11px] text-ink-muted">Delete image &amp; free disk?</span>
+              <span className="text-[calc(11px_*_var(--text-scale))] text-ink-muted">Delete image &amp; free disk?</span>
               <Button variant="solid" size="sm" loading={pending === "remove"} onClick={remove}>
                 Delete
               </Button>
@@ -1139,7 +1139,7 @@ function LabCard({
 
       {/* Notice + error surfaces */}
       {notice && (
-        <div className="rounded border border-accent/40 bg-accent/10 px-3 py-1.5 text-[11px] text-accent">
+        <div className="rounded border border-accent/40 bg-accent/10 px-3 py-1.5 text-[calc(11px_*_var(--text-scale))] text-accent">
           {notice}
         </div>
       )}
@@ -1165,7 +1165,7 @@ function LabCard({
       {/* Suggested steps */}
       {steps.length > 0 && (
         <div className="border-t border-divider pt-3">
-          <div className="mb-2 text-[10px] uppercase tracking-widest text-ink-dim">
+          <div className="mb-2 text-[calc(10px_*_var(--text-scale))] uppercase tracking-widest text-ink-dim">
             Suggested next steps
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1179,12 +1179,12 @@ function LabCard({
                     ? s.description || `Open ${s.label}`
                     : "Start the lab to enable this step"
                 }
-                className="group rounded border border-divider bg-bg-card px-2.5 py-1 text-left text-[11px] transition hover:border-accent/60 hover:bg-accent/5 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group rounded border border-divider bg-bg-card px-2.5 py-1 text-left text-[calc(11px_*_var(--text-scale))] transition hover:border-accent/60 hover:bg-accent/5 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="font-semibold text-ink-primary group-hover:text-accent">
                   {s.label}
                 </span>
-                <span className="ml-1.5 font-mono text-[10px] text-ink-dim">
+                <span className="ml-1.5 font-mono text-[calc(10px_*_var(--text-scale))] text-ink-dim">
                   → {ROUTE_TO_TOOL[s.route]}
                 </span>
               </button>
@@ -1220,18 +1220,18 @@ function BuildProgress({
 
   return (
     <div className="rounded border border-amber/40 bg-amber/10 px-3 py-2">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-amber">
+      <div className="flex items-center gap-2 text-[calc(10px_*_var(--text-scale))] uppercase tracking-widest text-amber">
         <StatusDot color="var(--amber, #ffc043)" static={false} />
         {building ? "Building image…" : "Starting — pulling images may take several minutes"}
       </div>
       {building && tail.length > 0 && (
-        <pre className="mt-2 max-h-40 overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-primary">
+        <pre className="mt-2 max-h-40 overflow-auto rounded border border-divider bg-bg-base px-3 py-2 font-mono text-[calc(11px_*_var(--text-scale))] leading-relaxed text-ink-primary">
           {tail.join("\n")}
           <div ref={endRef} />
         </pre>
       )}
       {!building && starting && (
-        <p className="mt-1.5 text-[11px] text-ink-muted">
+        <p className="mt-1.5 text-[calc(11px_*_var(--text-scale))] text-ink-muted">
           The runtime is fetching and launching containers. This stays responsive — leave it running.
         </p>
       )}
@@ -1251,12 +1251,12 @@ function InlineError({
   onDismiss?: () => void;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger">
+    <div className="flex items-start gap-3 rounded border border-danger/40 bg-danger/10 px-3 py-2 text-[calc(12px_*_var(--text-scale))] text-danger">
       <span className="flex-1 font-mono leading-snug">{message}</span>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="shrink-0 text-[11px] font-bold uppercase tracking-wider text-danger/90 hover:text-danger"
+          className="shrink-0 text-[calc(11px_*_var(--text-scale))] font-bold uppercase tracking-wider text-danger/90 hover:text-danger"
         >
           Retry
         </button>
