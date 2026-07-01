@@ -118,6 +118,23 @@ def _validate(d: dict[str, Any]) -> None:
             _validate_step(s, where=f"step #{si}", seen_ids=seen_step_ids)
 
 
+def _enforce_capability(tool: str) -> None:
+    """Refuse a gated preset step whose capability group is disabled.
+
+    Preset adapters call tool routers directly, bypassing the route-level
+    require_capability gate — so the "off until enabled" guarantee is enforced
+    here too. Ungated tools (recon/OSINT/etc.) pass straight through.
+    """
+    from lib import capability
+
+    group = capability.group_for_preset(tool)
+    if group and not capability.is_enabled(group):
+        raise PresetError(
+            f"capability '{group}' is disabled — enable it in "
+            f"Settings → Capabilities to run '{tool}'"
+        )
+
+
 def _validate_step(s: Any, *, where: str, seen_ids: set[str]) -> None:
     if not isinstance(s, dict):
         raise PresetError(f"{where} is not an object")
@@ -4402,6 +4419,7 @@ async def run_preset(
         try:
             if adapter is None:
                 raise PresetError(f"no adapter for tool {tool!r}")
+            _enforce_capability(tool)
             summary = await adapter(target, opts, context, counted_emit, stop_event)
             context[sid] = summary
             await counted_emit({
@@ -4563,6 +4581,7 @@ async def _run_phases(
             try:
                 if adapter is None:
                     raise PresetError(f"no adapter for tool {tool!r}")
+                _enforce_capability(tool)
                 summary = await adapter(target, opts, ctx.snapshot(),
                                         counted_emit, stop_event)
                 if not isinstance(summary, dict):
