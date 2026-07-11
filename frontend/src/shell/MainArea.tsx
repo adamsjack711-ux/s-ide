@@ -7,7 +7,7 @@ import SpineView from "../spine/SpineView";
 import ToolPanel from "../panels/ToolPanel";
 import OutputPanel from "../panels/OutputPanel";
 import TerminalView from "./TerminalView";
-import { useActiveEngagementId } from "../lib/engagement";
+import { useActiveEngagementId, listEngagements, isLabEngagement } from "../lib/engagement";
 import PlaybookEditor from "../build/PlaybookEditor";
 import EngagementWorkspace from "./EngagementWorkspace";
 import { useIsolationOk } from "../labs/useIsolationOk";
@@ -37,7 +37,10 @@ const SUB_TAB_KINDS = new Set(["build", "graph", "findings", "reports", "termina
  * collapsible Output dock sits below.
  */
 function initialView(): View {
-  // Engagements is the front door of the app.
+  // Engagements is the front door of the app once there ARE engagements. On a
+  // true first run (empty DB) we route to Home instead so the new user lands on
+  // the polished getting-started hero + rich create modal rather than the bare
+  // Engagements list; the async count check below performs that redirect.
   return { kind: "spine" };
 }
 
@@ -48,6 +51,27 @@ export default function MainArea() {
   const activeEngagementId = useActiveEngagementId();
   const isolationOk = useIsolationOk();
   const { tabs: engTabs, activeId: activeEngId, subTab } = useEngagementTabs();
+
+  // First-run redirect: if the (non-lab) engagement list is empty on launch,
+  // land on HomeView — which auto-shows the onboarding steps + create modal —
+  // instead of the bare Engagements spine. Only fires while the user is still on
+  // the default spine landing (any explicit navigation before it resolves wins),
+  // and SpineView stays the natural front door once engagements exist.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const list = (await listEngagements()).filter((e) => !isLabEngagement(e));
+        if (!alive || list.length > 0) return;
+        setView((v) => (v.kind === "spine" ? { kind: "home" } : v));
+      } catch {
+        /* leave the default spine landing on error */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => on("openView", ({ view: v, params }) => {
     // Sub-surfaces route into the active engagement tab rather than replacing it.
