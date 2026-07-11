@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "../api";
 import { useActiveEngagementId } from "../lib/engagement";
 import { useBus } from "../shell/bus";
@@ -35,16 +35,24 @@ export default function SelfAssessPanel() {
   const eid = useActiveEngagementId();
   const [rep, setRep] = useState<Assessment | null>(null);
   const [open, setOpen] = useState(false);
+  // Guard against a slow response for a previous engagement landing last and
+  // overwriting the current one (fast engagement switching).
+  const reqIdRef = useRef(0);
 
   const refresh = useCallback(() => {
     if (!eid) {
       setRep(null);
       return;
     }
+    const myId = ++reqIdRef.current;
     authFetch(`/self-assess/${eid}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then(setRep)
-      .catch(() => setRep(null));
+      .then((d) => {
+        if (myId === reqIdRef.current) setRep(d);
+      })
+      .catch(() => {
+        if (myId === reqIdRef.current) setRep(null);
+      });
   }, [eid]);
 
   useEffect(refresh, [refresh]);
