@@ -167,49 +167,65 @@ def test_scope_exclusion_blocks_even_inside_scope(client, temp_db, permissive_po
 # before any platform check in every wired router, so the parametrized cases
 # pass regardless of host OS.
 
-@pytest.mark.parametrize("method,path,body", [
+# Each case names the router *module key* (see lib/exposure.py) it lives
+# behind. The capability re-scope dropped several of these routers from the
+# exposed set, so their routes now 404 rather than reaching the gate. We derive
+# the expectation from `exposure.is_exposed(...)` so an exposed router asserts
+# the 403 gate verdict while an unexposed one asserts the 404 — and the test
+# self-corrects if the exposed set changes again.
+@pytest.mark.parametrize("method,path,body,key", [
     # Active actions on the first wave (network-target-ish tools).
-    ("POST", "/shodan-censys/query", {"service": "shodan", "query": "test"}),
-    ("POST", "/terminal/exec",       {"command": "echo hi"}),
+    ("POST", "/shodan-censys/query", {"service": "shodan", "query": "test"}, "shodan_censys"),
+    ("POST", "/terminal/exec",       {"command": "echo hi"}, "terminal"),
     ("POST", "/processes/kill",      {"pid": 99999, "signal": "TERM",
-                                      "admin": False, "confirm": True}),
+                                      "admin": False, "confirm": True}, "processes"),
     ("POST", "/processes/kill_bulk", {"pids": [99999], "signal": "TERM",
-                                      "admin": False, "confirm": True}),
-    ("GET",  "/bt/devices",          None),
+                                      "admin": False, "confirm": True}, "processes"),
+    ("GET",  "/bt/devices",          None, "bt_recon"),
     # Evidence-producing local-host audits — gated to match wifi.py precedent.
-    ("GET",  "/linux/posture",       None),
-    ("GET",  "/macos/posture",       None),
-    ("GET",  "/windows/posture",     None),
-    ("GET",  "/users/audit",         None),
-    ("GET",  "/firewall/rules",      None),
-    ("GET",  "/cred-harvest/scan",   None),
+    ("GET",  "/linux/posture",       None, "linux_posture"),
+    ("GET",  "/macos/posture",       None, "macos_posture"),
+    ("GET",  "/windows/posture",     None, "windows_posture"),
+    ("GET",  "/users/audit",         None, "users_audit"),
+    ("GET",  "/firewall/rules",      None, "firewall_rules"),
+    ("GET",  "/cred-harvest/scan",   None, "cred_harvest"),
     # Stateful BloodHound graph + offline crack — also evidence-producing.
-    ("POST", "/lateral/clear",       None),
-    ("POST", "/hash/crack",          {"hash": "deadbeef"}),
+    ("POST", "/lateral/clear",       None, "lateral"),
+    ("POST", "/hash/crack",          {"hash": "deadbeef"}, "hash_cracker"),
 ])
-def test_engagement_present_gate_denies_with_stale_engagement(client, method, path, body):
-    # A stale frontend id puts the request in engagement mode (via mode.py)
-    # but the gate fails the lookup → 403 TARGET_DENIED.
+def test_engagement_present_gate_denies_with_stale_engagement(client, method, path, body, key):
+    from lib import exposure
+
+    # A stale frontend id puts the request in engagement mode (via mode.py).
+    # An exposed router reaches the gate, which fails the lookup → 403
+    # TARGET_DENIED. An unexposed router's route isn't registered → 404.
     headers = {**AUTH, "X-MHP-Engagement-Id": "ghost-engagement-id"}
     if method == "POST":
         r = client.post(path, headers=headers, json=body)
     else:
         r = client.get(path, headers=headers)
+
+    if not exposure.is_exposed(key):
+        assert r.status_code == 404, \
+            f"{path}: unexposed router expected 404, got {r.status_code}: {r.text[:200]}"
+        return
+
     assert r.status_code == 403, f"{path}: expected 403, got {r.status_code}: {r.text[:200]}"
     assert r.json()["code"] == "TARGET_DENIED", r.text[:200]
 
 
 def test_engagement_present_gate_allows_in_lab_mode(client):
     """Lab mode is the default — no X-MHP-Engagement-Id ⇒ mode resolves to
-    lab and the gate is a no-op. Pick the cheapest endpoint (shodan_censys
-    query) and verify we sail past the gate. The request fails downstream
-    for an unrelated reason (no API key configured), proving the gate was
-    not the rejecter."""
-    r = client.post("/shodan-censys/query", headers=AUTH,
-                    json={"service": "shodan", "query": "test"})
+    lab and the gate is a no-op. Pick a cheap endpoint that IS exposed and
+    carries `enforce_engagement_present` (`/hash/crack`, an offline crack)
+    and verify we sail past the gate. In lab mode the handler runs to
+    completion (200, hash not cracked) rather than being rejected by the
+    gate, proving the gate was a no-op."""
+    r = client.post("/hash/crack", headers=AUTH, json={"hash": "deadbeef"})
     assert r.status_code != 403
-    # Without a Shodan key configured, the handler raises UNAUTHORIZED (401).
-    assert r.json().get("code") in ("UNAUTHORIZED", None)
+    # The gate didn't fire, so we don't get a TARGET_DENIED code. The offline
+    # crack simply runs and returns a normal 200 payload (no error `code`).
+    assert r.json().get("code") not in ("TARGET_DENIED",)
 
 
 # ── chat provider resolution ────────────────────────────────────────────────
