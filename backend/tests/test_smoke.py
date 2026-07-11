@@ -114,8 +114,14 @@ async def test_chat_config(client):
 async def test_tcpdump_status(client):
     # tcpdump/status is Unix-only — on macOS/Linux CI it 200s with the
     # passwordless-sudo flag; on Windows the platform guard returns 501.
-    # Either is fine; 500 is not.
+    # Either is fine; 500 is not. The router is Tier-2 (raw-socket capture)
+    # and is not in the exposed set by default, so its route 404s — accept
+    # that when unexposed, and skip the liveness contract entirely.
+    from lib import exposure
     r = await client.get("/tcpdump/status", headers=AUTH)
+    if not exposure.is_exposed("tcpdump"):
+        assert r.status_code == 404
+        return
     assert r.status_code in (200, 501)
 
 
