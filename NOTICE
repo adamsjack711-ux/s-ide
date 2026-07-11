@@ -1,0 +1,25 @@
+s-ide
+Copyright 2026 Jack Adams-Lovell
+
+This product includes software developed by Jack Adams-Lovell.
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+Third-party / vendored components
+--------------------------------------------------------------------------------
+
+backend/
+    The FastAPI backend is vendored from / derived from the upstream
+    "HackingPal" project (formerly "MyHackingPal"; the rebrand is still
+    visible in the tree — e.g. the "HackingPal"/"MyHackingPal" keychain
+    service names in backend/routers/settings.py and the ~/.hackingpal and
+    ~/.myhackingpal preset directories in backend/lib/preset_engine.py).
+
+    The routers under backend/routers/ are treated as a vendored snapshot of
+    that upstream and are carried largely as-is; local functionality is added
+    in separate modules rather than by hand-editing the vendored routers.
+
+    NOTE: backend/UPSTREAM.md, which is expected to record the exact upstream
+    provenance and commit, is not present in this tree. Update this NOTICE with
+    the precise upstream repository URL, commit/tag, and upstream license once
+    that provenance record is added.

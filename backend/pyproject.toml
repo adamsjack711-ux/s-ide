@@ -3,6 +3,7 @@ name = "network-tools-backend"
 version = "0.2.0"
 description = "FastAPI backend for the Network Tools desktop app."
 requires-python = ">=3.11"
+license = "Apache-2.0"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
