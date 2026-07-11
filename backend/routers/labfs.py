@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import labs as labs_lib, method
+from lib.errors import ErrorCode, MhpError
 
 router = APIRouter(prefix="/labfs", tags=["labfs"])
 
@@ -98,32 +99,30 @@ class WriteResult(BaseModel):
 async def write_file(lab_id: str, body: WriteIn) -> WriteResult:
     """Write a file back into the lab container (fix-in-place).
 
-    Implemented via ``tee <path>`` with the new contents fed on stdin — no
-    shell, no heredoc, so the file body can contain any characters without
-    needing to be escaped into an argv.
+    NOT IMPLEMENTED YET. A real write would go through ``tee <path>`` with the
+    new contents fed on stdin (no shell, no heredoc, so the file body can
+    contain any characters without escaping into an argv), but:
 
-    LIMITATION: ``lib/labs.sidecar_exec`` only runs commands in the lab's
+    ``lib/labs.sidecar_exec`` only runs commands in the lab's
     ``sidecar_allowed_cmds`` whitelist and does NOT pipe stdin. ``tee`` (and
     any write command) is therefore rejected for every lab whose whitelist
-    omits it — which today is all of them. When that happens this endpoint
-    returns ``rc != 0`` + ``written=False`` and a ``note`` explaining the
-    block, rather than silently failing. READ still works regardless. To
-    enable writes the integrator must (a) add the write command to the lab's
-    ``sidecar_allowed_cmds`` and (b) extend ``sidecar_exec`` to forward stdin.
+    omits it — which today is all of them. Rather than silently no-op (the
+    Save button would appear to succeed while nothing changed), we fail loud
+    with 501/NOT_IMPLEMENTED. READ still works regardless. To enable writes
+    the integrator must (a) add the write command to the lab's
+    ``sidecar_allowed_cmds``, (b) extend ``sidecar_exec`` to forward stdin,
+    and (c) restore the ``_write_via_sidecar`` call below.
     """
     _require_lab(lab_id)
     rel = _safe_rel_path(body.path)
-    res = await _write_via_sidecar(lab_id, rel, body.content)
-    rc = int(res.get("rc", -1))
-    written = rc == 0
-    note: str | None = None
-    if not written:
-        note = (
-            (res.get("stderr") or res.get("stdout") or "write failed").strip()
-            + "  (sidecar write may be blocked by the command whitelist — see "
-            "routers/labfs.py for the enablement steps; READ is unaffected)"
-        )
-    return WriteResult(path=rel, rc=rc, written=written, note=note)
+    raise MhpError(
+        "Fix-in-place write is not implemented yet: sidecar_exec does not "
+        "forward stdin and no lab whitelists a write command, so a save "
+        "would silently do nothing. Read is unaffected.",
+        code=ErrorCode.NOT_IMPLEMENTED,
+        status_code=501,
+        extra={"lab_id": lab_id, "path": rel},
+    )
 
 
 async def _write_via_sidecar(lab_id: str, rel: str, content: str) -> dict[str, Any]:
@@ -160,62 +159,28 @@ class RetestResult(BaseModel):
 async def retest(lab_id: str, body: RetestIn) -> RetestResult:
     """Replay the recorded Step chain for a finding to verify a fix.
 
-    Each recorded Step carries ``action.tool_id`` + ``action.params`` (FACT).
-    Verification logic: if EVERY previously-succeeding step would now FAIL to
-    reproduce its exploit, the vulnerability is gone and the finding flips to
-    ``verified`` (auto-advance, per SANDBOX-DESIGN stage 5).
+    NOT IMPLEMENTED YET. The design: each recorded Step carries
+    ``action.tool_id`` + ``action.params`` (FACT); if EVERY previously-
+    succeeding step would now FAIL to reproduce its exploit, the vulnerability
+    is gone and the finding flips to ``verified`` (auto-advance, per
+    SANDBOX-DESIGN stage 5).
 
-    PLUG-IN POINT: actual per-tool re-execution is not wired here — that means
+    PLUG-IN POINT: actual per-tool re-execution is not wired — that means
     re-dispatching ``action.tool_id`` through the tool registry / WS runner
     with ``action.params`` and diffing the fresh evidence against the recorded
-    evidence hash. This scaffold iterates the chain, marks each step
-    ``replayed=False`` with a note pinpointing exactly where the re-exec plugs
-    in, and computes the verified transition off the (currently empty) replay
-    outcomes so the wiring is the only thing left to add.
+    evidence hash. Because nothing is re-run, this endpoint can never truthfully
+    report a step as replayed or a finding as verified. Rather than return a
+    result that always says "verified nothing" (which reads as a real retest
+    that found the bug still present), we fail loud with 501/NOT_IMPLEMENTED so
+    the caller can surface an honest "coming soon" state. The response models
+    above and ``list_steps`` are retained for when the re-exec is wired.
     """
     _require_lab(lab_id)
-    steps = method.list_steps(body.finding_id)
-
-    out: list[RetestStep] = []
-    any_step = False
-    all_now_fail = True  # vacuously true until a step is actually replayed
-    for s in steps:
-        any_step = True
-        action = s.get("action") or {}
-        tool_id = str(action.get("tool_id") or "unknown")
-
-        # ── re-execution plug-in point ──────────────────────────────────────
-        # replayed = await run_tool(lab_id, tool_id, action.get("params", {}))
-        # now_reproduces = replayed and evidence_matches(replayed, s["evidence"])
-        # all_now_fail = all_now_fail and not now_reproduces
-        replayed = False
-        all_now_fail = False  # nothing actually re-run yet → can't claim a fix
-        # ────────────────────────────────────────────────────────────────────
-
-        out.append(RetestStep(
-            ordinal=int(s.get("ordinal", 0)),
-            tool_id=tool_id,
-            replayed=replayed,
-            note=(
-                f"re-exec plug-in: dispatch tool_id='{tool_id}' with "
-                f"action.params and diff fresh evidence vs recorded "
-                f"evidence.hash to decide if the exploit still reproduces"
-            ),
-        ))
-
-    # Verification: only when there WAS a chain and every step now fails to
-    # reproduce. With no real re-execution wired this stays False, so the
-    # state is never flipped prematurely.
-    verified = any_step and all_now_fail
-    if verified:
-        method.upsert_method(body.finding_id, state="verified")
-        state = "verified"
-    else:
-        state = method.get_method(body.finding_id).get("state", "open")
-
-    return RetestResult(
-        finding_id=body.finding_id,
-        steps=out,
-        verified=verified,
-        state=state,
+    raise MhpError(
+        "Retest (replay the recorded Step chain) is not implemented yet: "
+        "per-tool re-execution is not wired, so no step can be replayed and "
+        "no fix can be verified.",
+        code=ErrorCode.NOT_IMPLEMENTED,
+        status_code=501,
+        extra={"lab_id": lab_id, "finding_id": body.finding_id},
     )
