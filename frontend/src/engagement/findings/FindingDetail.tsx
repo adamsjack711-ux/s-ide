@@ -7,6 +7,7 @@ import {
 import { api } from "../../api";
 import type { FindingMethod } from "../../lib/methodAnalysis";
 import { resolveFindingLabId, confirmStepWhy } from "../../lib/retest";
+import { RETEST_COMING_SOON, COMING_SOON_TOOLTIP } from "../../lib/comingSoon";
 import MethodReconstruction from "../../copilot/MethodReconstruction";
 import { SEV_PILL, SEV_LABEL, statusLabel } from "./style";
 
@@ -99,11 +100,14 @@ export default function FindingDetail({
   const remediation = method?.remediation ?? null;
   const steps = method?.steps ?? [];
 
-  const retestable = !!labId;
-  const retestTitle =
-    labId === undefined
+  // Retest is scaffolded but its backend (replay the recorded Step chain) is
+  // not wired yet — gate it OFF so the button can't invoke a no-op.
+  const retestable = !RETEST_COMING_SOON && !!labId;
+  const retestTitle = RETEST_COMING_SOON
+    ? COMING_SOON_TOOLTIP
+    : labId === undefined
       ? "Resolving lab…"
-      : retestable
+      : labId
         ? "Replay the recorded steps to confirm the fix"
         : "No associated lab — retest is only available for lab-backed findings";
 

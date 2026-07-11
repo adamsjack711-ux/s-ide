@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { authFetch, parseError } from "../api";
+import { FIX_IN_PLACE_COMING_SOON, COMING_SOON_TOOLTIP } from "../lib/comingSoon";
 
 /**
  * Fix-in-place editor — opens a file from the lab container in Monaco, edits
@@ -116,8 +117,14 @@ export default function EditorPanel({ labId, path }: EditorPanelProps) {
           <button
             type="button"
             onClick={() => void save()}
-            disabled={!dirty || status.kind === "saving" || status.kind === "loading"}
-            className="rounded bg-accent px-3 py-0.5 text-xs text-bg-base hover:bg-accentBright disabled:opacity-40"
+            disabled={
+              FIX_IN_PLACE_COMING_SOON ||
+              !dirty ||
+              status.kind === "saving" ||
+              status.kind === "loading"
+            }
+            title={FIX_IN_PLACE_COMING_SOON ? COMING_SOON_TOOLTIP : undefined}
+            className="rounded bg-accent px-3 py-0.5 text-xs text-bg-base hover:bg-accentBright disabled:cursor-not-allowed disabled:opacity-40"
           >
             {status.kind === "saving" ? "Saving…" : "Save"}
           </button>

@@ -24,6 +24,7 @@ from fastapi import APIRouter, HTTPException
 
 from lib import isolation as isolation_lib
 from lib import method
+from lib.errors import ErrorCode, MhpError
 
 router = APIRouter(prefix="/isolation", tags=["isolation"])
 
@@ -60,21 +61,20 @@ def arm_lab(lab_id: str) -> dict[str, Any]:
 def reset_lab(lab_id: str) -> dict[str, Any]:
     """Restore-to-armed intent.
 
-    Records the reset and re-asserts the armed snapshot. Actual container
-    rollback to the armed_snapshot is a TODO (the docker/compose teardown +
-    re-up lives in the labs lifecycle and is not wired here yet).
+    NOT IMPLEMENTED YET. The actual container rollback to the armed_snapshot
+    (docker/compose teardown + re-up) lives in the labs lifecycle and is not
+    wired here. Previously this recorded a reset flag and returned a literal
+    ``"container_rollback": "TODO"`` while the lab kept running unchanged —
+    i.e. the Reset button appeared to work but did nothing. Fail loud with
+    501/NOT_IMPLEMENTED instead so the caller can surface an honest state.
     """
-    method.upsert_lab(
-        lab_id,
-        armed_snapshot={"armed": True, "reset": True},
+    raise MhpError(
+        "Lab reset (container rollback to the armed snapshot) is not "
+        "implemented yet: the docker/compose teardown + re-up is not wired.",
+        code=ErrorCode.NOT_IMPLEMENTED,
+        status_code=501,
+        extra={"lab_id": lab_id},
     )
-    return {
-        "ok": True,
-        "lab_id": lab_id,
-        "reset": True,
-        # NOTE: container rollback to armed_snapshot is a TODO.
-        "container_rollback": "TODO",
-    }
 
 
 @router.post("/labs/{lab_id}/solve")

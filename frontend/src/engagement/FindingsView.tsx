@@ -14,6 +14,7 @@ import { registerCommand } from "../shell/commands";
 import { bindingFor } from "../shell/keymap";
 import { notify, dismiss } from "../shell/toast";
 import { resolveFindingLabId, retestFinding } from "../lib/retest";
+import { RETEST_COMING_SOON, COMING_SOON_TOOLTIP } from "../lib/comingSoon";
 
 const SEV_RANK: Record<FindingSeverity, number> = {
   critical: 0, high: 1, medium: 2, low: 3, info: 4,
@@ -99,6 +100,13 @@ export default function FindingsView() {
   // Retest the selected finding: resolve its lab, replay the recorded steps,
   // surface the outcome. Shared by the detail button + the ⌘K command.
   const retestSelected = useCallback(async () => {
+    // Retest replay is scaffolded but not wired yet (the backend endpoint
+    // returns 501/NOT_IMPLEMENTED). Surface an honest notice instead of
+    // firing a request that can't verify anything.
+    if (RETEST_COMING_SOON) {
+      notify({ kind: "info", message: COMING_SOON_TOOLTIP + ": retest replay." });
+      return;
+    }
     const f = selectedRef.current;
     if (!f) {
       notify({ kind: "info", message: "Select a finding to retest." });

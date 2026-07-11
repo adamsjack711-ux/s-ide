@@ -56,6 +56,7 @@ class ErrorCode(str, Enum):
     TOOL_FAILED       = "TOOL_FAILED"
     UPSTREAM_FAILED   = "UPSTREAM_FAILED"
     UNSUPPORTED       = "UNSUPPORTED"
+    NOT_IMPLEMENTED   = "NOT_IMPLEMENTED"
 
 
 class MhpError(Exception):
