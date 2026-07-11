@@ -137,3 +137,7 @@ git tag v0.2.0 && git push --follow-tags     # tag push → GitHub Actions build
 ## ⚠️ Authorized use only
 
 s-ide runs active, intrusive tooling. Use it **only** against systems you own or have written permission to test. The sandbox, attestation gate, and audit trail are guardrails, not a license.
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).
