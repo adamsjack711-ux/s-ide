@@ -2,6 +2,8 @@
 
 **A security-testing IDE.** Probe any app inside a sealed sandbox, then trace every flaw from *symptom → root cause → fix*.
 
+![s-ide — open an engagement, run a recon tool from the panel, watch a finding stream in with FACT/INFERENCE-tagged reasoning, then jump anywhere with the ⌘K command palette](docs/demo.gif)
+
 ### ⬇️ Download
 
 **[macOS (Apple Silicon) — s-ide-0.1.0-arm64.dmg](https://github.com/adamsjack711-ux/s-ide/releases/latest)**
