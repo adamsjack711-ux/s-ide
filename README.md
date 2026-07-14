@@ -4,6 +4,15 @@
 
 ![s-ide — open an engagement, run a recon tool from the panel, watch a finding stream in with FACT/INFERENCE-tagged reasoning, then jump anywhere with the ⌘K command palette](docs/demo.gif)
 
+<details>
+<summary>▶ Watch in higher quality (18s MP4)</summary>
+
+<video src="https://raw.githubusercontent.com/adamsjack711-ux/s-ide/main/docs/demo.mp4" controls muted playsinline width="900"></video>
+
+If the player above doesn't load, [watch it here](https://github.com/adamsjack711-ux/s-ide/blob/main/docs/demo.mp4).
+
+</details>
+
 ### ⬇️ Download
 
 **[macOS (Apple Silicon) — s-ide-0.1.0-arm64.dmg](https://github.com/adamsjack711-ux/s-ide/releases/latest)**
