@@ -328,7 +328,11 @@ function installContentSecurityPolicy() {
     // The Electron renderer's only network peer is the local sidecar. The
     // dev server origin (http://localhost:5173) is also allowed for HMR.
     "connect-src 'self' http://127.0.0.1:8765 ws://127.0.0.1:8765 http://localhost:5173 ws://localhost:5173",
-    "script-src 'self'",
+    // Prod ships compiled bundles with no inline <script>, so 'self' is enough.
+    // In dev, Vite's @vitejs/plugin-react injects an inline module "preamble"
+    // (React Fast Refresh bootstrap); a strict 'self' blocks it and React never
+    // mounts ("can't detect preamble"). Allow inline scripts in dev ONLY.
+    isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
