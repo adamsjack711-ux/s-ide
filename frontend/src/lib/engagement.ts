@@ -328,7 +328,12 @@ export async function promoteToFinding(input: PromoteFindingInput): Promise<Find
     body: JSON.stringify(input),
   });
   if (!r.ok) throw new Error(await parseError(r));
-  return r.json();
+  const f = (await r.json()) as Finding;
+  // Unified refresh signal for every feature view (see shell/model.ts). The
+  // legacy findingsChanged stays for existing panels.
+  emit("modelChanged", { entity: "finding", id: f.id, op: "create" });
+  emit("findingsChanged", {});
+  return f;
 }
 
 export async function patchTrackedFinding(
@@ -340,12 +345,17 @@ export async function patchTrackedFinding(
     body: JSON.stringify(patch),
   });
   if (!r.ok) throw new Error(await parseError(r));
-  return r.json();
+  const f = (await r.json()) as Finding;
+  emit("modelChanged", { entity: "finding", id: f.id, op: "update" });
+  emit("findingsChanged", {});
+  return f;
 }
 
 export async function deleteTrackedFinding(fid: string): Promise<void> {
   const r = await authFetch(`/findings/${fid}`, { method: "DELETE" });
   if (!r.ok) throw new Error(await parseError(r));
+  emit("modelChanged", { entity: "finding", id: fid, op: "delete" });
+  emit("findingsChanged", {});
 }
 
 // ── Evidence (multi-item, per-finding) ──────────────────────────────────────
@@ -435,7 +445,10 @@ export async function scoreFindingCvss(
     body: JSON.stringify({ vector }),
   });
   if (!r.ok) throw new Error(await parseError(r));
-  return r.json();
+  const f = (await r.json()) as Finding;
+  emit("modelChanged", { entity: "finding", id: f.id, op: "update" });
+  emit("findingsChanged", {});
+  return f;
 }
 
 /**

@@ -19,6 +19,8 @@ import {
   useActiveEngagementId,
   type Engagement,
 } from "../lib/engagement";
+import { emit } from "../shell/bus";
+import type { Anchor } from "../shell/refs";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,38 @@ const FAINT = "#586173";
 function hexA(hex: string, a: number): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+// ── Bus wiring ───────────────────────────────────────────────────────────────
+// A click anywhere in the graph resolves to a code `Anchor` and broadcasts
+// `selectAnchor` (source "graph"). The pivot inspector and the fixdiff code view
+// subscribe to that event, so clicking a node/asset/finding jumps them to the
+// location. The graph is a codebase MAP, not an engagement-finding graph — its
+// entities are code locations, so they map to file/route/config anchors rather
+// than to `selectFinding` (which needs a spine finding's provenance triple).
+
+/** Anchor for an architecture-graph node: backend → route, frontend → file. */
+export function nodeAnchor(n: GNode): Anchor {
+  return n.layer === "backend"
+    ? { kind: "route", route: n.label }
+    : { kind: "file", file: n.label };
+}
+
+/** Anchor for an asset-tile item, or null if it carries no locatable target. */
+export function itemAnchor(catId: string, it: AssetItem): Anchor | null {
+  if (it.file) return { kind: "file", file: it.file, line: it.line };
+  if (catId === "routes") return { kind: "route", route: it.name };
+  if (catId === "configs") return { kind: "config", key: it.name };
+  return null;
+}
+
+/** Anchor for a SAST code-review finding (always a file location). */
+export function findingAnchor(f: Finding): Anchor {
+  return { kind: "file", file: f.file, line: f.line };
+}
+
+function publishAnchor(ref: Anchor | null): void {
+  if (ref) emit("selectAnchor", { ref, source: "graph" });
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -350,15 +384,32 @@ export default function GraphView() {
                     <div className="text-[calc(12px_*_var(--text-scale))] text-ink-dim">None found.</div>
                   ) : (
                     <div className="flex flex-col gap-1.5">
-                      {selected.items.map((it, i) => (
-                        <div
-                          key={`${it.name}-${i}`}
-                          className="flex items-baseline gap-3 border-b border-divider/60 py-1.5 last:border-b-0"
-                        >
-                          <span className="data flex-1 truncate text-[calc(12.5px_*_var(--text-scale))] text-ink-primary">{it.name}</span>
-                          {it.detail && <span className="data shrink-0 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{it.detail}</span>}
-                        </div>
-                      ))}
+                      {selected.items.map((it, i) => {
+                        const a = itemAnchor(selected.id, it);
+                        const body = (
+                          <>
+                            <span className="data flex-1 truncate text-[calc(12.5px_*_var(--text-scale))] text-ink-primary">{it.name}</span>
+                            {it.detail && <span className="data shrink-0 text-[calc(11px_*_var(--text-scale))] text-ink-dim">{it.detail}</span>}
+                          </>
+                        );
+                        return a ? (
+                          <button
+                            key={`${it.name}-${i}`}
+                            onClick={() => publishAnchor(a)}
+                            title={a.kind === "file" ? `${a.file}${a.line ? `:${a.line}` : ""}` : (a.route ?? a.key)}
+                            className="flex items-baseline gap-3 border-b border-divider/60 py-1.5 text-left transition-colors last:border-b-0 hover:text-accent"
+                          >
+                            {body}
+                          </button>
+                        ) : (
+                          <div
+                            key={`${it.name}-${i}`}
+                            className="flex items-baseline gap-3 border-b border-divider/60 py-1.5 last:border-b-0"
+                          >
+                            {body}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </>
@@ -411,7 +462,12 @@ export default function GraphView() {
                 </div>
               ) : (
                 visibleFindings.map((f, i) => (
-                  <div key={i} className="flex items-start gap-3 border-b border-divider/60 px-4 py-2.5 last:border-b-0">
+                  <button
+                    key={i}
+                    onClick={() => publishAnchor(findingAnchor(f))}
+                    title={`${f.file}:${f.line}`}
+                    className="flex w-full items-start gap-3 border-b border-divider/60 px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-bg-hover"
+                  >
                     <span className="mt-1 h-[8px] w-[8px] shrink-0 rounded-full" style={{ background: SEV_COLOR[f.severity] }} title={SEV_LABEL[f.severity]} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -428,7 +484,7 @@ export default function GraphView() {
                         <pre className="data mt-1 overflow-x-auto rounded bg-bg-base px-2 py-1 text-[calc(11px_*_var(--text-scale))] text-ink-muted">{f.snippet}</pre>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -541,10 +597,16 @@ function ConnectionGraph({ graph }: { graph: ConnGraph }) {
             return (
               <div
                 key={n.id}
+                role="button"
+                tabIndex={0}
                 onMouseEnter={() => setHover(n.id)}
                 onMouseLeave={() => setHover(null)}
+                onClick={() => publishAnchor(nodeAnchor(n))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); publishAnchor(nodeAnchor(n)); }
+                }}
                 title={`${n.label} · ${detail}`}
-                className="absolute z-[2] flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 transition-[opacity,filter]"
+                className="absolute z-[2] flex cursor-pointer items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 transition-[opacity,filter]"
                 style={{
                   left: p.x,
                   top: p.y,

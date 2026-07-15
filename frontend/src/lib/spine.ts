@@ -207,6 +207,7 @@ export async function createPairingFinding(input: {
     subTargetId: f.sub_target_id,
     targetId: f.target_id,
   });
+  emit("modelChanged", { entity: "finding", id: f.id, op: "create" });
   emit("findingsChanged", {});
   return f;
 }
