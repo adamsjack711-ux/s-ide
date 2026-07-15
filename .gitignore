@@ -26,3 +26,7 @@ engagements.db
 
 # Claude Code local worktrees/session state
 .claude/
+
+# Tooling output (knowledge-graph exports, build scratch)
+graphify-out/
+frontend/dist-electron/

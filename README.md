@@ -112,6 +112,33 @@ Integrity is Go-style trust-on-first-use: the first fetch of `url@version` pins 
 
 Electron + React + TS + Vite + Tailwind + dockview frontend ↔ FastAPI + SQLite backend. Loopback-only, token-auth; WebSocket for streaming tools, SSE for the copilot. Theme distribution lives in `backend/routers/themes.py` (resolve / cache / TOFU-lock) with the format + validator in `frontend/src/themes/` (mirrored in `backend/lib/theme_*`).
 
+Deeper design notes live in [`docs/`](docs/) — the [sandbox model](docs/SANDBOX-DESIGN.md), the [safety layer](docs/SAFETY-LAYER.md), and the [tool checklist](docs/TOOL-CHECKLIST.md).
+
+## Repository layout
+
+```
+s-ide/
+├── backend/                  # FastAPI + SQLite — loopback-only, token-auth
+│   ├── main.py               # app entry + the capability gate (_inc)
+│   ├── config.json           # scope / target policy — default-deny external
+│   ├── lib/                  # engagement spine, audit log, exposure gate, theme validator
+│   ├── routers/              # 99 tool + spine routers (Tier 2/3 dormant behind the gate)
+│   ├── labs/ · presets/      # Docker/colima lab definitions + tool presets
+│   └── tests/                # pytest suite (spine, audit, cvss, coverage, labs…)
+├── frontend/                 # Electron + React + TS + Vite + Tailwind + dockview
+│   ├── electron/ · main.cjs  # desktop shell + Python sidecar launch
+│   └── src/
+│       ├── shell/            # tool registry (tools.ts), bus (bus.ts), window model
+│       ├── panels/           # the one generic ToolPanel surface
+│       ├── spine/ · engagement/  # findings / CVSS / coverage / reports
+│       ├── graph/ · copilot/ # asset graph + ambient AI copilot (SSE)
+│       ├── themes/           # .side format + validator (mirrors backend/lib/theme_*)
+│       └── learn/ · labs/    # WSTG+PTES learning surface, lab MDI
+├── docs/                     # design + reference notes
+├── design/                   # source design mock (.dc)
+└── .github/workflows/        # release.yml — tag push → build + attach the DMG
+```
+
 ## Quick start
 
 ```bash
@@ -123,6 +150,15 @@ cd frontend && npm install && npm run dev:all
 ```
 
 `RAMPART_EXPOSE_ALL=1` exposes the full gated toolset. Build the desktop app locally with `cd frontend && npm run dist:mac`.
+
+### Type-check & tests
+
+```bash
+cd frontend && npx tsc --noEmit      # type-check the frontend
+cd frontend && npm test              # vitest — shell/panel contract + seam tests
+cd backend  && python3 -c "import main"   # backend imports clean + gate wires up
+cd backend  && python3 -m pytest     # pytest — spine, audit, CVSS, coverage, labs…
+```
 
 ## Releasing
 
