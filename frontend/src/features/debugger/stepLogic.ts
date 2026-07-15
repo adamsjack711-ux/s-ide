@@ -137,48 +137,10 @@ export function findTriggerIndex(
 }
 
 // ── Secret redaction (before ANY evidence/request/response is rendered) ───────
-
-/**
- * Redaction patterns applied to any string shown to the user (evidence
- * raw_output, request/response text, param values). Conservative: over-masking a
- * benign token is acceptable; leaking a real one is not. Order matters — longer /
- * more specific patterns first.
- */
-const REDACTIONS: { re: RegExp; replace: (m: string, ...g: string[]) => string }[] = [
-  // Authorization / auth headers: keep the scheme, mask the credential.
-  {
-    re: /\b(authorization|proxy-authorization)\s*[:=]\s*(bearer|basic|digest|negotiate|token)?\s*\S+/gi,
-    replace: (_m, key: string, scheme?: string) =>
-      `${key}: ${scheme ? scheme + " " : ""}«redacted»`,
-  },
-  // Cookie / Set-Cookie headers — mask the whole value.
-  {
-    re: /\b(set-cookie|cookie)\s*[:=]\s*[^\r\n]+/gi,
-    replace: (_m, key: string) => `${key}: «redacted»`,
-  },
-  // Common secret-bearing key/value pairs (json, query, headers, env).
-  {
-    re: /\b(api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|secret|password|passwd|pwd|client[_-]?secret|private[_-]?key|session[_-]?id|sessionid|token|auth)\b(\s*["']?\s*[:=]\s*["']?)([^\s"',&}]+)/gi,
-    replace: (_m, key: string, sep: string) => `${key}${sep}«redacted»`,
-  },
-  // Bearer tokens / JWT-ish blobs appearing bare.
-  { re: /\bBearer\s+[A-Za-z0-9._~+/-]{8,}=*/g, replace: () => "Bearer «redacted»" },
-  { re: /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}/g, replace: () => "«redacted-jwt»" },
-  // AWS access key ids.
-  { re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, replace: () => "«redacted-aws-key»" },
-  // Long hex/base64-ish secrets (32+ chars) — likely keys, not evidence text.
-  { re: /\b[A-Fa-f0-9]{32,}\b/g, replace: () => "«redacted-secret»" },
-];
-
-/** Mask secrets in a single string. Safe on any input; returns "" for nullish. */
-export function redactString(text: unknown): string {
-  if (typeof text !== "string" || text.length === 0) return "";
-  let out = text;
-  for (const { re, replace } of REDACTIONS) {
-    out = out.replace(re, replace as (substring: string, ...args: any[]) => string);
-  }
-  return out;
-}
+// One shared implementation (lib/redact); re-exported so this lane's import path
+// and stepLogic.test stay put. redactParams (below) is debugger-specific.
+import { redactString } from "../../lib/redact";
+export { redactString };
 
 /** Deep-redact a params object's string values for safe display. */
 export function redactParams(

@@ -39,58 +39,11 @@ export interface DiffResult {
 }
 
 // ── Secret redaction ─────────────────────────────────────────────────────────
-
-const MASK = "«redacted»";
-
-/**
- * Ordered redaction rules. Each replaces the *secret material* with the mask
- * while keeping enough surrounding context that the diff still reads sensibly
- * (e.g. `Authorization: «redacted»`). Applied to any line we render — source or
- * evidence — because either can carry a token/cookie/key/password.
- */
-const REDACTIONS: { re: RegExp; replace: string }[] = [
-  // Authorization: Bearer <...>  /  Authorization: Basic <...>
-  {
-    re: /\b(Authorization\s*:\s*)(Bearer|Basic|Token|Digest)\s+\S+/gi,
-    replace: `$1$2 ${MASK}`,
-  },
-  // Cookie: ... / Set-Cookie: ...
-  {
-    re: /\b(Set-Cookie\s*:|Cookie\s*:)\s*\S.*$/gim,
-    replace: `$1 ${MASK}`,
-  },
-  // key/token/secret/password/passwd/pwd/apikey/api_key = "value" or : value
-  {
-    re: /\b(pass(?:word|wd)?|pwd|secret|token|api[_-]?key|access[_-]?key|auth|session|credential)s?\b(\s*[:=]\s*)(["']?)[^"'\s,;)}\]]+\3/gi,
-    replace: `$1$2$3${MASK}$3`,
-  },
-  // Inline URL credentials — scheme://user:password@host → keep user, mask pass.
-  {
-    re: /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:)[^\s@/]+(@)/gi,
-    replace: `$1${MASK}$2`,
-  },
-  // Bare high-entropy bearer-ish blobs (JWTs, long base64/hex) not caught above.
-  {
-    re: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
-    replace: MASK,
-  },
-  // AWS-style access key ids.
-  { re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, replace: MASK },
-];
-
-/**
- * Mask any secret material in a single line. Idempotent and side-effect-free.
- * Always call before a line reaches the UI.
- */
-export function redactSecrets(line: string): string {
-  let out = line;
-  for (const { re, replace } of REDACTIONS) {
-    // Fresh lastIndex each call (global regexes are stateful).
-    re.lastIndex = 0;
-    out = out.replace(re, replace);
-  }
-  return out;
-}
+// Masks any token/cookie/key/password on a line before it reaches the diff UI.
+// One shared implementation (lib/redact); re-exported so this lane's import path
+// and diffRender.test stay put.
+import { redactSecrets } from "../../lib/redact";
+export { redactSecrets };
 
 // ── Diff computation ─────────────────────────────────────────────────────────
 

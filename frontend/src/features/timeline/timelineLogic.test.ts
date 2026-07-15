@@ -61,12 +61,12 @@ describe("redactSecrets", () => {
     const out = redactSecrets("curl -H 'Authorization: Bearer abcdef123456' https://x");
     expect(out).toContain("Authorization");
     expect(out).not.toContain("abcdef123456");
-    expect(out).toContain("[redacted]");
+    expect(out).toContain("«redacted»");
   });
 
   it("masks token/apikey/password kv pairs", () => {
     expect(redactSecrets("token=supersecretvalue1234")).not.toContain("supersecretvalue1234");
-    expect(redactSecrets("api_key=AKIAIOSFODNN7EXAMPLE")).toContain("[redacted]");
+    expect(redactSecrets("api_key=AKIAIOSFODNN7EXAMPLE")).toContain("«redacted»");
     expect(redactSecrets("--password hunter2horse")).not.toContain("hunter2horse");
   });
 
@@ -169,7 +169,7 @@ describe("normalizeEntry", () => {
     expect(e.label).toBe("Finding created");
     expect(e.target).not.toContain("leakedsecretvalue99");
     expect(e.detail).not.toContain("topsecrettoken12345");
-    expect(e.detail).toContain("[redacted]");
+    expect(e.detail).toContain("«redacted»");
     expect(e.ts).toBeGreaterThan(0);
     // READ-ONLY: the input row is untouched.
     expect(JSON.stringify(row)).toBe(frozen);

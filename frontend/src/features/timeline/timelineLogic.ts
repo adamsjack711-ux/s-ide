@@ -59,62 +59,12 @@ export type TimelineEntry = {
 };
 
 // ── Redaction ────────────────────────────────────────────────────────────────
-// Defensive, order-agnostic masking of the highest-risk credential shapes. The
-// ledger's argv is already redacted server-side; this covers free-text fields
-// (summary, target, error) that are NOT. Errs toward masking — a false positive
-// only costs a "[redacted]" in a label, a false negative leaks a secret.
-
-const REDACTED = "[redacted]";
-
-/**
- * Patterns with a capture group `p1` = the name/label to KEEP; the rest of the
- * match (the value) is masked. Order matters: the header/flag patterns (which
- * consume a following `Scheme token` pair) run before the bare-token patterns so
- * a token inside a header is swallowed by the header rule, not left behind.
- */
-const NAMED_PATTERNS: RegExp[] = [
-  // Authorization / Cookie / Proxy-Authorization headers. Consume the whole
-  // value, INCLUDING an optional `Bearer <token>` / `Basic <b64>` scheme pair,
-  // up to end-of-line / quote / semicolon — so the token can't survive.
-  /\b(Authorization|Proxy-Authorization|Cookie|Set-Cookie)(\s*[:=]\s*)(?:Bearer\s+|Basic\s+)?[^\r\n;'"]+/gi,
-  // key/token/secret/password/apikey followed by ':' / '=' AND a value.
-  /\b(api[_-]?key|token|secret|password|passwd|pwd|access[_-]?token|refresh[_-]?token|sessionid|session|auth)(\s*[:=]\s*)[^\s&"';]+/gi,
-  // Space-separated credential FLAGS: -p / --password / --token / -w <value>.
-  /(--password|--pass|--token|--secret|-p|-w)(\s+)(?!-)[^\s"']+/gi,
-];
-
-/** Patterns whose ENTIRE match is masked (the value itself carries the secret). */
-const VALUE_PATTERNS: RegExp[] = [
-  // Bearer / Basic tokens standing alone (not caught by a header rule above).
-  /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi,
-  // JWTs (three base64url segments) — before the AWS/hex rules.
-  /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/g,
-  // AWS access key id.
-  /\bAKIA[0-9A-Z]{16}\b/g,
-  // GitHub / Slack prefixed tokens.
-  /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b/g,
-  // Private key blocks.
-  /-----BEGIN[^-]*PRIVATE KEY-----[\s\S]*?-----END[^-]*PRIVATE KEY-----/g,
-];
-
-/**
- * Mask credential-shaped substrings in a free-text field. Pure + idempotent
- * (re-running over already-redacted text is a no-op — the masked forms no longer
- * match). Never throws — a non-string input yields "".
- */
-export function redactSecrets(text: unknown): string {
-  if (typeof text !== "string" || text.length === 0) return "";
-  let out = text;
-  // Named rules first: keep the label, mask the value (incl. any scheme token).
-  for (const re of NAMED_PATTERNS) {
-    out = out.replace(re, (_m, name: string, sep: string) => `${name}${sep}${REDACTED}`);
-  }
-  // Then whole-match value rules.
-  for (const re of VALUE_PATTERNS) {
-    out = out.replace(re, REDACTED);
-  }
-  return out;
-}
+// The ledger's argv is already redacted server-side; this covers free-text
+// fields (summary, target, error) that are NOT. One shared implementation
+// (lib/redact); re-exported so this lane's import path and timelineLogic.test
+// stay put.
+import { redactSecrets } from "../../lib/redact";
+export { redactSecrets };
 
 // ── Timestamp parsing ────────────────────────────────────────────────────────
 

@@ -20,6 +20,7 @@ import {
   type PairingFinding, type PairingRun, type Asset, type Step, type ConfLevel,
   type FindingRef, type AssetRef,
 } from "../../shell/model";
+import { redactSecrets } from "../../lib/redact";
 
 // ── The five result groups ───────────────────────────────────────────────────
 
@@ -84,33 +85,10 @@ const GROUP_LABELS: Record<SearchGroupKind, string> = {
 };
 
 // ── Secret redaction ─────────────────────────────────────────────────────────
-// Applied to any output/evidence text before it becomes visible. Conservative:
-// prefer over-masking. Order matters (header/cookie rules run before the generic
-// key=value rule so the whole secret is caught, not just its tail).
-
-const REDACTIONS: { re: RegExp; replace: string }[] = [
-  // Authorization: Bearer xxx  /  Authorization: Basic xxx
-  { re: /(authorization\s*:\s*)(bearer|basic|digest)\s+\S+/gi, replace: "$1$2 «redacted»" },
-  { re: /(authorization\s*:\s*)\S+/gi, replace: "$1«redacted»" },
-  // Cookie: a=b; c=d   and   Set-Cookie: ...
-  { re: /((?:set-)?cookie\s*:\s*)[^\r\n]+/gi, replace: "$1«redacted»" },
-  // token / api key / secret / password = "...."  (json or kv form)
-  {
-    re: /("?\b(?:api[_-]?key|apikey|access[_-]?token|auth[_-]?token|secret|password|passwd|pwd|token)\b"?\s*[:=]\s*)("?)[^"'\s,}&]+/gi,
-    replace: "$1$2«redacted»",
-  },
-  // AWS access key id
-  { re: /AKIA[0-9A-Z]{16}/g, replace: "«redacted-aws-key»" },
-  // long bearer-ish opaque strings (jwt / hex / base64 >= 24 chars, standalone)
-  { re: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/g, replace: "«redacted-jwt»" },
-];
-
-export function redactSecrets(text: string | null | undefined): string {
-  if (!text) return "";
-  let out = String(text);
-  for (const { re, replace } of REDACTIONS) out = out.replace(re, replace);
-  return out;
-}
+// Applied to any output/evidence text before it becomes visible. One shared
+// implementation (lib/redact, imported above) is used everywhere; re-exported
+// so this lane's import path and searchLogic.test stay put.
+export { redactSecrets };
 
 // ── Fuzzy matching ───────────────────────────────────────────────────────────
 // Deterministic, cheap, dependency-free. Scoring, best-to-worst:

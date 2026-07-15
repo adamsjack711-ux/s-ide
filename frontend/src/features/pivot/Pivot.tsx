@@ -49,6 +49,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { registerView, type ViewParams } from "../../shell/views";
 import { registerCommand } from "../../shell/commands";
 import { emit, on, useBus } from "../../shell/bus";
+import { redactString } from "../../lib/redact";
 import {
   resolveAnchor,
   getEvidenceChain,
@@ -67,40 +68,9 @@ import {
   type PivotDecision,
 } from "./pivotLogic";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Secret redaction — masks any anchor/finding text we display so a token/key/
-// cookie/Authorization pasted into a path or title can't leak. Local to this
-// dir (the contract forbids importing another feature's helper). Conservative:
-// over-masking is acceptable; leaking is not.
-// ─────────────────────────────────────────────────────────────────────────────
-const REDACTIONS: { re: RegExp; replace: (m: string, ...g: string[]) => string }[] = [
-  {
-    re: /\b(authorization|proxy-authorization)\s*[:=]\s*(bearer|basic|digest|negotiate|token)?\s*\S+/gi,
-    replace: (_m, key: string, scheme?: string) =>
-      `${key}: ${scheme ? scheme + " " : ""}«redacted»`,
-  },
-  {
-    re: /\b(set-cookie|cookie)\s*[:=]\s*[^\r\n]+/gi,
-    replace: (_m, key: string) => `${key}: «redacted»`,
-  },
-  {
-    re: /\b(api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|secret|password|passwd|pwd|client[_-]?secret|private[_-]?key|session[_-]?id|sessionid|token|auth)\b(\s*["']?\s*[:=]\s*["']?)([^\s"',&}]+)/gi,
-    replace: (_m, key: string, sep: string) => `${key}${sep}«redacted»`,
-  },
-  { re: /\bBearer\s+[A-Za-z0-9._~+/-]{8,}=*/g, replace: () => "Bearer «redacted»" },
-  { re: /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}/g, replace: () => "«redacted-jwt»" },
-  { re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, replace: () => "«redacted-aws-key»" },
-  { re: /\b[A-Fa-f0-9]{32,}\b/g, replace: () => "«redacted-secret»" },
-];
-
-function redactString(text: unknown): string {
-  if (typeof text !== "string" || text.length === 0) return "";
-  let out = text;
-  for (const { re, replace } of REDACTIONS) {
-    out = out.replace(re, replace as (substring: string, ...args: any[]) => string);
-  }
-  return out;
-}
+// cookie/Authorization pasted into a path or title can't leak. One shared
+// implementation (lib/redact — shared infra, not another feature).
 
 // ═════════════════════════════════════════════════════════════════════════════
 // (A) HEADLESS ROUTER — persistent singleton subscriptions (installed at import)
