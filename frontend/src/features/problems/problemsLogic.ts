@@ -35,26 +35,10 @@ export type ProblemRow = {
   conf: ConfLevel;
 };
 
-/**
- * Severity rank — lower sorts first. Anything unrecognised sorts last (after
- * "info") so a malformed row never jumps ahead of a real critical.
- */
-const SEVERITY_RANK: Record<FindingSeverity, number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-  info: 4,
-};
-
-export const SEVERITY_ORDER: FindingSeverity[] = [
-  "critical", "high", "medium", "low", "info",
-];
-
-function severityRank(s: string): number {
-  const r = SEVERITY_RANK[s as FindingSeverity];
-  return r === undefined ? SEVERITY_ORDER.length : r;
-}
+// Severity ranking + order now live in lib/severity (one source of truth,
+// derived from FINDING_SEVERITIES). Re-exported so ProblemsPanel's import stays put.
+import { severityRank, SEVERITY_ORDER } from "../../lib/severity";
+export { SEVERITY_ORDER };
 
 /**
  * Normalise a raw method state string to one of the three canonical fix-states.

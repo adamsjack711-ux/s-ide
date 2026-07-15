@@ -33,6 +33,7 @@ import {
   SEVERITY_ORDER, FIX_STATES,
   type ProblemRow, type FixState, type ProblemFilters,
 } from "./problemsLogic";
+import { severityClass, severityTextClass } from "../../lib/severity";
 
 const SOURCE = "problems";
 const CONF_LEVELS: ConfLevel[] = ["confirmed", "suspected"];
@@ -66,21 +67,13 @@ async function loadRows(engagementId: string): Promise<ProblemRow[]> {
 
 // ── Small presentational atoms ───────────────────────────────────────────────
 
-const SEV_CLASS: Record<FindingSeverity, string> = {
-  critical: "text-critical border-critical",
-  high: "text-high border-high",
-  medium: "text-medium border-medium",
-  low: "text-low border-low",
-  info: "text-ink-muted border-divider",
-};
-
 function SeverityBadge({ severity }: { severity: FindingSeverity }) {
   return (
     <span
       className={
         "inline-flex items-center rounded border px-1.5 py-0.5 " +
         "text-[calc(10px_*_var(--text-scale))] font-medium uppercase tracking-wide " +
-        (SEV_CLASS[severity] ?? SEV_CLASS.info)
+        severityClass(severity)
       }
     >
       {severity}
@@ -254,7 +247,7 @@ function ProblemsPanel(_props: { params: ViewParams }) {
               key={s}
               className={
                 "text-[calc(11px_*_var(--text-scale))] " +
-                (counts[s] > 0 ? (SEV_CLASS[s].split(" ")[0]) : "text-ink-dim")
+                (counts[s] > 0 ? severityTextClass(s) : "text-ink-dim")
               }
             >
               {counts[s]} {s}

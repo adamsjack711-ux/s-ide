@@ -31,18 +31,9 @@ import {
   type DiffResult, type DiffRow, type DiffRun, type DiffFinding, type DiffSeverity,
 } from "./diffLogic";
 import { redactSecrets } from "./redact";
+import { severityTextClass } from "../../lib/severity";
 
 const SOURCE = "scandiff";
-
-// ── small presentation helpers ───────────────────────────────────────────────
-
-const SEV_TEXT: Record<string, string> = {
-  critical: "text-critical",
-  high: "text-high",
-  medium: "text-medium",
-  low: "text-low",
-  info: "text-ink-muted",
-};
 
 const BUCKET_META: Record<
   DiffRow["bucket"],
@@ -436,18 +427,18 @@ function Row(props: {
       {/* severity chip(s) */}
       <span className="flex shrink-0 items-center gap-1 font-mono text-[calc(11px_*_var(--text-scale))]">
         {earlier && row.bucket !== "new" && (
-          <span className={SEV_TEXT[earlier] ?? "text-ink-muted"}>{earlier}</span>
+          <span className={severityTextClass(earlier)}>{earlier}</span>
         )}
         {earlier && later && row.bucket === "regressed" && (
           <span className="text-ink-dim">→</span>
         )}
         {later && row.bucket !== "fixed" && (
-          <span className={`${SEV_TEXT[later] ?? "text-ink-muted"} ${row.bucket === "regressed" ? "font-semibold" : ""}`}>
+          <span className={`${severityTextClass(later)} ${row.bucket === "regressed" ? "font-semibold" : ""}`}>
             {later}
           </span>
         )}
         {row.bucket === "fixed" && earlier && (
-          <span className={`${SEV_TEXT[earlier] ?? "text-ink-muted"} line-through opacity-70`}>{earlier}</span>
+          <span className={`${severityTextClass(earlier)} line-through opacity-70`}>{earlier}</span>
         )}
       </span>
 

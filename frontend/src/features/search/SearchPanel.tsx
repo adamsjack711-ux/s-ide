@@ -22,6 +22,7 @@ import { authFetch } from "../../api";
 import {
   getActiveEngagementId, useActiveEngagementId,
 } from "../../lib/engagement";
+import { severityTextClass } from "../../lib/severity";
 import {
   getEngagement, listFindings, listAssets, getEvidenceChain, listRuns,
   type PairingFinding, type Asset, type Step, type PairingRun,
@@ -329,16 +330,6 @@ function GroupSection({
   );
 }
 
-function severityColor(sev: string | undefined): string {
-  switch ((sev ?? "").toLowerCase()) {
-    case "critical": return "text-critical";
-    case "high": return "text-high";
-    case "medium": return "text-medium";
-    case "low": return "text-low";
-    default: return "text-ink-muted";
-  }
-}
-
 function ResultRow({ row, onClick }: { row: SearchRow; onClick: () => void }) {
   return (
     <button
@@ -355,7 +346,7 @@ function ResultRow({ row, onClick }: { row: SearchRow; onClick: () => void }) {
             className={
               "shrink-0 rounded px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide " +
               (row.group === "findings" || row.group === "code"
-                ? severityColor(row.badge)
+                ? severityTextClass(row.badge)
                 : "text-ink-muted")
             }
           >

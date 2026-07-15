@@ -46,23 +46,16 @@ import {
   type PlaybookTemplate,
 } from "./templateStore";
 import { BUILTIN_TEMPLATES } from "./builtins";
+import { severityClass } from "../../lib/severity";
 
 const SOURCE = "templates";
 
 // ── small presentational helpers ─────────────────────────────────────────────
 
-const SEV_CLASS: Record<FindingSeverity, string> = {
-  critical: "text-critical border-critical",
-  high: "text-high border-high",
-  medium: "text-medium border-medium",
-  low: "text-low border-low",
-  info: "text-ink-muted border-divider",
-};
-
 function SeverityBadge({ severity }: { severity: FindingSeverity }) {
   return (
     <span
-      className={`rounded border px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide ${SEV_CLASS[severity]}`}
+      className={`rounded border px-1.5 py-0.5 text-[calc(10px_*_var(--text-scale))] uppercase tracking-wide ${severityClass(severity)}`}
     >
       {severity}
     </span>
