@@ -68,8 +68,12 @@ registerView({ id: "terminal", subTab: true });
 // Feature panels self-register on import. Each is one self-contained file that
 // reads the model, subscribes to the bus, and registers its own view + command
 // — no existing panel is edited. Add a panel by adding its import below.
-import "../demo/ActiveEngagementPanel";
-// The feature suite (F1–F9) + the Phase-0 selection-echo proof. Each feature is
-// a self-registering module behind this single manifest import; see
-// features/index.ts. Adding a feature never edits this file.
+//
+// (demo/ActiveEngagementPanel is a decoupling ACCEPTANCE fixture, not a shipped
+// panel — it registered a real ⌘K command in the palette. It's now imported only
+// by its test, so it stays out of the production bundle.)
+//
+// The feature suite (F1–F9). Each feature is a self-registering module behind
+// this single manifest import; see features/index.ts. Adding a feature never
+// edits this file.
 import "../features";

@@ -15,10 +15,10 @@
  * the stock views.)
  */
 
-// ── Phase-0 proof ────────────────────────────────────────────────────────────
-// EchoPanel: the acceptance gate — a brand-new panel that reacts to the new
-// `selectFinding` bus event, added without editing any existing panel.
-import "./echo/EchoPanel";
+// (echo/EchoPanel is the Phase-0 decoupling ACCEPTANCE fixture — a throwaway
+// panel that proved a brand-new module can react to `selectFinding` with no edit
+// to any existing panel. It registered a real ⌘K command ("Open Selection Echo
+// panel"), so it's imported only by its test now, not shipped in the palette.)
 
 // ── Phase-1 features (F1–F9) ─────────────────────────────────────────────────
 // Each import below is one self-registering feature module, uncommented as its
