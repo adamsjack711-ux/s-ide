@@ -677,12 +677,32 @@ async def _adapter_cms_fingerprint(target: str, options: dict[str, Any],
     }
 
 
+class _LabModeConn:
+    """Minimal request/HTTPConnection stand-in for invoking a tool's route
+    handler directly from the preset engine.
+
+    The macOS/Linux posture handlers take a FastAPI ``Request`` but read it
+    only via ``lib.mode.get_engagement_id`` / ``get_mode`` — which touch just
+    ``.headers`` / ``.query_params`` — to gate on engagement presence. Empty
+    here ⇒ lab mode ⇒ ``scope.enforce_engagement_present`` no-ops, which is
+    correct: the run-level mode/engagement gate has already passed before any
+    step runs, so this per-step re-check is redundant. Posture collection
+    itself never touches the request.
+    """
+
+    headers: dict[str, str] = {}
+    query_params: dict[str, str] = {}
+
+
+_LAB_CONN = _LabModeConn()
+
+
 async def _adapter_macos_posture(target: str, options: dict[str, Any],
                                  context: dict[str, Any], emit: EmitFn,
                                  stop_event: asyncio.Event) -> dict[str, Any]:
     from routers import macos_posture as r
     try:
-        result = await r.macos_posture()
+        result = await r.macos_posture(_LAB_CONN)
     except Exception as e:
         raise PresetError(f"macos_posture: {e}") from e
     for f in result.get("findings", []) or []:
@@ -705,7 +725,7 @@ async def _adapter_linux_posture(target: str, options: dict[str, Any],
                                  stop_event: asyncio.Event) -> dict[str, Any]:
     from routers import linux_posture as r
     try:
-        result = r.linux_posture()
+        result = r.linux_posture(_LAB_CONN)
     except Exception as e:
         raise PresetError(f"linux_posture: {e}") from e
     for f in result.get("findings", []) or []:
