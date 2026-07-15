@@ -12,6 +12,12 @@ const http = require("http");
 const { autoUpdater } = require("electron-updater");
 
 const isDev = process.env.NODE_ENV === "development";
+// Security-sensitive relaxations (loosened CSP, allowing the Vite origin to
+// navigate the renderer) must NEVER hinge on an inheritable env var: a shipped
+// .app launched from a shell that exports NODE_ENV=development would otherwise
+// weaken its own CSP. Gate those on packaging state, which the bundle can't
+// spoof. `isDev` still drives dev-only conveniences (dock icon, loading Vite).
+const isDevUnpackaged = isDev && !app.isPackaged;
 const BACKEND_PORT = parseInt(process.env.NT_BACKEND_PORT || "8765", 10);
 
 // In dev mode the OS dock + menu bar would otherwise read the Electron binary
@@ -257,7 +263,7 @@ async function createWindow(engagementId) {
   win.webContents.on("will-navigate", (e, url) => {
     try {
       const parsed = new URL(url);
-      const dev = isDev && parsed.host === "localhost:5173";
+      const dev = isDevUnpackaged && parsed.host === "localhost:5173";
       if (!dev && (parsed.protocol === "http:" || parsed.protocol === "https:")) {
         e.preventDefault();
         shell.openExternal(url);
@@ -332,7 +338,7 @@ function installContentSecurityPolicy() {
     // In dev, Vite's @vitejs/plugin-react injects an inline module "preamble"
     // (React Fast Refresh bootstrap); a strict 'self' blocks it and React never
     // mounts ("can't detect preamble"). Allow inline scripts in dev ONLY.
-    isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
+    isDevUnpackaged ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",

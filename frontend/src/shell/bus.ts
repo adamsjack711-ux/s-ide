@@ -23,11 +23,17 @@ export type OutputLine = {
  * Built-in view ids, for editor autocomplete on `openView`. This is NOT a
  * closed set — views register at runtime (shell/views.ts) and `ViewId` accepts
  * any string, so a contributed panel uses its own id without editing this file.
+ *
+ * Keep this list to ids that are actually registered (see views.builtin.tsx) —
+ * an id here that nothing registers silently routes to Home (MainArea's
+ * fallback), so advertising a destination that doesn't exist is worse than
+ * omitting it. Contributed feature panels register their own ids at runtime and
+ * needn't be listed.
  */
 export type KnownViewId =
-  | "home" | "targets" | "workbench" | "reporting" | "engagements" | "audit"
-  | "findings" | "reports" | "learn" | "settings" | "playbook" | "graph"
-  | "build" | "terminal" | "labs" | "lab" | "spine";
+  | "home" | "spine" | "learn" | "settings" | "playbook" | "tool"
+  | "engagement" | "build" | "graph" | "findings" | "reports" | "terminal"
+  | "labs";
 export type ViewId = KnownViewId | (string & {});
 
 type Events = {
@@ -41,9 +47,10 @@ type Events = {
   openEditor: { labId: string; path: string };
   openAttestation: Record<string, never>;
   attestationsChanged: Record<string, never>;
-  /** Open a non-tool view as a tab in the center editor area. The top-level bar
-   *  modes — home / targets / workbench / findings / reporting — and the
-   *  engagements switcher + audit log all route through here.
+  /** Open a non-tool view as a tab in the center editor area. The activity bar
+   *  (home / spine / learn / settings), the Explorer links (findings / reports),
+   *  and the engagement sub-tabs (build / graph / findings / reports / terminal)
+   *  all route through here.
    *
    *  `view` is an open string: views self-register in shell/views.ts, so the
    *  set is not closed at compile time. The `KnownViewId` union below is a
@@ -98,8 +105,10 @@ type Events = {
    *  - `selectFinding`   — a finding was focused. Problems/search/graph/timeline
    *    publish it; the pivot lane resolves its root-cause Anchor and re-broadcasts
    *    `selectAnchor`; the debugger loads its chain.
-   *  - `selectAsset`     — an asset was focused. The asset tree highlights it and
-   *    the graph node reacts.
+   *  - `selectAsset`     — an asset was focused. No panel consumes this yet (an
+   *    asset-tree / graph highlight is the intended reactor); until one does,
+   *    clicking an asset search result publishes into the void. Kept as the
+   *    canonical event so the consumer can land without touching publishers.
    *  - `selectAnchor`    — jump the editor to a code/route/config location. Carries
    *    the originating `findingId` when the anchor came from a finding pivot.
    *  - `selectStep`      — a step in an evidence chain was focused. The evidence/

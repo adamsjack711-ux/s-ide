@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  groupSearch, fuzzyScore, bestFieldScore, redactSecrets, countRows,
+  groupSearch, fuzzyScore, bestFieldScore, redactSecrets, countRows, extractFileLine,
   type SearchInputs,
 } from "./searchLogic";
 import type { PairingFinding, PairingRun, Asset, Step } from "../../shell/model";
@@ -284,5 +284,16 @@ describe("redactSecrets", () => {
     });
     const row = groups[0].rows[0];
     expect(row.snippet ?? "").not.toContain("leakytoken99");
+  });
+
+  // ── extractFileLine: a real file:line anchor, never a host:port ────────────
+  it("extractFileLine anchors real source paths but not host:port tokens", () => {
+    expect(extractFileLine("see src/auth/login.ts:42 for the sink"))
+      .toEqual({ file: "src/auth/login.ts", line: 42 });
+    expect(extractFileLine("parser.py:10")).toEqual({ file: "parser.py", line: 10 });
+    // A URL / host:port in run output must NOT be mistaken for a source location.
+    expect(extractFileLine("connected to api.example.com:8080")).toBeNull();
+    expect(extractFileLine("10.0.0.5:443 responded")).toBeNull();
+    expect(extractFileLine("bound to host:22")).toBeNull();
   });
 });

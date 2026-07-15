@@ -101,11 +101,15 @@ function hexA(hex: string, a: number): string {
 // entities are code locations, so they map to file/route/config anchors rather
 // than to `selectFinding` (which needs a spine finding's provenance triple).
 
-/** Anchor for an architecture-graph node: backend → route, frontend → file. */
-export function nodeAnchor(n: GNode): Anchor {
-  return n.layer === "backend"
-    ? { kind: "route", route: n.label }
-    : { kind: "file", file: n.label };
+/** Anchor for an architecture-graph node: backend → route; frontend → file,
+ *  but ONLY when the label is a real path. Frontend nodes are labelled by module
+ *  name, which is often just a directory ("shell", "graph") with no openable
+ *  file behind it — anchoring on that produced a bogus location the editor
+ *  couldn't open. Return null (non-clickable) unless the label is path-shaped. */
+export function nodeAnchor(n: GNode): Anchor | null {
+  if (n.layer === "backend") return { kind: "route", route: n.label };
+  const pathShaped = n.label.includes("/") || /\.[a-z0-9]+$/i.test(n.label);
+  return pathShaped ? { kind: "file", file: n.label } : null;
 }
 
 /** Anchor for an asset-tile item, or null if it carries no locatable target. */

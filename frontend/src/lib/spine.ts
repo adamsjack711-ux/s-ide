@@ -145,6 +145,10 @@ export async function armSubTarget(
     engagementId,
     targetId: sub.target_id,
   });
+  // Also fire the unified model signal so entity-agnostic views (Timeline, and
+  // any future one) re-read; arm/disarm only emitted their domain event before,
+  // so those views stayed stale until an unrelated finding mutated.
+  emit("modelChanged", { entity: "subtarget", id: sub.id, op: "update" });
   return body.sub_target;
 }
 
@@ -153,6 +157,7 @@ export async function disarmSubTarget(sub: SubTarget): Promise<SubTarget> {
     await postJson(`/spine/subtargets/${sub.id}/disarm`, {}),
   );
   emit("subTargetDisarmed", { subTargetId: sub.id, targetId: sub.target_id });
+  emit("modelChanged", { entity: "subtarget", id: sub.id, op: "update" });
   return body.sub_target;
 }
 
@@ -180,6 +185,10 @@ export async function runPairing(sub: SubTarget, tool = "connect"): Promise<Pair
     status: run.status,
     output: run.output,
   });
+  // A completed run is a model mutation. ScanDiffPanel already listens for
+  // `modelChanged` with entity "run" but nothing emitted it, so scan-over-scan
+  // diffs stayed stale after a run finished; Timeline refreshes on it too.
+  emit("modelChanged", { entity: "run", id: run.id, op: "create" });
   return run;
 }
 

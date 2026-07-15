@@ -304,7 +304,13 @@ export async function listAudit(
 // ── Anchor resolution (root cause) ───────────────────────────────────────────
 
 const URL_RE = /^(https?:)?\/\//i;
-const FILE_LINE_RE = /([\w./~-]+\.[a-z0-9]+):(\d+)/i;
+// A `file:line` token, e.g. `src/auth/login.ts:42` or `parser.py:10`. The file
+// part must look like a real path — contain a `/`, OR end in an allow-listed
+// source extension — so a bare `host:port` (`api.example.com:8080`, `10.0.0.5:443`)
+// in evidence text is NOT mistaken for a source location and turned into a bogus
+// file anchor. KEEP IN SYNC with the identical regex in features/search/searchLogic.ts.
+const FILE_LINE_RE =
+  /((?:[\w.~-]*\/[\w./~-]+)|(?:[\w.~-]+\.(?:tsx?|jsx?|mjs|cjs|py|go|rs|java|rb|php|c|cc|cpp|h|hpp|cs|kt|swift|scala|sh|sql|html?|css|scss|less|json|ya?ml|toml|ini|cfg|conf|xml|vue|svelte|md))):(\d+)/i;
 
 /**
  * Best-effort root-cause anchor for a finding. HONEST: returns null when nothing

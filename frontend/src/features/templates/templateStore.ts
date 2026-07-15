@@ -76,10 +76,17 @@ const VALID_SEVERITIES: readonly FindingSeverity[] = [
 // web attacks in prose — "Cross-Site Scripting", "JavaScript", "a script tag"
 // are legitimate English. So we reject the DANGEROUS FORMS — any `<...>` markup
 // (which already catches `<script>`, `<img onerror=>`, etc.), the `javascript:`
-// scheme, `url(...)`, `@import`, `expression(...)`, and template/brace/escape
-// characters — WITHOUT rejecting the plain word "script".
+// scheme, `url(...)`, `@import`, `expression(...)`, and inline event handlers —
+// WITHOUT rejecting the plain word "script".
+//
+// This text is rendered as auto-escaped plain-text / markdown in React, never
+// injected as raw HTML/CSS, so `{`, `}`, `$`, and backticks are NOT executable
+// here (that ban was copied from the CSS/theme validator). Banning them wrongly
+// rejects legitimate finding prose — a price ("$5"), a JSON body (`{"id":1}`), a
+// shell/JS snippet (`${user}`), or a URL query (`?companions=2`). The
+// event-handler check is word-bounded so it only fires on real `onX=` attributes.
 const UNSAFE_RE =
-  /[<>{}\\`$]|javascript:|vbscript:|data:text\/html|url\s*\(|@import|expression\s*\(|on\w+\s*=/i;
+  /[<>]|javascript:|vbscript:|data:text\/html|url\s*\(|@import|expression\s*\(|\bon\w+\s*=/i;
 
 /** True if a free-text value looks like markup / executable content. */
 export function isUnsafeText(v: string): boolean {

@@ -96,8 +96,13 @@ export default function MainArea() {
 
   // The main slot renders whichever view the registry maps `view.kind` to.
   // Adding a destination is a registerView() call in its own file — this host
-  // never changes. Unknown kinds fall back to Home.
-  const Active = getView(view.kind)?.component ?? getView("home")?.component;
+  // never changes. Unknown kinds fall back to Home, but warn so a typo or an
+  // openView to an unregistered id surfaces instead of silently landing on Home.
+  const found = getView(view.kind);
+  if (!found && view.kind !== "home") {
+    console.warn(`[shell] no view registered for "${view.kind}" — falling back to Home`);
+  }
+  const Active = found?.component ?? getView("home")?.component;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-base">

@@ -111,6 +111,23 @@ describe("validateTemplate", () => {
     expect(isUnsafeText("expression(alert(1))")).toBe(true);
     expect(isUnsafeText("plain safe text")).toBe(false);
   });
+
+  // ── the scanner must NOT reject benign finding prose ───────────────────────
+  it("accepts legitimate prose with $, braces, or a url query", () => {
+    // This text renders as auto-escaped plain-text/markdown, so `$`/`{`/`}` and
+    // an "…ons=…" substring are harmless — they must not fail validation.
+    for (const s of [
+      "The endpoint costs $5 per call",
+      'A vulnerable JSON body like {"id":1} is reflected',
+      "Interpolation such as ${user} is unescaped",
+      "Request /api/list?companions=2 to trigger it",
+    ]) {
+      expect(isUnsafeText(s), s).toBe(false);
+      expect(validateTemplate(findingTemplate({ description: s })).ok, s).toBe(true);
+    }
+    // but a real inline handler is still caught
+    expect(isUnsafeText("<div onclick=steal()>")).toBe(true);
+  });
 });
 
 describe("built-in loading", () => {

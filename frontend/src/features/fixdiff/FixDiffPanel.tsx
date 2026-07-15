@@ -32,7 +32,7 @@
  * through redactSecrets() (diffRender.ts) so tokens/keys/passwords/cookies in the
  * source or evidence are masked; a `suspected` finding is shown as suspected.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { registerView, type ViewParams } from "../../shell/views";
 import { registerCommand } from "../../shell/commands";
 import { emit, useBus } from "../../shell/bus";
@@ -253,12 +253,21 @@ function FixDiffPanel(props: { params: ViewParams }) {
   // The finding currently loaded, so modelChanged can trigger a re-read.
   const [currentRef, setCurrentRef] = useState<FindingRef | string | null>(null);
 
+  // Guards against a slower earlier load clobbering a newer selection: rapidly
+  // picking finding A then B fires load(A) then load(B), and if A's async chain
+  // (getFinding + getEvidenceChain + labfs read) resolves last it would render
+  // A's diff while B is selected. Same pattern as Pivot / EvidenceDebuggerPanel.
+  const loadSeq = useRef(0);
   const load = useCallback(async (ref: FindingRef | string) => {
+    const seq = ++loadSeq.current;
     setCurrentRef(ref);
     setState({ kind: "loading" });
     try {
-      setState(await loadFixDiff(ref));
+      const next = await loadFixDiff(ref);
+      if (loadSeq.current !== seq) return; // superseded by a newer selection
+      setState(next);
     } catch (e) {
+      if (loadSeq.current !== seq) return;
       setState({ kind: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }, []);

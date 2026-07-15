@@ -325,7 +325,11 @@ export function countRows(groups: SearchGroup[]): number {
   return groups.reduce((n, g) => n + g.rows.length, 0);
 }
 
-const FILE_LINE_RE = /([\w./~-]+\.[a-z0-9]+):(\d+)/i;
+// The file part must look like a real path (contain a `/`, or end in an allow-
+// listed source extension) so a bare `host:port` token in run output isn't mis-
+// read as a source location. KEEP IN SYNC with the identical regex in shell/model.ts.
+const FILE_LINE_RE =
+  /((?:[\w.~-]*\/[\w./~-]+)|(?:[\w.~-]+\.(?:tsx?|jsx?|mjs|cjs|py|go|rs|java|rb|php|c|cc|cpp|h|hpp|cs|kt|swift|scala|sh|sql|html?|css|scss|less|json|ya?ml|toml|ini|cfg|conf|xml|vue|svelte|md))):(\d+)/i;
 
 export function extractFileLine(hay: string): { file: string; line: number } | null {
   const m = FILE_LINE_RE.exec(hay);

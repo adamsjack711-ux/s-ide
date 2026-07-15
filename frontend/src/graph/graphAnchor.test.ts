@@ -8,11 +8,18 @@ import { describe, it, expect } from "vitest";
 import { nodeAnchor, itemAnchor, findingAnchor } from "./GraphView";
 
 describe("graph anchor mappers (node/item/finding → Anchor)", () => {
-  it("backend node → route anchor; frontend node → file anchor", () => {
+  it("backend node → route anchor; path-shaped frontend node → file anchor", () => {
     expect(nodeAnchor({ id: "b1", label: "/api/login", layer: "backend", kind: "route" }))
       .toEqual({ kind: "route", route: "/api/login" });
     expect(nodeAnchor({ id: "f1", label: "shell/bus.ts", layer: "frontend" }))
       .toEqual({ kind: "file", file: "shell/bus.ts" });
+  });
+
+  it("a frontend node labelled by bare module name → null (nothing to open)", () => {
+    // The backend labels frontend module nodes by directory ("shell", "graph"),
+    // which is not an openable file — anchoring on it produced a bogus location.
+    expect(nodeAnchor({ id: "f2", label: "shell", layer: "frontend" })).toBeNull();
+    expect(nodeAnchor({ id: "f3", label: "graph", layer: "frontend" })).toBeNull();
   });
 
   it("asset item with a file → file anchor (with line)", () => {

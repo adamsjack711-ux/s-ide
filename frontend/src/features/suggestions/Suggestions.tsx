@@ -30,6 +30,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { registerView, type ViewParams } from "../../shell/views";
 import { registerCommand } from "../../shell/commands";
 import { emit, useBus } from "../../shell/bus";
+import { writeLabIntent } from "../../lib/labIntent";
 import { getActiveEngagementId } from "../../lib/engagement";
 import { getTarget } from "../../lib/spine";
 import {
@@ -142,9 +143,13 @@ function SuggestionsPanel(_props: { params: ViewParams }) {
     });
   }, []);
 
-  // Apply NAVIGATES — it opens the tool panel, it NEVER runs anything. The
-  // pre-fill value rides via the tool's own context; here we only open it.
+  // Apply NAVIGATES — it opens the tool panel, it NEVER runs anything. A param
+  // suggestion carries the discovered target; write it as a one-shot lab intent
+  // (the same channel Labs "Arm & aim" uses) so ToolPanel's useLabIntent pre-
+  // fills the target field. Without this the openTool payload drops the value
+  // and the tool opens empty (or seeded from an unrelated active-target snapshot).
   const apply = useCallback((s: Suggestion) => {
+    if (s.paramValue) writeLabIntent(s.toolId, { target: s.paramValue });
     emit("openTool", { toolId: s.toolId });
   }, []);
 

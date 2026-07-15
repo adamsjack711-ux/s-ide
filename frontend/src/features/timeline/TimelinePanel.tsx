@@ -118,6 +118,9 @@ function TimelinePanel(_props: { params: ViewParams }) {
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
   useBus("modelChanged", refresh);
   useBus("activeEngagementChanged", refresh);
+  // Attestations sign/revoke through their own event, not `modelChanged`, but
+  // they land in the audit ledger this timeline renders — so listen directly.
+  useBus("attestationsChanged", refresh);
 
   // Selecting an entry publishes the best selection event we can resolve.
   const onSelect = useCallback((e: TimelineEntry) => {
