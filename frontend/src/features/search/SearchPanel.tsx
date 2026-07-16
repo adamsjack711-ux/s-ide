@@ -35,17 +35,19 @@ const SOURCE = "search";
 const DEBOUNCE_MS = 200;
 const MAX_EVIDENCE_FINDINGS = 40; // cap evidence-chain fanout on huge engagements
 
-// The already-fetched corpus for the active engagement. Re-fetched when the
-// engagement changes or the model mutates — never cached across engagements.
+// The already-fetched MUTABLE corpus for the active engagement — the parts that
+// change when a finding/asset/run mutates. Re-fetched on modelChanged; never
+// cached across engagements. The code scan is NOT here: source files don't change
+// when findings mutate, so it's fetched separately and only on engagement change
+// (see fetchCodeHits) rather than re-walking thousands of files on every event.
 type Corpus = {
   findings: PairingFinding[];
   assets: Asset[];
   evidence: { findingId: string; step: Step }[];
   runs: PairingRun[];
-  code: CodeHit[] | undefined; // undefined = no source_root (Code group omitted)
 };
 
-const EMPTY_CORPUS: Corpus = { findings: [], assets: [], evidence: [], runs: [], code: undefined };
+const EMPTY_CORPUS: Corpus = { findings: [], assets: [], evidence: [], runs: [] };
 
 // ── Fetch the engagement's searchable corpus ──────────────────────────────────
 
@@ -80,16 +82,19 @@ async function fetchCorpus(eid: string): Promise<Corpus> {
     for (const step of steps) evidence.push({ findingId: fid, step });
   }
 
-  // Code: only when the engagement declares a source_root. A pure local SAST
-  // walk (read-only, no code execution) via the model seam. Absent source_root
-  // OR a reachable-but-failed scan → Code group omitted gracefully (undefined);
-  // a successful-but-empty scan → [] (group shown, no hits).
-  let code: CodeHit[] | undefined;
+  return { findings, assets, evidence, runs };
+}
+
+// The engagement's SAST code hits — a pure local read-only walk. Separated from
+// fetchCorpus because source files don't change when findings/assets/runs mutate,
+// so this (potentially a 4000-file scan) runs only when the engagement changes,
+// not on every modelChanged. Absent source_root OR a reachable-but-failed scan →
+// undefined (Code group omitted); a successful-but-empty scan → [] (group shown).
+async function fetchCodeHits(eid: string): Promise<CodeHit[] | undefined> {
   const eng = await getEngagement(eid).catch(() => null);
   const root = eng?.source_root?.trim();
-  if (root) code = (await scanSource(root)) ?? undefined;
-
-  return { findings, assets, evidence, runs, code };
+  if (!root) return undefined;
+  return (await scanSource(root)) ?? undefined;
 }
 
 // ── Selection publisher ───────────────────────────────────────────────────────
@@ -123,6 +128,7 @@ function SearchPanel(_props: { params: ViewParams }) {
   const [raw, setRaw] = useState("");
   const [query, setQuery] = useState(""); // debounced
   const [corpus, setCorpus] = useState<Corpus>(EMPTY_CORPUS);
+  const [code, setCode] = useState<CodeHit[] | undefined>(undefined);
   const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -165,6 +171,19 @@ function SearchPanel(_props: { params: ViewParams }) {
     };
   }, [activeId, rev]);
 
+  // The code scan is engagement-scoped: run it ONLY when the engagement changes,
+  // not on every modelChanged (source files don't change when findings mutate).
+  // This is what kept SearchPanel from re-walking thousands of files per event.
+  useEffect(() => {
+    let alive = true;
+    if (!activeId) { setCode(undefined); return; }
+    (async () => {
+      const hits = await fetchCodeHits(activeId).catch(() => undefined);
+      if (alive) setCode(hits);
+    })();
+    return () => { alive = false; };
+  }, [activeId]);
+
   // Re-read on any model mutation (no private cache of shared state).
   useBus("modelChanged", () => setRev((n) => n + 1));
 
@@ -176,9 +195,9 @@ function SearchPanel(_props: { params: ViewParams }) {
         assets: corpus.assets,
         evidence: corpus.evidence,
         runs: corpus.runs,
-        code: corpus.code,
+        code,
       }),
-    [query, corpus],
+    [query, corpus, code],
   );
 
   const onRowClick = useCallback((row: SearchRow) => publish(row), []);

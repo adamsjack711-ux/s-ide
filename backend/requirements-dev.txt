@@ -1,0 +1,7 @@
+# Test-only dependencies — NOT bundled into the shipped PyInstaller sidecar
+# (that's requirements-bundle.txt). CI installs this so pytest has what the
+# suite imports; httpx (used by TestClient + imported directly) already ships in
+# the bundle, so it's pulled in via the -r include below.
+-r requirements-bundle.txt
+pytest>=8
+pytest-asyncio>=0.23
