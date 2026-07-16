@@ -7,7 +7,7 @@
  * prop-drilling across the dockview boundary (panels are mounted by dockview,
  * not by our tree).
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type {
   FindingRef, AssetRef, StepRef, SubTargetRef, Anchor, EngagementId,
 } from "./refs";
@@ -171,7 +171,23 @@ export function on<K extends keyof Events>(event: K, handler: Handler<K>): () =>
   return () => listeners[event]?.delete(handler);
 }
 
-/** React convenience: subscribe for the lifetime of a component. */
+/** React convenience: subscribe for the lifetime of a component.
+ *
+ * The subscription is stable — one register/unregister per (component, event),
+ * not one per render. Depending on `handler` (which is almost always a fresh
+ * inline closure at every call site) tore the listener down and re-registered it
+ * on EVERY render; with ~10 self-registered panels mounted, each state change
+ * churned dozens of Set delete/add pairs. Instead we hold the latest handler in
+ * a ref and subscribe once, so the handler always sees current state without the
+ * churn. */
 export function useBus<K extends keyof Events>(event: K, handler: Handler<K>): void {
-  useEffect(() => on(event, handler), [event, handler]);
+  const ref = useRef(handler);
+  ref.current = handler;
+  useEffect(() => on(event, (payload) => ref.current(payload)), [event]);
+}
+
+/** Test-only: number of live listeners for an event (parity with views.ts's
+ *  `_resetViewsForTest`). Lets the wiring tests assert subscription stability. */
+export function _listenerCount<K extends keyof Events>(event: K): number {
+  return listeners[event]?.size ?? 0;
 }
