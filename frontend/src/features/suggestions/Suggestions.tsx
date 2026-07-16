@@ -32,9 +32,8 @@ import { registerCommand } from "../../shell/commands";
 import { emit, useBus } from "../../shell/bus";
 import { writeLabIntent } from "../../lib/labIntent";
 import { getActiveEngagementId } from "../../lib/engagement";
-import { getTarget } from "../../lib/spine";
 import {
-  getCoverage, getEngagement, listAssets,
+  getCoverage, getEngagement, listAssets, listSubTargets,
   type Asset, type EngagementCoverage,
 } from "../../shell/model";
 import type { SubTarget } from "../../lib/spine";
@@ -96,15 +95,7 @@ function SuggestionsPanel(_props: { params: ViewParams }) {
         // The sub-target records (with the live `armed` flag) come from the
         // parent target. Without a sub-target in context we still surface
         // coverage next-steps, so this is best-effort.
-        let subTargets: SubTarget[] = [];
-        if (targetId) {
-          try {
-            const t = await getTarget(targetId);
-            subTargets = t.sub_targets ?? [];
-          } catch {
-            subTargets = [];
-          }
-        }
+        const subTargets: SubTarget[] = targetId ? await listSubTargets(targetId) : [];
 
         const [assets, coverage, engagement] = await Promise.all([
           subTargetId

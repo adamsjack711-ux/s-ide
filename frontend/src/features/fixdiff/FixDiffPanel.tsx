@@ -36,7 +36,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { registerView, type ViewParams } from "../../shell/views";
 import { registerCommand } from "../../shell/commands";
 import { emit, useBus } from "../../shell/bus";
-import { authFetch } from "../../api";
 import { resolveFindingLabId } from "../../lib/retest";
 import {
   getFinding,
@@ -45,6 +44,7 @@ import {
   confLevel,
   toFindingRef,
   listFindings,
+  readLabFile,
   type FindingRef,
   type Anchor,
   type PairingFinding,
@@ -186,22 +186,9 @@ async function loadFixDiff(ref: FindingRef | string): Promise<State> {
   }
   const loaded: Loaded = { ...base, labId };
 
-  // "AFTER" = the current (fixed) source at the anchor, read read-only.
-  let after: string | null = null;
-  if (labId) {
-    try {
-      const res = await authFetch(
-        `/labfs/${encodeURIComponent(labId)}/read?path=${encodeURIComponent(anchor.file)}`,
-      );
-      if (res.ok) {
-        const body = (await res.json()) as { path: string; content: string; rc: number };
-        if (body.rc === 0) after = body.content ?? "";
-      }
-      // Non-ok / rc!=0 → after stays null; handled as no-before-after below.
-    } catch {
-      after = null;
-    }
-  }
+  // "AFTER" = the current (fixed) source at the anchor, read read-only through
+  // the model seam. Null (non-ok / rc!=0 / error) → handled as no-before-after below.
+  const after: string | null = labId ? await readLabFile(labId, anchor.file) : null;
 
   // "BEFORE" = the recorded vulnerable snapshot (never re-derived).
   const beforeHit = extractBefore(chain, anchor);

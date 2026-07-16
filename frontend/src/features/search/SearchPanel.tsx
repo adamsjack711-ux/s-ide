@@ -18,13 +18,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { registerView, type ViewParams } from "../../shell/views";
 import { registerCommand } from "../../shell/commands";
 import { emit, useBus } from "../../shell/bus";
-import { authFetch } from "../../api";
 import {
   getActiveEngagementId, useActiveEngagementId,
 } from "../../lib/engagement";
 import { severityTextClass } from "../../lib/severity";
 import {
-  getEngagement, listFindings, listAssets, getEvidenceChain, listRuns,
+  getEngagement, listFindings, listAssets, getEvidenceChain, listRuns, scanSource,
   type PairingFinding, type Asset, type Step, type PairingRun,
 } from "../../shell/model";
 import {
@@ -82,38 +81,13 @@ async function fetchCorpus(eid: string): Promise<Corpus> {
   }
 
   // Code: only when the engagement declares a source_root. A pure local SAST
-  // walk (POST /codescan) — no code execution, read-only. Absent/empty
-  // source_root → Code group is omitted gracefully.
+  // walk (read-only, no code execution) via the model seam. Absent source_root
+  // OR a reachable-but-failed scan → Code group omitted gracefully (undefined);
+  // a successful-but-empty scan → [] (group shown, no hits).
   let code: CodeHit[] | undefined;
   const eng = await getEngagement(eid).catch(() => null);
   const root = eng?.source_root?.trim();
-  if (root) {
-    try {
-      const r = await authFetch(`/codescan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: root, max_files: 4000 }),
-      });
-      if (r.ok) {
-        const body = (await r.json()) as {
-          findings?: { file?: string; line?: number; title?: string; type?: string; severity?: string; snippet?: string }[];
-        };
-        code = (body.findings ?? []).map((c) => ({
-          file: String(c.file ?? ""),
-          line: Number(c.line ?? 0),
-          title: String(c.title ?? "(code finding)"),
-          type: String(c.type ?? ""),
-          severity: String(c.severity ?? "low"),
-          snippet: String(c.snippet ?? ""),
-        }));
-      } else {
-        // A reachable-but-failed scan is not fatal — skip Code, keep the rest.
-        code = undefined;
-      }
-    } catch {
-      code = undefined;
-    }
-  }
+  if (root) code = (await scanSource(root)) ?? undefined;
 
   return { findings, assets, evidence, runs, code };
 }

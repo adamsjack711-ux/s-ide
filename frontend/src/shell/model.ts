@@ -32,6 +32,7 @@ import {
 } from "../lib/engagement";
 import {
   listAllPairingFindings, listRuns as listSubTargetRuns, engagementArmed,
+  getTarget,
   type PairingFinding, type PairingRun, type SubTarget,
 } from "../lib/spine";
 import {
@@ -353,4 +354,74 @@ export async function resolveAnchor(ref: FindingRef | string): Promise<Anchor | 
     }
   }
   return null;
+}
+
+// ── Backend reads behind the model seam ──────────────────────────────────────
+// CONTRACT.md rule 1: a feature reads shared state ONLY through this model API.
+// These wrap the remaining backend reads a feature would otherwise reach for
+// directly (SearchPanel's code scan, FixDiffPanel's lab-file read, Suggestions'
+// target lookup), so those panels stop calling authFetch / lib.getTarget behind
+// the seam's back.
+
+/** A read-only SAST code hit (pure local pattern scan; no code execution). */
+export type CodeScanHit = {
+  file: string;
+  line: number;
+  title: string;
+  type: string;
+  severity: string;
+  snippet: string;
+};
+
+/** Run the local read-only code scan over `path`. Returns the hits (possibly
+ *  empty) on a successful scan, or null when the scan is unreachable/failed — so
+ *  a caller can distinguish "scanned, no hits" ([]) from "couldn't scan" (null). */
+export async function scanSource(path: string, maxFiles = 4000): Promise<CodeScanHit[] | null> {
+  try {
+    const r = await authFetch(`/codescan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, max_files: maxFiles }),
+    });
+    if (!r.ok) return null;
+    const body = (await r.json()) as {
+      findings?: Partial<CodeScanHit>[];
+    };
+    return (body.findings ?? []).map((c) => ({
+      file: String(c.file ?? ""),
+      line: Number(c.line ?? 0),
+      title: String(c.title ?? "(code finding)"),
+      type: String(c.type ?? ""),
+      severity: String(c.severity ?? "low"),
+      snippet: String(c.snippet ?? ""),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/** Read the current (fixed) source at `path` inside a lab, read-only. Null when
+ *  the file can't be read (non-ok / non-zero rc / error). */
+export async function readLabFile(labId: string, path: string): Promise<string | null> {
+  try {
+    const res = await authFetch(
+      `/labfs/${encodeURIComponent(labId)}/read?path=${encodeURIComponent(path)}`,
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as { path: string; content: string; rc: number };
+    return body.rc === 0 ? (body.content ?? "") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The sub-target records (with the live `armed` flag) for a target. Best-effort:
+ *  returns [] when the target is unknown or the read fails. */
+export async function listSubTargets(targetId: string): Promise<SubTarget[]> {
+  try {
+    const t = await getTarget(targetId);
+    return t.sub_targets ?? [];
+  } catch {
+    return [];
+  }
 }
