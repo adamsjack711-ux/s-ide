@@ -1,18 +1,10 @@
-import { useEffect, useState } from "react";
-import HomeView from "../home/HomeView";
-import LearningView from "../learn/LearningView";
-import SettingsView from "../settings/SettingsView";
-import WorkbenchView from "../build/WorkbenchView";
-import SpineView from "../spine/SpineView";
-import ToolPanel from "../panels/ToolPanel";
+import { useCallback, useEffect, useState } from "react";
 import OutputPanel from "../panels/OutputPanel";
 import TerminalView from "./TerminalView";
 import { useActiveEngagementId, listEngagements, isLabEngagement } from "../lib/engagement";
-import PlaybookEditor from "../build/PlaybookEditor";
-import EngagementWorkspace from "./EngagementWorkspace";
-import { useIsolationOk } from "../labs/useIsolationOk";
-import { toolById } from "./tools";
-import { on } from "./bus";
+import { on, emit } from "./bus";
+import { getView, isSubTabView } from "./views";
+import "./views.builtin"; // registers the shell's stock views (side effect)
 import {
   useEngagementTabs,
   activateEngagementTab,
@@ -23,11 +15,6 @@ import {
 } from "../lib/engagementTabs";
 
 type View = { kind: string; params?: Record<string, any> };
-
-// The four engagement sub-surfaces are not top-level views any more — an
-// `openView` for one of them means "switch the active engagement tab to that
-// sub-tab" instead of swapping the whole main area.
-const SUB_TAB_KINDS = new Set(["build", "graph", "findings", "reports", "terminal"]);
 
 /**
  * The main area. An engagement opens as a TAB (top strip); its body is the
@@ -49,8 +36,7 @@ export default function MainArea() {
   const [outputOpen, setOutputOpen] = useState(false);
   const [dockTab, setDockTab] = useState<"output" | "terminal">("output");
   const activeEngagementId = useActiveEngagementId();
-  const isolationOk = useIsolationOk();
-  const { tabs: engTabs, activeId: activeEngId, subTab } = useEngagementTabs();
+  const { tabs: engTabs, activeId: activeEngId } = useEngagementTabs();
 
   // First-run redirect: if the (non-lab) engagement list is empty on launch,
   // land on HomeView — which auto-shows the onboarding steps + create modal —
@@ -75,7 +61,9 @@ export default function MainArea() {
 
   useEffect(() => on("openView", ({ view: v, params }) => {
     // Sub-surfaces route into the active engagement tab rather than replacing it.
-    if (SUB_TAB_KINDS.has(v)) {
+    // Whether a view is a sub-tab is data on its registry descriptor, so this
+    // handler never needs editing when a new view is added.
+    if (isSubTabView(v)) {
       const eid = getActiveEngagementTabId();
       if (eid) {
         setEngagementSubTab(eid, v as EngagementSubTab);
@@ -94,30 +82,27 @@ export default function MainArea() {
   // Auto-reveal the output dock when a tool streams.
   useEffect(() => on("output", () => setOutputOpen(true)), []);
 
+  // Tab-strip actions. Back returns to the Engagements list without closing any
+  // tab; "+" runs the canonical create action (same as ⌘N: go Home, then open
+  // the create modal on the next tick once the Home lane has mounted to hear it).
+  const goBackToList = useCallback(() => emit("openView", { view: "spine" }), []);
+  const newEngagement = useCallback(() => {
+    // Navigate Home with a fresh nonce; HomeView opens the create modal on mount
+    // (race-free — no reliance on the Home lane already being subscribed).
+    emit("openView", { view: "home", params: { createNonce: Date.now() } });
+  }, []);
+
   const inEngagement = view.kind === "engagement";
 
-  function render() {
-    const p = view.params ?? {};
-    switch (view.kind) {
-      case "engagement":
-        return activeEngId
-          ? <EngagementWorkspace engagementId={activeEngId} subTab={subTab} />
-          : <HomeView />;
-      case "home": return <HomeView />;
-      case "spine": return <SpineView />;
-      case "learn": return <LearningView />;
-      case "settings": return <SettingsView />;
-      // Labs live ONLY inside Learning now — any "open labs" routes there.
-      case "labs": return <LearningView initialTab="labs" />;
-      case "playbook": return <PlaybookEditor playbookId={p.id} isolationOk={isolationOk} />;
-      case "build": return <WorkbenchView />; // fallback if reached without an engagement
-      case "tool": {
-        const t = toolById(p.toolId);
-        return t ? <ToolPanel tool={t} /> : <div className="p-4 text-ink-dim">Unknown tool.</div>;
-      }
-      default: return <HomeView />;
-    }
+  // The main slot renders whichever view the registry maps `view.kind` to.
+  // Adding a destination is a registerView() call in its own file — this host
+  // never changes. Unknown kinds fall back to Home, but warn so a typo or an
+  // openView to an unregistered id surfaces instead of silently landing on Home.
+  const found = getView(view.kind);
+  if (!found && view.kind !== "home") {
+    console.warn(`[shell] no view registered for "${view.kind}" — falling back to Home`);
   }
+  const Active = found?.component ?? getView("home")?.component;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-base">
@@ -125,6 +110,18 @@ export default function MainArea() {
           labs live only in Learning → Labs.) */}
       {engTabs.length > 0 && (
         <div className="flex shrink-0 items-stretch gap-px overflow-x-auto border-b border-divider bg-bg-sidebar">
+          {/* Back to the Engagements list (leaves tabs open). Shown while a tab's
+              workspace fills the main area. */}
+          {inEngagement && (
+            <button
+              onClick={goBackToList}
+              title="Back to engagements"
+              aria-label="Back to engagements"
+              className="flex items-center border-r border-divider px-2.5 text-[calc(13px_*_var(--text-scale))] text-ink-dim hover:bg-bg-base hover:text-ink-primary"
+            >
+              ‹
+            </button>
+          )}
           {engTabs.map((t) => {
             const active = inEngagement && t.id === activeEngId;
             return (
@@ -148,10 +145,21 @@ export default function MainArea() {
               </div>
             );
           })}
+          {/* Add a new engagement (opens the create flow). */}
+          <button
+            onClick={newEngagement}
+            title="New engagement"
+            aria-label="New engagement"
+            className="flex items-center px-3 text-[calc(15px_*_var(--text-scale))] leading-none text-ink-dim hover:bg-bg-base hover:text-accent"
+          >
+            +
+          </button>
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden">{render()}</div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {Active ? <Active params={view.params ?? {}} /> : <div className="p-4 text-ink-dim">No view.</div>}
+      </div>
 
       {/* Bottom dock — collapsible, tabbed: Output + the integrated Terminal.
           The Terminal tab is present whenever an engagement is active; it runs

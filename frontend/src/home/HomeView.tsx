@@ -212,17 +212,19 @@ function onEngagementCreated(created: CreatedEngagement): void {
 
 // ════════════════════════════════════════════════════════════════════════════
 
-export default function HomeView() {
+export default function HomeView(
+  { params }: { params?: { createNonce?: number } } = {},
+) {
   return (
     <div className="h-full overflow-y-auto bg-bg-base">
-      <Dashboard />
+      <Dashboard params={params} />
     </div>
   );
 }
 
 // ── Dashboard: owns the engagement list + per-engagement stat fetch ─────────
 
-function Dashboard() {
+function Dashboard({ params }: { params?: { createNonce?: number } }) {
   const activeId = useActiveEngagementId();
   const [engagements, setEngagements] = useState<Engagement[] | null>(null);
   const [stats, setStats] = useState<Record<string, EngStats>>({});
@@ -298,6 +300,14 @@ function Dashboard() {
   // modal (single canonical creation point).
   const [showCreate, setShowCreate] = useState(false);
   const openCreate = useCallback(() => setShowCreate(true), []);
+
+  // Race-free create trigger: navigating here with a fresh `createNonce`
+  // (e.g. the tab strip's "+" button) opens the modal on mount — no dependency
+  // on this lane already being subscribed when the request fires. The nonce
+  // changes per request so repeat "+" clicks re-open it.
+  useEffect(() => {
+    if (params?.createNonce) setShowCreate(true);
+  }, [params?.createNonce]);
 
   // Id of the just-created engagement — its card briefly flashes once the
   // refreshed list renders it.

@@ -7,7 +7,10 @@
  * prop-drilling across the dockview boundary (panels are mounted by dockview,
  * not by our tree).
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import type {
+  FindingRef, AssetRef, StepRef, SubTargetRef, Anchor, EngagementId,
+} from "./refs";
 
 export type OutputLine = {
   ts: number;
@@ -15,6 +18,23 @@ export type OutputLine = {
   level: "info" | "hit" | "error" | "done";
   text: string;
 };
+
+/**
+ * Built-in view ids, for editor autocomplete on `openView`. This is NOT a
+ * closed set — views register at runtime (shell/views.ts) and `ViewId` accepts
+ * any string, so a contributed panel uses its own id without editing this file.
+ *
+ * Keep this list to ids that are actually registered (see views.builtin.tsx) —
+ * an id here that nothing registers silently routes to Home (MainArea's
+ * fallback), so advertising a destination that doesn't exist is worse than
+ * omitting it. Contributed feature panels register their own ids at runtime and
+ * needn't be listed.
+ */
+export type KnownViewId =
+  | "home" | "spine" | "learn" | "settings" | "playbook" | "tool"
+  | "engagement" | "build" | "graph" | "findings" | "reports" | "terminal"
+  | "labs";
+export type ViewId = KnownViewId | (string & {});
 
 type Events = {
   openTool: { toolId: string };
@@ -27,10 +47,16 @@ type Events = {
   openEditor: { labId: string; path: string };
   openAttestation: Record<string, never>;
   attestationsChanged: Record<string, never>;
-  /** Open a non-tool view as a tab in the center editor area. The top-level bar
-   *  modes — home / targets / workbench / findings / reporting — and the
-   *  engagements switcher + audit log all route through here. */
-  openView: { view: "home" | "targets" | "workbench" | "reporting" | "engagements" | "audit" | "findings" | "reports" | "learn" | "settings" | "playbook" | "graph" | "build" | "terminal" | "labs" | "lab" | "spine"; params?: Record<string, unknown> };
+  /** Open a non-tool view as a tab in the center editor area. The activity bar
+   *  (home / spine / learn / settings), the Explorer links (findings / reports),
+   *  and the engagement sub-tabs (build / graph / findings / reports / terminal)
+   *  all route through here.
+   *
+   *  `view` is an open string: views self-register in shell/views.ts, so the
+   *  set is not closed at compile time. The `KnownViewId` union below is a
+   *  convenience for autocomplete on the built-ins, not an allow-list —
+   *  contributed panels use their own ids without editing this file. */
+  openView: { view: ViewId; params?: Record<string, unknown> };
   /**
    * Engagement-spine domain events. The four spine tabs (Targets / Engagements /
    * Workbench / Findings) cross-link through these: arming a sub-target in
@@ -65,7 +91,53 @@ type Events = {
    * selector itself stays visible in every view; this is the re-scope signal.
    * `engagementId` is null when no engagement is active.
    */
-  activeEngagementChanged: { engagementId: string | null };
+  activeEngagementChanged: { engagementId: EngagementId | null };
+  /**
+   * ── SELECTION / NAVIGATION EVENTS (Foundation lane; payloads in shell/refs.ts) ──
+   *
+   * The connective tissue between feature panels. A feature that focuses an
+   * object BROADCASTS the matching event carrying a canonical ref; it NEVER
+   * targets a specific panel. Any panel that cares subscribes and reacts by
+   * reading the model — no panel imports or calls another. `source` is the
+   * publishing feature's id so a panel can ignore its own echo (avoids feedback
+   * loops when a panel both publishes and subscribes to the same event).
+   *
+   *  - `selectFinding`   — a finding was focused. Problems/search/graph/timeline
+   *    publish it; the pivot lane resolves its root-cause Anchor and re-broadcasts
+   *    `selectAnchor`; the debugger loads its chain.
+   *  - `selectAsset`     — an asset was focused. No panel consumes this yet (an
+   *    asset-tree / graph highlight is the intended reactor); until one does,
+   *    clicking an asset search result publishes into the void. Kept as the
+   *    canonical event so the consumer can land without touching publishers.
+   *  - `selectAnchor`    — jump the editor to a code/route/config location. Carries
+   *    the originating `findingId` when the anchor came from a finding pivot.
+   *  - `selectStep`      — a step in an evidence chain was focused. The evidence/
+   *    request-response view reacts; if the step has an anchor the pivot follows
+   *    it with `selectAnchor`.
+   *  - `selectSubTarget` — a sub-target was focused (scopes Workbench/coverage).
+   */
+  selectFinding: { ref: FindingRef; source: string };
+  selectAsset: { ref: AssetRef; source: string };
+  selectAnchor: { ref: Anchor; findingId?: string; source: string };
+  selectStep: { ref: StepRef; source: string };
+  selectSubTarget: { ref: SubTargetRef; source: string };
+  /**
+   * The model changed underneath every view. This is how a view knows to
+   * re-read WITHOUT caching shared state: no view holds a private copy, so on
+   * `modelChanged` it re-fetches through the model API. `entity` narrows what
+   * changed so a listener can skip irrelevant refreshes; `id` is that entity's
+   * id; `op` is the mutation kind. The existing findingsChanged / findingCreated
+   * events stay for back-compat, but new features listen on this unified signal.
+   */
+  modelChanged: {
+    // Only the entities that a mutation path actually emits belong here — a
+    // listener that gates on an entity nobody publishes is dead code (a bus-
+    // contract test enforces this). Widen this union the moment a new emitter
+    // lands, not before.
+    entity: "finding" | "subtarget" | "run";
+    id: string;
+    op: "create" | "update" | "delete";
+  };
   /**
    * Command-system events (owned by the Foundation lane; see shell/commands.ts
    * + shell/keymap.ts). Feature lanes LISTEN for these to react to global
@@ -99,7 +171,23 @@ export function on<K extends keyof Events>(event: K, handler: Handler<K>): () =>
   return () => listeners[event]?.delete(handler);
 }
 
-/** React convenience: subscribe for the lifetime of a component. */
+/** React convenience: subscribe for the lifetime of a component.
+ *
+ * The subscription is stable — one register/unregister per (component, event),
+ * not one per render. Depending on `handler` (which is almost always a fresh
+ * inline closure at every call site) tore the listener down and re-registered it
+ * on EVERY render; with ~10 self-registered panels mounted, each state change
+ * churned dozens of Set delete/add pairs. Instead we hold the latest handler in
+ * a ref and subscribe once, so the handler always sees current state without the
+ * churn. */
 export function useBus<K extends keyof Events>(event: K, handler: Handler<K>): void {
-  useEffect(() => on(event, handler), [event, handler]);
+  const ref = useRef(handler);
+  ref.current = handler;
+  useEffect(() => on(event, (payload) => ref.current(payload)), [event]);
+}
+
+/** Test-only: number of live listeners for an event (parity with views.ts's
+ *  `_resetViewsForTest`). Lets the wiring tests assert subscription stability. */
+export function _listenerCount<K extends keyof Events>(event: K): number {
+  return listeners[event]?.size ?? 0;
 }
