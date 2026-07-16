@@ -50,7 +50,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-bundle.txt pytest
+          pip install -r requirements-dev.txt
       - name: Tests
         run: python -m pytest -q
 
