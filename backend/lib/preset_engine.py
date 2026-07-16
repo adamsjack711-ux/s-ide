@@ -348,19 +348,29 @@ async def _drive_ws(handler_coro_factory, init: dict[str, Any],
 # Adapters — each takes (target, options, context, emit, stop_event) → summary
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Local request shim — REST router handlers call get_mode/get_engagement_id on
-# their FastAPI Request. The engine drives them in-process, so we hand them a
-# minimal stand-in that looks like a loopback request with no mode/eid hints.
-# The playbook runner has already done the top-level scope+mode check before
-# any adapter runs, so per-call routers fall back to Lab-mode defaults and
-# their `scope.enforce_rest` calls go through without a second prompt.
-class _LocalReq:
+# Internal-call request shim — REST router / posture handlers call
+# get_mode/get_engagement_id on their FastAPI Request (and occasionally read
+# .client). The engine drives them in-process, so we hand them a minimal
+# stand-in that looks like a loopback request with no mode/eid hints. Empty
+# headers/query_params ⇒ lab mode ⇒ `scope.enforce_*` no-ops, which is correct:
+# the playbook runner has already done the top-level scope+mode+engagement check
+# before any adapter runs, so the per-call re-check is redundant. Handlers never
+# read a body through this — bodies are passed as typed models alongside it.
+#
+# This ONE shared stand-in replaces the several byte-identical copies (_LocalReq,
+# _LabModeConn, and the nested _Req classes) that had accumulated across the file.
+class _InternalRequest:
     class _C:
         host = "127.0.0.1"
         port = 0
     client = _C()
     headers: dict[str, str] = {}
     query_params: dict[str, str] = {}
+
+
+# Back-compat aliases so existing call sites (_LocalReq(), _Req(), _LAB_CONN) keep
+# working while pointing at the single definition above.
+_LocalReq = _InternalRequest
 
 
 def _target_to_host(target: str) -> str:
@@ -677,24 +687,11 @@ async def _adapter_cms_fingerprint(target: str, options: dict[str, Any],
     }
 
 
-class _LabModeConn:
-    """Minimal request/HTTPConnection stand-in for invoking a tool's route
-    handler directly from the preset engine.
-
-    The macOS/Linux posture handlers take a FastAPI ``Request`` but read it
-    only via ``lib.mode.get_engagement_id`` / ``get_mode`` — which touch just
-    ``.headers`` / ``.query_params`` — to gate on engagement presence. Empty
-    here ⇒ lab mode ⇒ ``scope.enforce_engagement_present`` no-ops, which is
-    correct: the run-level mode/engagement gate has already passed before any
-    step runs, so this per-step re-check is redundant. Posture collection
-    itself never touches the request.
-    """
-
-    headers: dict[str, str] = {}
-    query_params: dict[str, str] = {}
-
-
-_LAB_CONN = _LabModeConn()
+# The macOS/Linux posture handlers take a FastAPI Request but read it only via
+# get_mode/get_engagement_id (headers/query_params) to gate on engagement
+# presence; empty ⇒ lab mode ⇒ the gate no-ops (the run-level gate already
+# passed). Same shared stand-in as everywhere else in this file.
+_LAB_CONN = _InternalRequest()
 
 
 async def _adapter_macos_posture(target: str, options: dict[str, Any],
@@ -1415,14 +1412,8 @@ async def _adapter_takeover(target: str, options: dict[str, Any],
                             context: dict[str, Any], emit: EmitFn,
                             stop_event: asyncio.Event) -> dict[str, Any]:
     from routers import takeover as r
-    # Build a minimal Request-like surface for the handler's get_mode/eid
-    # reads — same trick the _LocalWS shim uses.
-    class _Req:
-        class _C:
-            host = "127.0.0.1"; port = 0
-        client = _C()
-        headers: dict[str, str] = {}
-        query_params: dict[str, str] = {}
+    # Minimal Request-like surface for the handler's get_mode/eid reads.
+    _Req = _InternalRequest
     try:
         result = await r.takeover_check(
             fqdn=target, request=_Req(), confirm=True, confirm_auth=True,
@@ -1898,11 +1889,7 @@ async def _adapter_kerberoast(target: str, options: dict[str, Any],
         return {"spn_accounts": [], "ticket_hashes": [], "hashes": [],
                 "privileged_spns": [], "skipped": True}
     from routers import kerberos_roast as r
-    class _Req:
-        class _C: host = "127.0.0.1"; port = 0
-        client = _C()
-        headers: dict[str, str] = {}
-        query_params: dict[str, str] = {}
+    _Req = _InternalRequest
     body = r.KerberoastBody(
         creds=r.CredsModel(**creds),
         spn_filter=str(options.get("spn_filter") or ""),
@@ -1974,11 +1961,7 @@ async def _adapter_bloodhound(target: str, options: dict[str, Any],
                 "unconstrained_delegation": [], "acl_abuses": [],
                 "skipped": True}
     from routers import bloodhound_ingest as r
-    class _Req:
-        class _C: host = "127.0.0.1"; port = 0
-        client = _C()
-        headers: dict[str, str] = {}
-        query_params: dict[str, str] = {}
+    _Req = _InternalRequest
     body = r.IngestBody(
         creds=r.CredsModel(**creds),
         methods=list(options.get("methods") or ["Default"]),
@@ -2107,14 +2090,10 @@ _TOOL_ADAPTERS["password_spray"]  = _adapter_ad_spray
 
 # ── Batch 4-6 real adapters — passive recon, active scan, AD/local extras ─
 
-# Helper: thin "local request" surface for REST handlers that read mode +
-# engagement id off the FastAPI Request. We always run engine adapters in
-# Lab mode (the playbook runner does the global mode/scope check up front).
-class _Req:
-    class _C: host = "127.0.0.1"; port = 0
-    client = _C()
-    headers: dict[str, str] = {}
-    query_params: dict[str, str] = {}
+# Thin "local request" surface for REST handlers that read mode + engagement id
+# off the FastAPI Request. Engine adapters always run in lab mode (the playbook
+# runner does the global mode/scope check up front). Shared stand-in defined above.
+_Req = _InternalRequest
 
 
 # ── Passive recon ──────────────────────────────────────────────────────────
