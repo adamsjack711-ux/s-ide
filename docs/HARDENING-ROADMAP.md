@@ -29,15 +29,18 @@ called out at the end.
 | 4 | Packaged-build posture audit (`electron/main.cjs`): load/devtools + sidecar env gated on `app.isPackaged` |
 | 5 | CI with a supply-chain gate (`.github/workflows/ci.yml`: tsc/vitest/pytest + npm audit + pip-audit) |
 | 6 | Router-snapshot exit plan (`docs/ROUTER-OWNERSHIP.md`) + an enforced boundary test |
+| 1 (rest) | `model.ts` getter memoization — `getFinding`/`getEngagement` back a memoized snapshot invalidated on `modelChanged` |
 
 ## Remaining slice
 
-**`model.ts` getter memoization.** `getFinding`/`getEngagement` still re-fetch +
-linear-scan the full list per call. Findings can be memoized safely (invalidate on
-`modelChanged{finding}`), but the **engagement list has no mutation signal** —
-create/rename don't emit `modelChanged` — so a `getEngagement` cache would go
-stale. Do the findings-only memo, or add an engagement-list mutation event first;
-until then this stays deferred rather than shipped half-safe.
+None — the roadmap is complete.
+
+The last slice (`model.ts` getter memoization) is done: `getFinding` /
+`getEngagement` / `listFindings` now share a memoized snapshot invalidated on the
+matching `modelChanged` signal (the same one views re-read on), so N reads share
+one fetch and the cache is never stale. The engagement-list mutation gap is
+closed too — `createEngagement` / `updateEngagement` / `deleteEngagement` now emit
+`modelChanged{engagement}`, so the engagement snapshot invalidates safely.
 
 ## Original specification (retained for reference)
 

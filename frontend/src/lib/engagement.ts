@@ -234,7 +234,10 @@ export async function createEngagement(
     }),
   });
   if (!r.ok) throw new Error(await parseError(r));
-  return r.json();
+  const created: CreatedEngagement = await r.json();
+  // Signal the model so any engagement snapshot re-reads (the list changed).
+  emit("modelChanged", { entity: "engagement", id: created.id, op: "create" });
+  return created;
 }
 
 // ── Engagement auth (redacted reads + writes) ───────────────────────────────
@@ -273,12 +276,15 @@ export async function updateEngagement(
     body: JSON.stringify(patch),
   });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+  const updated: Engagement = await r.json();
+  emit("modelChanged", { entity: "engagement", id, op: "update" });
+  return updated;
 }
 
 export async function deleteEngagement(id: string): Promise<void> {
   const r = await authFetch(`/engagements/${id}`, { method: "DELETE" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  emit("modelChanged", { entity: "engagement", id, op: "delete" });
 }
 
 export async function listFindings(eid: string): Promise<Finding[]> {
