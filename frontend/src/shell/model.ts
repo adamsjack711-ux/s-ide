@@ -25,6 +25,7 @@
  *     fabricated file:line).
  */
 import { authFetch } from "../api";
+import { on } from "./bus";
 import {
   listEngagements, fetchCoverage,
   type Engagement, type EngagementCoverage, type Finding,
@@ -100,12 +101,51 @@ export type AuditEntry = {
   [k: string]: unknown;
 };
 
+// ── Memoized snapshots ───────────────────────────────────────────────────────
+// The findings/engagement getters used to re-fetch + linear-scan the full list
+// on EVERY call, so resolving N ids was N whole-list round-trips (getFinding is
+// called per selection by pivot / fixdiff / debugger / search). Memoize the
+// list-fetch and invalidate on the matching `modelChanged` signal — the SAME
+// signal views re-read on. This is not a stale private cache: it clears
+// synchronously on the bus event (before any view's async re-read), so the data
+// is always consistent after a mutation; between mutations, N reads share one
+// fetch. Findings additionally carry an id→record index for O(1) getFinding.
+
+let _findingsSnap: Promise<{ list: PairingFinding[]; byId: Map<string, PairingFinding> }> | null = null;
+let _engagementsSnap: Promise<Engagement[]> | null = null;
+
+function findingsSnapshot() {
+  if (!_findingsSnap) {
+    _findingsSnap = listAllPairingFindings().then((list) => ({
+      list,
+      byId: new Map(list.map((f) => [f.id, f])),
+    }));
+    _findingsSnap.catch(() => { _findingsSnap = null; }); // let a failed fetch retry
+  }
+  return _findingsSnap;
+}
+
+function engagementsSnapshot() {
+  if (!_engagementsSnap) {
+    _engagementsSnap = listEngagements(true);
+    _engagementsSnap.catch(() => { _engagementsSnap = null; });
+  }
+  return _engagementsSnap;
+}
+
+// Invalidate the matching snapshot on the mutation signal every finding/engagement
+// write emits (see lib/engagement + lib/spine). Registered once at import.
+on("modelChanged", (p) => {
+  if (p.entity === "finding") _findingsSnap = null;
+  else if (p.entity === "engagement") _engagementsSnap = null;
+});
+
 // ── Engagements ──────────────────────────────────────────────────────────────
 
 /** The engagement record for `id`, or null if unknown. (No single-GET route
- *  exists; we resolve from the list, including archived.) */
+ *  exists; we resolve from the memoized list, including archived.) */
 export async function getEngagement(id: EngagementId): Promise<Engagement | null> {
-  const list = await listEngagements(true);
+  const list = await engagementsSnapshot();
   return list.find((e) => e.id === id) ?? null;
 }
 
@@ -124,8 +164,8 @@ export async function listFindings(
   engagementId: EngagementId,
   filter?: FindingFilter,
 ): Promise<PairingFinding[]> {
-  const all = await listAllPairingFindings();
-  let out = all.filter((f) => f.engagement_id === engagementId);
+  const { list } = await findingsSnapshot();
+  let out = list.filter((f) => f.engagement_id === engagementId);
   if (filter?.severity?.length) {
     const set = new Set(filter.severity);
     out = out.filter((f) => set.has(f.severity));
@@ -144,13 +184,14 @@ export async function listFindings(
   return out;
 }
 
-/** A single finding by ref (or bare id). Null if not found in the active scope. */
+/** A single finding by ref (or bare id). Null if not found in the active scope.
+ *  O(1) against the memoized id→record index. */
 export async function getFinding(
   ref: FindingRef | string,
 ): Promise<PairingFinding | null> {
   const id = typeof ref === "string" ? ref : ref.findingId;
-  const all = await listAllPairingFindings();
-  return all.find((f) => f.id === id) ?? null;
+  const { byId } = await findingsSnapshot();
+  return byId.get(id) ?? null;
 }
 
 /**

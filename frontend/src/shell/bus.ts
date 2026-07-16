@@ -133,8 +133,9 @@ type Events = {
     // Only the entities that a mutation path actually emits belong here — a
     // listener that gates on an entity nobody publishes is dead code (a bus-
     // contract test enforces this). Widen this union the moment a new emitter
-    // lands, not before.
-    entity: "finding" | "subtarget" | "run";
+    // lands, not before. (`engagement` fires on create/update/delete so the
+    // model's engagement snapshot can invalidate.)
+    entity: "finding" | "subtarget" | "run" | "engagement";
     id: string;
     op: "create" | "update" | "delete";
   };
