@@ -77,15 +77,29 @@ function spawnBackend() {
     "/usr/local/sbin",
   ];
   const augmentedPath = [...TOOL_PATHS, process.env.PATH || ""].filter(Boolean).join(":");
-  backendProc = spawn(binPath, [], {
-    env: {
-      ...process.env,
-      PATH: augmentedPath,
-      NT_BACKEND_HOST: "127.0.0.1",
-      NT_BACKEND_PORT: String(BACKEND_PORT),
-    },
-    stdio: "ignore",
-  });
+  const sidecarEnv = {
+    ...process.env,
+    PATH: augmentedPath,
+    NT_BACKEND_HOST: "127.0.0.1",
+    NT_BACKEND_PORT: String(BACKEND_PORT),
+  };
+  // A shipped build must not let a stray environment variable widen the
+  // sidecar's attack surface. RAMPART_EXPOSE_ALL unlocks the Tier-2/3 routers
+  // held behind the capability gate; the *_ALLOW_PUBLIC_HOST flags let the
+  // backend bind off-loopback. Strip them when packaged so the app ships locked
+  // to its default-safe posture regardless of the launching environment.
+  // (An unpackaged dev run keeps them so they remain testable.)
+  if (app.isPackaged) {
+    for (const k of [
+      "RAMPART_EXPOSE_ALL",
+      "SIDE_ALLOW_PUBLIC_HOST",
+      "HACKINGPAL_ALLOW_PUBLIC_HOST",
+      "MYHACKINGPAL_ALLOW_PUBLIC_HOST",
+    ]) {
+      delete sidecarEnv[k];
+    }
+  }
+  backendProc = spawn(binPath, [], { env: sidecarEnv, stdio: "ignore" });
   backendProc.on("exit", (code) => {
     console.log("[network-tools] backend exited with code", code);
     backendProc = null;
@@ -274,7 +288,10 @@ async function createWindow(engagementId) {
   // A per-window engagement id rides in as a query param; the renderer reads
   // it (see lib/windowEngagement.ts) and pins this window to that engagement.
   const query = engagementId ? { engagement: engagementId } : undefined;
-  if (isDev) {
+  // Gate on packaging, not NODE_ENV: a packaged build always loads its bundled
+  // files (and never opens devtools), even if launched with NODE_ENV=development.
+  // Loading the Vite dev origin + auto-devtools are unpackaged-dev conveniences.
+  if (isDevUnpackaged) {
     const url = "http://localhost:5173" + (engagementId ? `/?engagement=${encodeURIComponent(engagementId)}` : "");
     win.loadURL(url);
     if (process.env.NT_DEVTOOLS === "1") {
