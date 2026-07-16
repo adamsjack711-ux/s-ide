@@ -130,7 +130,11 @@ type Events = {
    * events stay for back-compat, but new features listen on this unified signal.
    */
   modelChanged: {
-    entity: "finding" | "asset" | "engagement" | "subtarget" | "run";
+    // Only the entities that a mutation path actually emits belong here — a
+    // listener that gates on an entity nobody publishes is dead code (a bus-
+    // contract test enforces this). Widen this union the moment a new emitter
+    // lands, not before.
+    entity: "finding" | "subtarget" | "run";
     id: string;
     op: "create" | "update" | "delete";
   };
