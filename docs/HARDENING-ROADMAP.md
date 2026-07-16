@@ -1,26 +1,45 @@
 # s-ide — hardening & quality roadmap
 
 Concrete, prioritized follow-up work that came out of the shell-foundation-lane
-review. The first block is **already in flight** as a stacked set of PRs; the rest
-is **specified but not yet built** — each item is scoped enough to pick up as its
-own PR. Ordered by leverage.
+review. Everything below the divider has now shipped; the one remaining slice is
+called out at the end.
 
-## Shipped / in review (the review-fix stack)
+## Shipped
 
-These landed as PRs stacked on `shell-foundation-lane`:
+**Review-fix stack** (merged into `main` via #19):
 
-| # | Change | Class |
-|---|---|---|
-| PR#19 | CSP `app.isPackaged` gate, `FILE_LINE_RE` tightening, FixDiff stale-async guard, template-validator narrowing, dead/stale bus events (`selectAsset`, `modelChanged{run}`), `nodeAnchor` null-for-module, `KnownViewId` trim + registry-miss warn | correctness |
-| PR#20 | One shared `lib/redact` (union of 6 diverged copies) | security dedup |
-| PR#21 | One shared `lib/severity` (order/rank/colour) | dedup |
-| PR#22 | Demo/acceptance panels out of the shipped registry | cleanup |
-| PR#23 | Bus producer/consumer contract test + `modelChanged` entity narrowing | structural |
-| PR#24 | `useBus` stable subscription (no per-render churn) | efficiency |
-| PR#25 | Feature reads routed through the model seam (CONTRACT rule 1) | architecture |
-| PR#26 | Collapse 6 duplicate fake-Request shims in `preset_engine` | dedup |
+| Change | Class |
+|---|---|
+| CSP `app.isPackaged` gate, `FILE_LINE_RE` tightening, FixDiff stale-async guard, template-validator narrowing, dead/stale bus events (`selectAsset`, `modelChanged{run}`), `nodeAnchor` null-for-module, `KnownViewId` trim + registry-miss warn | correctness |
+| One shared `lib/redact` (union of 6 diverged copies) | security dedup |
+| One shared `lib/severity` (order/rank/colour) | dedup |
+| Demo/acceptance panels out of the shipped registry | cleanup |
+| Bus producer/consumer contract test + `modelChanged` entity narrowing | structural |
+| `useBus` stable subscription (no per-render churn) | efficiency |
+| Feature reads routed through the model seam (CONTRACT rule 1) | architecture |
+| Collapse 6 duplicate fake-Request shims in `preset_engine` | dedup |
 
-## Specified next (each a standalone PR)
+**Roadmap items** (this pass):
+
+| Item | Change |
+|---|---|
+| 1 (slice) | SearchPanel runs the code scan per-engagement, not on every `modelChanged` |
+| 2 | Adversarial attestation-gate tests (`tests/test_safety_gate.py`) |
+| 3 | Cross-panel interaction + stale-async race tests (debugger, pivot) |
+| 4 | Packaged-build posture audit (`electron/main.cjs`): load/devtools + sidecar env gated on `app.isPackaged` |
+| 5 | CI with a supply-chain gate (`.github/workflows/ci.yml`: tsc/vitest/pytest + npm audit + pip-audit) |
+| 6 | Router-snapshot exit plan (`docs/ROUTER-OWNERSHIP.md`) + an enforced boundary test |
+
+## Remaining slice
+
+**`model.ts` getter memoization.** `getFinding`/`getEngagement` still re-fetch +
+linear-scan the full list per call. Findings can be memoized safely (invalidate on
+`modelChanged{finding}`), but the **engagement list has no mutation signal** —
+create/rename don't emit `modelChanged` — so a `getEngagement` cache would go
+stale. Do the findings-only memo, or add an engagement-list mutation event first;
+until then this stays deferred rather than shipped half-safe.
+
+## Original specification (retained for reference)
 
 ### 1. Close the remaining efficiency gaps in the model read-path
 The `useBus` churn is fixed (PR#24); two bigger items remain and were deferred
