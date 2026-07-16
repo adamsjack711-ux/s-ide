@@ -36,6 +36,7 @@ import "../features/pivot/Pivot";
 import "../features/debugger/EvidenceDebuggerPanel";
 import "../features/suggestions/Suggestions";
 import "../features/fixdiff/FixDiffPanel";
+import "../features/search/SearchPanel";
 
 import { getView } from "../shell/views";
 import { emit } from "../shell/bus";
@@ -124,6 +125,31 @@ describe("reactor: selectFinding → FixDiff loads the finding", () => {
     expect(m.getEvidenceChain).toHaveBeenCalledWith("f-7");
     act(() => root.unmount());
     container.remove();
+  });
+});
+
+describe("efficiency: SearchPanel code scan is engagement-scoped, not per-mutation", () => {
+  it("runs the code scan once per engagement, not on every modelChanged", async () => {
+    setActiveEngagementId("e-1");
+    m.getEngagement.mockResolvedValue({ id: "e-1", name: "T", scope: [], exclusions: [], notes: "", status: "active", type: "web-app", provenance: "lab", source_root: "/src", primary_target: "", created_at: "", updated_at: "" });
+    m.scanSource.mockResolvedValue([]);
+
+    const { container, root } = mount("search");
+    await flush();
+    // The 4000-file scan ran once for the engagement.
+    expect(m.scanSource).toHaveBeenCalledTimes(1);
+    const findingsCalls = m.listFindings.mock.calls.length;
+
+    // A finding mutation re-reads the mutable corpus…
+    await act(async () => { emit("modelChanged", { entity: "finding", id: "f-1", op: "update" }); });
+    await flush();
+    expect(m.listFindings.mock.calls.length).toBeGreaterThan(findingsCalls);
+    // …but must NOT re-run the code scan (source files didn't change).
+    expect(m.scanSource).toHaveBeenCalledTimes(1);
+
+    act(() => root.unmount());
+    container.remove();
+    setActiveEngagementId(null);
   });
 });
 
